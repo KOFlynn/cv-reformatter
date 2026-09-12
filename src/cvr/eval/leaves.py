@@ -57,8 +57,11 @@ _STRUCTURAL = frozenset(
 
 @dataclass(frozen=True, slots=True)
 class Leaves:
-    """Scalar fields hold one slot each (``DATE`` holds two: start, end), an
-    absent optional scalar being ``None``; list fields hold their items."""
+    """The leaves of one entry, or of the top level, grouped by field type.
+
+    Scalar fields hold one slot each (``DATE`` holds two: start, end), an
+    absent optional scalar being ``None``; list fields hold their items.
+    """
 
     scalars: dict[FieldType, tuple[str | None, ...]]
     lists: dict[FieldType, tuple[str, ...]]

@@ -46,6 +46,10 @@ EXPECTED = CVContent(
 TOTAL_LEAVES = 1 + 1 + 3 + 5 + 14 + 1 + 1
 
 
+def with_experience(*entries: ExperienceEntry) -> CVContent:
+    return EXPECTED.model_copy(update={"experience": list(entries)})
+
+
 def test_identical_content_scores_one_everywhere_and_aligns_every_entry_on_key():
     report = placement_accuracy(EXPECTED, EXPECTED)
     assert report.overall.precision == 1.0
@@ -56,10 +60,6 @@ def test_identical_content_scores_one_everywhere_and_aligns_every_entry_on_key()
         Alignment(Section.EDUCATION, expected=0, actual=0, aligned_by=AlignedBy.KEY),
     )
     assert report.unaligned_entries == {Section.EXPERIENCE: 0, Section.EDUCATION: 0}
-
-
-def with_experience(*entries: ExperienceEntry) -> CVContent:
-    return EXPECTED.model_copy(update={"experience": list(entries)})
 
 
 def test_one_wrong_employer_aligns_on_the_fallback_pass_and_costs_one_leaf():
@@ -235,6 +235,27 @@ def test_a_wrong_qualification_aligns_education_on_the_fallback_pass():
     )
     assert report.by_field[FieldType.QUALIFICATION] == Tally(
         hits=0, actual=1, expected=1
+    )
+
+
+def test_alignments_are_listed_by_section_then_expected_index_with_invented_entries_last():
+    # Expected: SENIOR, JUNIOR. Actual: an invented entry first, then JUNIOR
+    # misspelt, then SENIOR; the order of the report follows the expected
+    # side, whatever order the actual side came in.
+    invented = ExperienceEntry(
+        title="Intern", employer="Nowhere Ltd", bullets=["Made tea."]
+    )
+    misspelt = JUNIOR.model_copy(update={"employer": "Shamrock Dta"})
+    report = placement_accuracy(with_experience(invented, misspelt, SENIOR), EXPECTED)
+    assert report.alignments == (
+        Alignment(Section.EXPERIENCE, expected=0, actual=2, aligned_by=AlignedBy.KEY),
+        Alignment(
+            Section.EXPERIENCE, expected=1, actual=1, aligned_by=AlignedBy.FALLBACK
+        ),
+        Alignment(
+            Section.EXPERIENCE, expected=None, actual=0, aligned_by=AlignedBy.UNMATCHED
+        ),
+        Alignment(Section.EDUCATION, expected=0, actual=0, aligned_by=AlignedBy.KEY),
     )
 
 

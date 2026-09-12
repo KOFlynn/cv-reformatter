@@ -94,10 +94,7 @@ def test_a_corruption_moves_precision_and_recall_in_its_declared_direction(
         damaged = corruption.damage(fake_pipeline(candidate))
     except NotApplicable as why:
         pytest.skip(str(why))
-    overall = placement_accuracy(damaged.content, candidate.content).overall
-    for name, trend in (
-        ("precision", corruption.direction.precision),
-        ("recall", corruption.direction.recall),
-    ):
-        score = getattr(overall, name)
-        assert (score < 1.0) if trend == "down" else (score == 1.0), name
+    inputs = metric_inputs(candidate, damaged)
+    overall = placement_accuracy(inputs.output_content, candidate.content).overall
+    assert (overall.precision < 1.0) == (corruption.direction.precision == "down")
+    assert (overall.recall < 1.0) == (corruption.direction.recall == "down")

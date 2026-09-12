@@ -43,6 +43,8 @@ class Section(StrEnum):
 
 
 class AlignedBy(StrEnum):
+    """Which pass paired the entry; ``UNMATCHED`` means neither could."""
+
     KEY = "key"
     FALLBACK = "fallback"
     UNMATCHED = "unmatched"
@@ -63,6 +65,8 @@ class Alignment:
 
 
 def entry_key(entry: Entry) -> Key:
+    """The key-pass identity of an entry; the same entry reordered or with a
+    wrong title still has it, a misspelt employer does not."""
     if isinstance(entry, ExperienceEntry):
         start = (
             (None, None)
@@ -74,6 +78,7 @@ def entry_key(entry: Entry) -> Key:
 
 
 def section_entries(content: CVContent, section: Section) -> list[Entry]:
+    """The entries of one section, in the content's order."""
     return list(
         content.experience if section is Section.EXPERIENCE else content.education
     )

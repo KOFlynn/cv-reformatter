@@ -46,6 +46,12 @@ class OrderingReport:
 
 
 def ordering_report(actual: CVContent, expected: CVContent) -> OrderingReport:
+    """Per section, the matched entries' keys in expected and in actual order.
+
+    The expected content is trusted as already in output order (end
+    descending, then start descending, then source order), so this is a
+    sequence comparison; entries with equal dates are never interchangeable.
+    """
     sections: dict[Section, SectionOrdering] = {}
     for section, alignments in align(actual, expected).items():
         e_entries = section_entries(expected, section)
@@ -53,9 +59,9 @@ def ordering_report(actual: CVContent, expected: CVContent) -> OrderingReport:
         # in expected order already, and the actual order is the same pairs
         # sorted by where the actual side put them.
         pairs = [
-            (a.expected, a.actual)
-            for a in alignments
-            if a.expected is not None and a.actual is not None
+            (alignment.expected, alignment.actual)
+            for alignment in alignments
+            if alignment.expected is not None and alignment.actual is not None
         ]
         in_expected_order = tuple(entry_key(e_entries[e]) for e, _ in pairs)
         in_actual_order = tuple(

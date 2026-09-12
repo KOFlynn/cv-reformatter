@@ -9,8 +9,8 @@
 - [x] Two-pass alignment with the keys and cutoff as specified; `aligned_by` distinguishes key, fallback, unmatched
 - [x] Precision and recall reported separately, overall and per field type; structural vs tunable field types are distinguishable in the report
 - [x] `unaligned_entries` per section is a first-class number
-- [x] Ordering computed over matched entries only; unmatched count reported alongside; tiebreak end desc, start desc, source order is respected
-- [x] Hand-made cases: swapped title/employer aligns on fallback and costs one leaf; lost entry is unaligned; promotion (same employer, two starts) aligns on key; duplicate skill counted with multiplicity; concurrent roles with equal dates keep source order
+- [x] Ordering computed over matched entries only; unmatched count reported alongside; the expected order (end desc, start desc, source order) is compared as a sequence, so equal-dated entries are never interchangeable
+- [x] Hand-made cases: one wrong employer aligns on fallback and costs one leaf, a swapped title/employer aligns on fallback and costs two; lost entry is unaligned; promotion (same employer, two starts) aligns on key; duplicate skill counted with multiplicity; concurrent roles with equal dates keep source order
 - [x] Fake-pipeline corruption: reverse experience order fails ordering only, placement passes
 - [x] Direction assertions added to the ticket-04 corruptions: insert a word lowers precision only; drop a bullet lowers recall only; bullets to appendix lowers recall (see the comment: insert a word lowers both, by the maintainer's decision)
 
@@ -29,4 +29,7 @@ Decisions beyond the ticket text, each for the maintainer's eyes:
 - **Ordering's `correct` is a sequence comparison only.** A lost entry is reported as `unmatched` beside it (and as unaligned by placement), never folded into `correct`; the corruption check for ordering reads `correct`. A fallback-matched pair is labelled by the expected entry's key, so it sits in the sequence under the key it should have had.
 - **The expected content is trusted as already in output order**; the tiebreak (end desc, start desc, source order) is the Candidate author's and the Phase 1 transform's. The metric's part is to never treat equal-dated entries as interchangeable, which the concurrent-roles case proves.
 - **Reverse experience order** raises `NotApplicable` for a Candidate with fewer than two experience entries, as the bullet corruptions do for one with no bullets.
+- **Ordering cannot see a swap of two entries that share a key** (two undated roles at one employer): the key pass pairs them positionally, so the swap shows up as leaf misses in placement and the key sequence reads correct. Literal to the spec's "sequence of alignment keys"; noted so story 52 is not read as covering that shape.
 - No type checker is configured; `uv run --with mypy mypy src/cvr/eval` was run ad hoc and is clean, without adding a dependency.
+
+Two-axis review (standards, spec) found no hard violations. Follow-ups applied: a sorted-output case asserting the whole `alignments` tuple across key, fallback and unmatched entries; docstrings on the public functions and report types; `alignment` rather than `a` for an `Alignment`; the direction test reads `inputs.output_content` and asserts each trend explicitly; the two checkboxes above reworded to what the code does. Left as judgement calls: `unaligned_entries` (placement) beside `unmatched` (ordering) follows the spec's own two names; `section_entries` is re-derived by each consumer of `align`; the `isinstance` switch appears in `entry_key` and `entry_leaves`; `Key` is a bare tuple; the two test files carry their own small fixtures.

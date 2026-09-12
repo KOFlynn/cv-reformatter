@@ -53,8 +53,12 @@ class Tally:
 
 @dataclass(frozen=True, slots=True)
 class PlacementReport:
-    """``by_field`` carries every ``FieldType``; ``alignments`` every entry of
-    both contents (the ticket's ``aligned_by`` per entry)."""
+    """Where every leaf went, and how every entry was paired.
+
+    ``by_field`` carries a tally for every ``FieldType``, so a report is the
+    same shape whatever the content; ``alignments`` lists every entry of both
+    contents with the pass that aligned it (the spec's ``aligned_by``).
+    """
 
     by_field: dict[FieldType, Tally]
     alignments: tuple[Alignment, ...]
@@ -77,8 +81,9 @@ class PlacementReport:
         return {
             section: sum(
                 1
-                for a in self.alignments
-                if a.section is section and a.aligned_by is AlignedBy.UNMATCHED
+                for alignment in self.alignments
+                if alignment.section is section
+                and alignment.aligned_by is AlignedBy.UNMATCHED
             )
             for section in Section
         }
@@ -119,6 +124,13 @@ def _tallies(actual: Leaves, expected: Leaves) -> dict[FieldType, Tally]:
 
 
 def placement_accuracy(actual: CVContent, expected: CVContent) -> PlacementReport:
+    """Precision and recall of leaf placement, per field type, after alignment.
+
+    Top-level leaves compare content to content; entry leaves compare within
+    each aligned pair, and an entry no pass could pair has every leaf miss on
+    its own side. Structural field types are meant for a 100% gate and the
+    rest for a tunable threshold; the report keeps them summable apart.
+    """
     by_field = {field: Tally() for field in FieldType}
     for field, tally in _tallies(
         content_leaves(actual), content_leaves(expected)
@@ -144,5 +156,6 @@ def placement_accuracy(actual: CVContent, expected: CVContent) -> PlacementRepor
                 by_field[field] += tally
 
     return PlacementReport(
-        by_field, tuple(a for section in Section for a in alignments[section])
+        by_field,
+        tuple(alignment for section in Section for alignment in alignments[section]),
     )
