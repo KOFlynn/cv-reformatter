@@ -6,13 +6,17 @@ The manifest carries layout decisions only: candidate id, layout name, seed, gen
 
 **Blocked by:** 02 (Content model, Candidate model, loader, and c01)
 
-**Status:** ready-for-agent
+**Status:** in-review
 
-- [ ] Base Layout defines the interface and the shared rules: undated entries after dated ones in Candidate order; literal dates printed verbatim; manifest schema
-- [ ] Single-column Layout renders c01 per the style matrix's first column
-- [ ] `python -m cvr.golden.generate` writes document + manifest pairs sharing a stem for every Candidate × every registered Layout; no `random` anywhere
-- [ ] `all_text` returns text from body, tables, headers, footers and text boxes (via raw XML), in no particular order
-- [ ] Source coverage test: every content string and every PII value of each Candidate appears in `all_text` of each of its documents, both sides canonicalised
-- [ ] Regeneration test: generating twice gives identical `all_text` and identical manifest SHA; a failure names the file
-- [ ] Manifest test: contains no string from `CVContent` other than printed date strings
-- [ ] c01's single-column document and manifest are committed
+- [x] Base Layout defines the interface and the shared rules: undated entries after dated ones in Candidate order; literal dates printed verbatim; manifest schema
+- [x] Single-column Layout renders c01 per the style matrix's first column
+- [x] `python -m cvr.golden.generate` writes document + manifest pairs sharing a stem for every Candidate × every registered Layout; no `random` anywhere
+- [x] `all_text` returns text from body, tables, headers, footers and text boxes (via raw XML), in no particular order
+- [x] Source coverage test: every content string and every PII value of each Candidate appears in `all_text` of each of its documents, both sides canonicalised
+- [x] Regeneration test: generating twice gives identical `all_text` and identical manifest SHA; a failure names the file
+- [x] Manifest test: contains no string from `CVContent` other than printed date strings
+- [x] c01's single-column document and manifest are committed
+
+## Comments
+
+**2026-09-12 (Claude Code):** Implemented on branch `phase-0/03-single-column-layout`. `cvr.golden.layouts` holds the `Layout` base (`generate(candidate) -> Generated(document bytes, Manifest)`), which owns the shared rules: it plans each section (dated entries through the Layout's `scramble` hook, identity here; undated entries appended in Candidate order), prints every entry date (literal verbatim, `present` as the Layout's word, otherwise `format_date`), assembles the manifest, and packages the document byte-stably. `SingleColumnLayout` renders the plan per the style matrix's first column. `python -m cvr.golden.generate` writes every Candidate × every registered Layout to `fixtures/generated/`. Decisions beyond the ticket text: (1) documents are byte-stable, not just text-stable: fixed core properties, fixed zip timestamps, and a stored (uncompressed) zip so the SHA in the manifest is a real file hash that does not depend on the platform's zlib; (2) to keep a stored zip small, python-docx's default template is trimmed on save (Word-2010 `stylesWithEffects` duplicate, thumbnail, customXml, 98 unused table styles, latent styles: 833 KB down to 61 KB); (3) the manifest keys each printed date by section, Candidate-order entry index and start/end, so it names no employer or institution; (4) `Decisions.injected` accepts only characters from `cvr.text.CONFUSABLES`, so a later Layout cannot record a confusable the canonicaliser does not know; (5) the base refuses to finish if a Layout fails to place every unplaceable fragment; (6) an extra test asserts the committed pair matches a fresh generation, so a Layout change without a regenerate fails CI. Shared rules c01 cannot exercise (undated last, literal verbatim, Present, fragment placement) are tested on a Candidate derived from c01 in the test. Word is not installed on the dev machine; the document was opened and rendered headlessly with LibreOffice (bullets from list numbering, headings, title all correct) and reopens with python-docx.
