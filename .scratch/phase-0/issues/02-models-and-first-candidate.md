@@ -6,12 +6,16 @@
 
 **Blocked by:** 01 (Scaffold, CI, and canonicalise/tokenise)
 
-**Status:** ready-for-agent
+**Status:** in-review
 
-- [ ] `CVContent` and entry models are Pydantic v2 and importable without importing the golden-set package
-- [ ] `DateValue.expected` is required; a schema comment records that it is hand-written and never derived
-- [ ] `Candidate` has `id`, `content`, `pii`, `unplaceable`, `tags`; `PII` matches the spec shape with nested `personal` and no `photo`
-- [ ] Each `Tag` member has a one-line description and a predicate over a `Candidate` (or is marked as author-declared, for tags like `typo` that content alone cannot prove)
-- [ ] Loader reads every JSON file in the candidates directory and returns validated Candidates; unknown tag or missing field fails with the file name in the error
-- [ ] c01 committed: obviously fictional Irish name with an apostrophe or fada, profile, skills, ≥2 education entries, ≥3 experience entries with bullets, certifications, additional information, phone, email, address lines, one URL
-- [ ] Tests: c01 loads; unknown tag rejected; c01's tag predicates hold; every `expected` is `MM/YYYY`, `YYYY`, `Present`, or equals `literal`
+- [x] `CVContent` and entry models are Pydantic v2 and importable without importing the golden-set package
+- [x] `DateValue.expected` is required; a schema comment records that it is hand-written and never derived
+- [x] `Candidate` has `id`, `content`, `pii`, `unplaceable`, `tags`; `PII` matches the spec shape with nested `personal` and no `photo`
+- [x] Each `Tag` member has a one-line description and a predicate over a `Candidate` (or is marked as author-declared, for tags like `typo` that content alone cannot prove)
+- [x] Loader reads every JSON file in the candidates directory and returns validated Candidates; unknown tag or missing field fails with the file name in the error
+- [x] c01 committed: obviously fictional Irish name with an apostrophe or fada, profile, skills, ≥2 education entries, ≥3 experience entries with bullets, certifications, additional information, phone, email, address lines, one URL
+- [x] Tests: c01 loads; unknown tag rejected; c01's tag predicates hold; every `expected` is `MM/YYYY`, `YYYY`, `Present`, or equals `literal`
+
+## Comments
+
+**2026-09-12 (Claude Code):** Implemented on branch `phase-0/02-models-and-first-candidate`, PR #2 (https://github.com/KOFlynn/cv-reformatter/pull/2). `cvr.models` exports `StrictModel` (unknown keys rejected) as the shared base; `cvr.golden` holds `Candidate`, `PII`, `Personal`, `Referee`, `Tag` and the loader; c01 is `Sinéad O'Sampla` (fada and apostrophe). Two loader decisions beyond the ticket text, both fail-fast: a Candidate's `id` must equal its file stem, and an empty candidates directory is an error rather than an empty golden set. The `punctuation-in-name` predicate accepts any letter with a diacritic, not only a fada; its description says so. Two-axis review found no hard violations; follow-ups applied (shared `StrictModel`, story-18 "every tag carried by at least one Candidate" test added early, tag tests parametrised per file so one malformed Candidate fails only its own cases, glossary's "fixture" avoided in code). Note: the installed ruff (0.16) enables more than the `E4, E7, E9, F` the pyproject comment describes; not changed here.
