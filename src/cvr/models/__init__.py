@@ -10,23 +10,24 @@ Depends on pydantic only; never on ``cvr.golden`` or ``cvr.eval``.
 
 from pydantic import BaseModel, ConfigDict, Field
 
-__all__ = ["CVContent", "DateValue", "EducationEntry", "ExperienceEntry"]
+__all__ = ["CVContent", "DateValue", "EducationEntry", "ExperienceEntry", "StrictModel"]
 
 
-class _Strict(BaseModel):
-    # Unknown keys are rejected so a typo in a fixture key fails fast rather
-    # than silently dropping a field.
+class StrictModel(BaseModel):
+    """Base for every model loaded from JSON: unknown keys are rejected, so a
+    typo in a key fails fast rather than silently dropping a field."""
+
     model_config = ConfigDict(extra="forbid")
 
 
-class DateValue(_Strict):
+class DateValue(StrictModel):
     """An entry date: the structured parts plus the hand-written expected output.
 
-    ``expected`` is written by hand by the fixture author and is never derived
-    from ``month``/``year``/``present`` by code. If the date formatter had a
+    ``expected`` is written by hand by the Candidate's author and is never
+    derived from ``month``/``year``/``present`` by code. If the date formatter had a
     bug, deriving ``expected`` with it would let the bug cancel out on both
     sides of the comparison. There is no raw source string: the printed form
-    is a Layout decision recorded in the manifest, not part of the fixture.
+    is a Layout decision recorded in the manifest, not part of the ground truth.
     """
 
     month: int | None = Field(default=None, ge=1, le=12)
@@ -47,24 +48,24 @@ class DateValue(_Strict):
     )
 
 
-class ExperienceEntry(_Strict):
+class ExperienceEntry(StrictModel):
     title: str
     employer: str
     location: str | None = None
     start: DateValue | None = None
     end: DateValue | None = None
-    bullets: list[str] = []
+    bullets: list[str] = Field(default_factory=list)
 
 
-class EducationEntry(_Strict):
+class EducationEntry(StrictModel):
     institution: str
     qualification: str
     start: DateValue | None = None
     end: DateValue | None = None
-    details: list[str] = []
+    details: list[str] = Field(default_factory=list)
 
 
-class CVContent(_Strict):
+class CVContent(StrictModel):
     """Expected output content as plain strings, in expected output order.
 
     Absent sections are empty lists, never ``None``. Skills hold one item per
@@ -74,9 +75,9 @@ class CVContent(_Strict):
     """
 
     name: str
-    profile: list[str] = []
-    skills: list[str] = []
-    education: list[EducationEntry] = []
-    experience: list[ExperienceEntry] = []
-    certifications: list[str] = []
-    additional: list[str] = []
+    profile: list[str] = Field(default_factory=list)
+    skills: list[str] = Field(default_factory=list)
+    education: list[EducationEntry] = Field(default_factory=list)
+    experience: list[ExperienceEntry] = Field(default_factory=list)
+    certifications: list[str] = Field(default_factory=list)
+    additional: list[str] = Field(default_factory=list)

@@ -8,6 +8,9 @@ from cvr.golden.candidate import Candidate
 
 __all__ = ["CANDIDATES_DIR", "CandidateLoadError", "load_candidate", "load_candidates"]
 
+# Resolved from the source tree, so this assumes the editable install from the
+# repo root that development and CI use. Fine for Phase 0: the golden set is
+# excluded from the runtime image and nothing production-facing imports it.
 CANDIDATES_DIR = Path(__file__).resolve().parents[3] / "fixtures" / "candidates"
 
 

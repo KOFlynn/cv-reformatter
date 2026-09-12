@@ -48,7 +48,7 @@ def test_entries_hold_plain_strings_and_optional_dates():
     assert (course.start, course.end) == (None, None)
 
 
-def test_unknown_keys_are_rejected_so_fixture_typos_fail_fast():
+def test_unknown_keys_are_rejected_so_key_typos_fail_fast():
     with pytest.raises(ValidationError, match="bullet"):
         ExperienceEntry.model_validate(
             {"title": "Engineer", "employer": "Acme Ltd", "bullet": ["typo in key"]}
