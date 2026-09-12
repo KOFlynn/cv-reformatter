@@ -69,3 +69,13 @@ The golden set (brief §7) is fixture JSON treated as ground truth, not download
 - Local Python is 3.14, but **pin the container and CI to Python 3.12** unless every dependency is confirmed on a newer version.
 - Dependency management with `uv` (proposed in the brief; open to change).
 - Dev machine: Windows 11, Docker Desktop with WSL2.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live as markdown files under `.scratch/<feature-slug>/`. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.

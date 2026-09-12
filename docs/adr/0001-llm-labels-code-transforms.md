@@ -1,0 +1,5 @@
+# The LLM labels, code transforms
+
+The output must never contain a word the candidate didn't write. Rather than asking an LLM to rewrite the CV and testing afterwards that nothing changed, the LLM only returns assignments (`{field, block_id, quote}`) pointing at source text; a verifier checks each quote is an exact substring of its block, and the renderer uses the located source slice, never the LLM's string. Removals, date normalisation, ordering and rendering are deterministic code. Added text is therefore impossible by construction, and the eval's added-text gate exists only to catch bugs in our own code. Any change that routes an LLM-generated string into the rendered document is a defect.
+
+**Considered options:** LLM rewrites the document into the template (rejected: the invariant becomes a test rather than a property, and every prompt change risks it). LLM extracts to JSON and code renders (rejected: the JSON strings are still LLM output and can drift from the source by a character).
