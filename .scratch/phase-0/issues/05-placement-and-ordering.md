@@ -4,12 +4,29 @@
 
 **Blocked by:** 04 (Multiset metrics and the fake pipeline)
 
-**Status:** ready-for-agent
+**Status:** in-review
 
-- [ ] Two-pass alignment with the keys and cutoff as specified; `aligned_by` distinguishes key, fallback, unmatched
-- [ ] Precision and recall reported separately, overall and per field type; structural vs tunable field types are distinguishable in the report
-- [ ] `unaligned_entries` per section is a first-class number
-- [ ] Ordering computed over matched entries only; unmatched count reported alongside; tiebreak end desc, start desc, source order is respected
-- [ ] Hand-made cases: swapped title/employer aligns on fallback and costs one leaf; lost entry is unaligned; promotion (same employer, two starts) aligns on key; duplicate skill counted with multiplicity; concurrent roles with equal dates keep source order
-- [ ] Fake-pipeline corruption: reverse experience order fails ordering only, placement passes
-- [ ] Direction assertions added to the ticket-04 corruptions: insert a word lowers precision only; drop a bullet lowers recall only; bullets to appendix lowers recall
+- [x] Two-pass alignment with the keys and cutoff as specified; `aligned_by` distinguishes key, fallback, unmatched
+- [x] Precision and recall reported separately, overall and per field type; structural vs tunable field types are distinguishable in the report
+- [x] `unaligned_entries` per section is a first-class number
+- [x] Ordering computed over matched entries only; unmatched count reported alongside; tiebreak end desc, start desc, source order is respected
+- [x] Hand-made cases: swapped title/employer aligns on fallback and costs one leaf; lost entry is unaligned; promotion (same employer, two starts) aligns on key; duplicate skill counted with multiplicity; concurrent roles with equal dates keep source order
+- [x] Fake-pipeline corruption: reverse experience order fails ordering only, placement passes
+- [x] Direction assertions added to the ticket-04 corruptions: insert a word lowers precision only; drop a bullet lowers recall only; bullets to appendix lowers recall (see the comment: insert a word lowers both, by the maintainer's decision)
+
+## Comments
+
+**2026-09-12 (Claude Code):** Implemented on branch `phase-0/05-placement-and-ordering`. `cvr.eval` gains `leaves.py` (`FieldType` with its `structural` flag; `Leaves`, `entry_leaves`, `content_leaves`: one decomposition of an entry or the top-level content into scalar slots and list items by field, read by both metrics), `alignment.py` (`Section`, `AlignedBy`, `Alignment`, `align`: the key pass, then greedy best Jaccard over canonicalised leaves at an inclusive cutoff of 0.5, ties to the earlier expected then actual index), `placement.py` (`Tally` with `precision`/`recall`, `PlacementReport` with `by_field` over every `FieldType`, `overall`/`structural`/`tunable` sums, `unaligned_entries` per section and `alignments` per entry) and `ordering.py` (`SectionOrdering` with the matched keys in expected and actual order plus `unmatched`; `OrderingReport.correct`). The harness gains `output_content` on `MetricInputs`, `placement` and `ordering` columns in `CHECKS` (placed in every row), the "reverse experience order" row, and a `Direction` per row asserted against row 0's 1.0.
+
+Decisions beyond the ticket text, each for the maintainer's eyes:
+
+- **Insert a word lowers recall as well as precision.** Under the spec's own definition (list leaves align by canonicalised text with multiplicity) an altered bullet is a different leaf on both sides. The spec's direction column and this ticket's last checkbox say "precision only", which would need token-level scoring inside matched entries. Raised before building; the maintainer chose whole-leaf scoring, so the row declares `Direction(precision="down", recall="down")` with a comment, and the spec's table is the thing to amend.
+- **A swapped title and employer costs two leaves, not one**: title and employer each sit in the wrong field. The ticket's "one miss" holds for the story-50 case (one wrong employer), which is tested as such alongside the swap.
+- **Field types.** Structural: name, title, employer, location, date (start and end as one type), institution, qualification. Tunable: profile, skill, bullet, detail, certification, additional. Location is not in the spec's structural list but is an entry-identifying scalar like employer, so it gates at 100%; profile, certifications and additional are not in the spec's tunable list but are free-text lists like bullets. Either can be moved by editing `_STRUCTURAL` in `leaves.py`.
+- **Scalars canonicalise too.** "Compare directly" is read as field-to-field (title against title), with both sides through `canonicalise` like every other metric; raw fidelity is `punctuation_fidelity`'s job.
+- **Optional scalars on one side only** (a location the pipeline dropped, or invented) miss on that side alone; a date is a scalar slot like any other. Precision or recall with a zero denominator is 1.0, so an empty section never fails a report.
+- **`unaligned_entries` counts both sides**: an expected entry nobody placed and an actual entry nobody expected are both unaligned; `alignments` says which is which.
+- **Ordering's `correct` is a sequence comparison only.** A lost entry is reported as `unmatched` beside it (and as unaligned by placement), never folded into `correct`; the corruption check for ordering reads `correct`. A fallback-matched pair is labelled by the expected entry's key, so it sits in the sequence under the key it should have had.
+- **The expected content is trusted as already in output order**; the tiebreak (end desc, start desc, source order) is the Candidate author's and the Phase 1 transform's. The metric's part is to never treat equal-dated entries as interchangeable, which the concurrent-roles case proves.
+- **Reverse experience order** raises `NotApplicable` for a Candidate with fewer than two experience entries, as the bullet corruptions do for one with no bullets.
+- No type checker is configured; `uv run --with mypy mypy src/cvr/eval` was run ad hoc and is clean, without adding a dependency.
