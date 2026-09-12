@@ -6,7 +6,7 @@
 
 **Blocked by:** 01 (Scaffold, CI, and canonicalise/tokenise)
 
-**Status:** in-review
+**Status:** done
 
 - [x] `CVContent` and entry models are Pydantic v2 and importable without importing the golden-set package
 - [x] `DateValue.expected` is required; a schema comment records that it is hand-written and never derived

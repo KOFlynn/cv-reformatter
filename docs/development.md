@@ -30,6 +30,17 @@ uv run pytest -x                 # stop at the first failure
 
 No test calls an LLM or opens a `.docx` in a metric; see `CLAUDE.md` for the working rules.
 
+`tests/golden/docx_text.py` is a test-side helper, not a package: `tests/golden/test_*.py` import it as `from docx_text import all_text`, which works because pytest's default import mode puts each test file's directory on `sys.path`.
+
+## Golden set
+
+```
+uv run python -m cvr.golden.generate             # every Candidate through every Layout into fixtures/generated/
+uv run python -m cvr.golden.generate --out DIR   # somewhere else, for a look without touching the committed pairs
+```
+
+Each pair is `<candidate-id>__<layout-name>.docx` plus `.manifest.json`. Output is byte-stable, so rerunning over unchanged code rewrites identical files and `git status` stays clean. After any change to a Layout or a Candidate, regenerate and commit the result: `tests/golden/test_generate.py` fails if the committed pairs differ from a fresh generation.
+
 ## Lint and format
 
 ```
@@ -65,6 +76,7 @@ uv run ruff format . && uv run ruff check . && uv run pytest
 |---|---|
 | Package | `src/cvr/` (`text`, `models`, `eval`, `golden`) |
 | Tests | `tests/`, mirroring the package (`tests/text/`, `tests/eval/`, ...) |
+| Golden set | `fixtures/candidates/*.json` (ground truth), `fixtures/generated/` (documents and manifests, committed) |
 | Specs and tickets | `.scratch/<feature>/spec.md`, `.scratch/<feature>/issues/NN-*.md` |
 | Glossary | `CONTEXT.md` |
 | Decisions | `docs/adr/` |
