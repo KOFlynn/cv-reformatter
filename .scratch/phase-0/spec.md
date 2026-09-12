@@ -210,7 +210,7 @@ Corruptions, each with a declared blast radius:
 
 | Corruption | Must fail | Must pass | Direction |
 |---|---|---|---|
-| insert a word into a bullet | added, provenance, placement | dropped, pii, image, ordering, appendix, punctuation | precision down, recall unchanged |
+| insert a word into a bullet | added, provenance, placement | dropped, pii, image, ordering, appendix, punctuation | precision down, recall down |
 | drop a bullet | dropped, placement | added, provenance, pii, image, ordering, appendix, punctuation | recall down, precision unchanged |
 | re-emit the source email in the header | pii | everything else | — |
 | reverse experience order | ordering | everything else | — |
@@ -218,6 +218,8 @@ Corruptions, each with a declared blast radius:
 | move one job's bullets into the appendix | appendix, placement | added, dropped, provenance, pii, image, ordering | recall down |
 | leave the photo in | image | everything else | — |
 | straighten a curly apostrophe | punctuation | everything else, provenance included | — |
+
+Direction for placement follows from whole-leaf scoring: a bullet with a word inserted matches no expected leaf and its expected leaf matches no actual leaf, so one error is a false positive and a false negative at once. "Precision only" would need token-level scoring inside a matched leaf, which nothing here defines. (Corrected during ticket 05; the original row said recall unchanged.)
 
 ### Scaffolding
 

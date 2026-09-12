@@ -5,17 +5,36 @@ Columns are ``CHECKS`` (one per metric; a check is true when the metric
 passes) and rows are ``CORRUPTIONS``. Later tickets add a metric by adding a
 check and placing it in every row's ``fails`` or ``passes``, and add a
 corruption by adding a row; the test that reads this table does not change.
+
+A row may also declare a ``Direction`` for placement: which of precision and
+recall it must lower and which it must leave alone, so a metric failing for
+the wrong reason is caught.
 """
 
 from collections.abc import Callable
 from dataclasses import dataclass, replace
+from typing import Literal
 
 from fake_pipeline import MetricInputs, PipelineResult, unplaceable_share
 
-from cvr.eval import added_tokens, appendix_rate, dropped_tokens
+from cvr.eval import (
+    PlacementReport,
+    added_tokens,
+    appendix_rate,
+    dropped_tokens,
+    ordering_report,
+    placement_accuracy,
+)
 from cvr.golden import Candidate
 
-__all__ = ["CHECKS", "CORRUPTIONS", "Corruption", "NotApplicable", "failed_metrics"]
+__all__ = [
+    "CHECKS",
+    "CORRUPTIONS",
+    "Corruption",
+    "Direction",
+    "NotApplicable",
+    "failed_metrics",
+]
 
 Check = Callable[[Candidate, MetricInputs], bool]
 Damage = Callable[[PipelineResult], PipelineResult]
@@ -37,7 +56,20 @@ CHECKS: dict[str, Check] = {
         appendix_rate(i.appendix_tokens, i.source_content_tokens)
         == unplaceable_share(c)
     ),
+    # No threshold exists yet either: every leaf placed, none misplaced, no
+    # entry unaligned on either side.
+    "placement": lambda c, i: _perfect(placement_accuracy(i.output_content, c.content)),
+    "ordering": lambda c, i: ordering_report(i.output_content, c.content).correct,
 }
+
+
+def _perfect(report: PlacementReport) -> bool:
+    overall = report.overall
+    return (
+        overall.precision == 1.0
+        and overall.recall == 1.0
+        and not any(report.unaligned_entries.values())
+    )
 
 
 def failed_metrics(candidate: Candidate, inputs: MetricInputs) -> set[str]:
@@ -48,12 +80,24 @@ class NotApplicable(Exception):
     """The Candidate lacks what this corruption damages (a job with bullets)."""
 
 
+Trend = Literal["down", "unchanged"]
+
+
+@dataclass(frozen=True)
+class Direction:
+    """How a corruption must move placement precision and recall from row 0."""
+
+    precision: Trend
+    recall: Trend
+
+
 @dataclass(frozen=True)
 class Corruption:
     name: str
     damage: Damage
     fails: frozenset[str]
     passes: frozenset[str]
+    direction: Direction | None = None
 
 
 def _first_job_with_bullets(result: PipelineResult) -> int:
@@ -92,19 +136,59 @@ def bullets_to_appendix(result: PipelineResult) -> PipelineResult:
     return replace(damaged, unplaced=[*result.unplaced, *bullets])
 
 
-def _row(name: str, damage: Damage, fails: str, passes: str) -> Corruption:
-    return Corruption(name, damage, frozenset(fails.split()), frozenset(passes.split()))
+def reverse_experience(result: PipelineResult) -> PipelineResult:
+    if len(result.content.experience) < 2:
+        raise NotApplicable("fewer than two experience entries")
+    content = result.content.model_copy(
+        update={"experience": list(reversed(result.content.experience))}
+    )
+    return replace(result, content=content)
+
+
+def _row(
+    name: str,
+    damage: Damage,
+    fails: str,
+    passes: str,
+    direction: Direction | None = None,
+) -> Corruption:
+    return Corruption(
+        name, damage, frozenset(fails.split()), frozenset(passes.split()), direction
+    )
 
 
 # Both columns are written out in full, as in the spec's table, so that a new
 # metric has to be placed in every row on purpose.
 CORRUPTIONS: list[Corruption] = [
-    _row("insert a word into a bullet", insert_a_word, "added", "dropped appendix"),
-    _row("drop a bullet", drop_a_bullet, "dropped", "added appendix"),
+    # A bullet with a word inserted is a different leaf: the placed one is
+    # wrong (precision) and the wanted one is not found (recall). One error,
+    # a false positive and a false negative at once, as whole-leaf scoring
+    # always behaves; "precision only" would need token-level scoring.
+    _row(
+        "insert a word into a bullet",
+        insert_a_word,
+        "added placement",
+        "dropped appendix ordering",
+        Direction(precision="down", recall="down"),
+    ),
+    _row(
+        "drop a bullet",
+        drop_a_bullet,
+        "dropped placement",
+        "added appendix ordering",
+        Direction(precision="unchanged", recall="down"),
+    ),
     _row(
         "move one job's bullets into the appendix",
         bullets_to_appendix,
-        "appendix",
-        "added dropped",
+        "appendix placement",
+        "added dropped ordering",
+        Direction(precision="unchanged", recall="down"),
+    ),
+    _row(
+        "reverse experience order",
+        reverse_experience,
+        "ordering",
+        "added dropped appendix placement",
     ),
 ]
