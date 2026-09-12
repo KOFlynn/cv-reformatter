@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 (Content model, Candidate model, loader, and c01)
 
-**Status:** in-review
+**Status:** done
 
 - [x] `Finding` carries what, count and where; every metric returns findings sorted
 - [x] `added_tokens(source, output, template, date_map)`: output minus source, template and mapped dates as a multiset
