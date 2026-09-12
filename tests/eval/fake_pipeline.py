@@ -111,7 +111,11 @@ def metric_inputs(candidate: Candidate, result: PipelineResult) -> MetricInputs:
 
 def unplaceable_share(candidate: Candidate) -> float:
     """The appendix rate an honest pipeline must report: the Candidate's
-    unplaceable tokens over its content-plus-unplaceable tokens."""
+    unplaceable tokens over its content-plus-unplaceable tokens.
+
+    Computed from the Candidate alone, never from ``MetricInputs`` or through
+    ``appendix_rate``, so the oracle cannot drift with the thing it checks.
+    """
     unplaceable = len(_tokens(candidate.unplaceable))
     content = len(_tokens(leaves(candidate.content))) + unplaceable
     return unplaceable / content if content else 0.0

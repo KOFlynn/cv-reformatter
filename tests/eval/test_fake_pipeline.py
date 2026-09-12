@@ -15,6 +15,8 @@ from cvr.golden import CANDIDATES_DIR, load_candidate
 # Parametrised over files rather than loaded Candidates so that one malformed
 # file fails its own cases, not the collection of the whole module.
 CANDIDATE_FILES = sorted(CANDIDATES_DIR.glob("*.json"))
+# An empty directory would otherwise parametrise to nothing and pass silently.
+assert CANDIDATE_FILES, f"no Candidate files in {CANDIDATES_DIR}"
 candidates = pytest.mark.parametrize("path", CANDIDATE_FILES, ids=lambda p: p.stem)
 corruptions = pytest.mark.parametrize("corruption", CORRUPTIONS, ids=lambda c: c.name)
 

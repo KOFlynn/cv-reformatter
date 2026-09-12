@@ -18,6 +18,7 @@ from cvr.golden import Candidate
 __all__ = ["CHECKS", "CORRUPTIONS", "Corruption", "NotApplicable", "failed_metrics"]
 
 Check = Callable[[Candidate, MetricInputs], bool]
+Damage = Callable[[PipelineResult], PipelineResult]
 
 CHECKS: dict[str, Check] = {
     "added": lambda _, i: (
@@ -50,7 +51,7 @@ class NotApplicable(Exception):
 @dataclass(frozen=True)
 class Corruption:
     name: str
-    damage: Callable[[PipelineResult], PipelineResult]
+    damage: Damage
     fails: frozenset[str]
     passes: frozenset[str]
 
@@ -91,7 +92,7 @@ def bullets_to_appendix(result: PipelineResult) -> PipelineResult:
     return replace(damaged, unplaced=[*result.unplaced, *bullets])
 
 
-def _row(name: str, damage: Callable, fails: str, passes: str) -> Corruption:
+def _row(name: str, damage: Damage, fails: str, passes: str) -> Corruption:
     return Corruption(name, damage, frozenset(fails.split()), frozenset(passes.split()))
 
 

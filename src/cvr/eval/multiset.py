@@ -16,10 +16,9 @@ __all__ = ["added_tokens", "dropped_tokens"]
 
 
 def _findings(excess: Counter[str], where: str) -> list[Finding]:
+    # Counter subtraction has already dropped everything at zero or below.
     return sorted(
-        Finding(what=token, count=count, where=where)
-        for token, count in excess.items()
-        if count > 0
+        Finding(what=token, count=count, where=where) for token, count in excess.items()
     )
 
 
