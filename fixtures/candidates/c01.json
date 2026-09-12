@@ -1,0 +1,105 @@
+{
+  "id": "c01",
+  "content": {
+    "name": "Sinéad O'Sampla",
+    "profile": [
+      "Software engineer with eight years of experience building data platforms and internal tooling for Irish and UK clients. Comfortable owning a service from design through to production support, and happiest when a messy problem turns into a small, well-tested system."
+    ],
+    "skills": [
+      "Python",
+      "SQL",
+      "PostgreSQL",
+      "Apache Airflow",
+      "Docker",
+      "Kubernetes",
+      "Terraform",
+      "AWS (Lambda, S3, ECS)",
+      "Git"
+    ],
+    "education": [
+      {
+        "institution": "University College Cork",
+        "qualification": "MSc in Data Science and Analytics",
+        "start": { "month": 9, "year": 2015, "expected": "09/2015" },
+        "end": { "month": 8, "year": 2016, "expected": "08/2016" },
+        "details": [
+          "Dissertation: forecasting bus arrival times from open transport data"
+        ]
+      },
+      {
+        "institution": "Trinity College Dublin",
+        "qualification": "BA (Mod) in Computer Science",
+        "start": { "month": 9, "year": 2011, "expected": "09/2011" },
+        "end": { "month": 6, "year": 2015, "expected": "06/2015" },
+        "details": [
+          "Second Class Honours, Grade I"
+        ]
+      }
+    ],
+    "experience": [
+      {
+        "title": "Senior Software Engineer",
+        "employer": "Liffey Analytics Ltd",
+        "location": "Dublin",
+        "start": { "month": 3, "year": 2022, "expected": "03/2022" },
+        "end": { "month": 7, "year": 2026, "expected": "07/2026" },
+        "bullets": [
+          "Led the migration of the reporting platform from nightly batch jobs to an Airflow-orchestrated pipeline, cutting report latency from twelve hours to under one.",
+          "Designed and built a self-service data catalogue used by forty analysts across three client teams.",
+          "Introduced Terraform for all AWS infrastructure and reviewed every module change for the team.",
+          "Mentored two graduate engineers through their first year, including weekly pairing sessions."
+        ]
+      },
+      {
+        "title": "Software Engineer",
+        "employer": "Shamrock Data Systems",
+        "location": "Cork",
+        "start": { "month": 10, "year": 2018, "expected": "10/2018" },
+        "end": { "month": 2, "year": 2022, "expected": "02/2022" },
+        "bullets": [
+          "Built and maintained ETL jobs in Python and SQL feeding a PostgreSQL warehouse for retail clients.",
+          "Containerised the legacy ingestion service and moved it to Kubernetes with zero downtime.",
+          "Wrote the on-call runbook that halved the mean time to recovery for ingestion failures."
+        ]
+      },
+      {
+        "title": "Graduate Developer",
+        "employer": "Bandon Bay Technologies",
+        "location": "Cork",
+        "start": { "month": 9, "year": 2016, "expected": "09/2016" },
+        "end": { "month": 9, "year": 2018, "expected": "09/2018" },
+        "bullets": [
+          "Developed internal web tools in Python for the operations team.",
+          "Automated the weekly billing reconciliation, replacing a manual spreadsheet process.",
+          "Took part in the graduate rotation across support, QA and development."
+        ]
+      }
+    ],
+    "certifications": [
+      "AWS Certified Solutions Architect - Associate",
+      "Certified Kubernetes Application Developer (CKAD)"
+    ],
+    "additional": [
+      "Languages: English (native), Irish (fluent), French (conversational)",
+      "Interests: sea swimming, hill walking, amateur radio"
+    ]
+  },
+  "pii": {
+    "phone": "+353 87 555 0123",
+    "email": "sinead.osampla@example.com",
+    "address": [
+      "14 Sample Terrace",
+      "Rathmines",
+      "Dublin 6",
+      "D06 X0X0"
+    ],
+    "urls": [
+      "https://www.linkedin.com/in/sinead-osampla-fictional"
+    ],
+    "dob": null,
+    "personal": { "nationality": null, "marital_status": null },
+    "referees": []
+  },
+  "unplaceable": [],
+  "tags": ["punctuation-in-name"]
+}
