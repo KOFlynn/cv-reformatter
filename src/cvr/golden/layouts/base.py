@@ -309,6 +309,9 @@ def _stable_bytes(document: DocumentType, title: str) -> bytes:
         for info in source.infolist():
             entry = zipfile.ZipInfo(info.filename, date_time=_ZIP_DATE_TIME)
             entry.compress_type = zipfile.ZIP_STORED
-            entry.external_attr = info.external_attr
+            # ZipInfo defaults these from the host platform; pin every header
+            # byte so Windows and Linux write the same file.
+            entry.create_system = 3
+            entry.external_attr = 0o600 << 16
             target.writestr(entry, source.read(info))
     return stable.getvalue()
