@@ -12,60 +12,14 @@ much was found); the two are reported separately and never combined.
 from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
-from enum import StrEnum
+from itertools import zip_longest
 
-from cvr.eval.alignment import (
-    AlignedBy,
-    Alignment,
-    Entry,
-    Section,
-    align,
-    section_entries,
-)
-from cvr.models import CVContent, DateValue
+from cvr.eval.alignment import AlignedBy, Alignment, Section, align, section_entries
+from cvr.eval.leaves import FieldType, Leaves, content_leaves, entry_leaves
+from cvr.models import CVContent
 from cvr.text import canonicalise
 
-__all__ = ["FieldType", "PlacementReport", "Tally", "placement_accuracy"]
-
-
-class FieldType(StrEnum):
-    """Every kind of leaf, structural ones first.
-
-    Structural leaves identify an entry or the candidate and gate at 100%;
-    the rest are free text on the tunable threshold. Start and end dates are
-    one type: a date is a date wherever it sits.
-    """
-
-    NAME = "name"
-    TITLE = "title"
-    EMPLOYER = "employer"
-    LOCATION = "location"
-    DATE = "date"
-    INSTITUTION = "institution"
-    QUALIFICATION = "qualification"
-    PROFILE = "profile"
-    SKILL = "skill"
-    BULLET = "bullet"
-    DETAIL = "detail"
-    CERTIFICATION = "certification"
-    ADDITIONAL = "additional"
-
-    @property
-    def structural(self) -> bool:
-        return self in _STRUCTURAL
-
-
-_STRUCTURAL = frozenset(
-    {
-        FieldType.NAME,
-        FieldType.TITLE,
-        FieldType.EMPLOYER,
-        FieldType.LOCATION,
-        FieldType.DATE,
-        FieldType.INSTITUTION,
-        FieldType.QUALIFICATION,
-    }
-)
+__all__ = ["PlacementReport", "Tally", "placement_accuracy"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,10 +84,6 @@ class PlacementReport:
         }
 
 
-def _canon(texts: Iterable[str]) -> Counter[str]:
-    return Counter(canonicalise(text) for text in texts)
-
-
 def _scalar(actual: str | None, expected: str | None) -> Tally:
     # An optional scalar present on one side only is a miss on that side alone.
     if actual is None and expected is None:
@@ -143,68 +93,54 @@ def _scalar(actual: str | None, expected: str | None) -> Tally:
     return Tally(int(canonicalise(actual) == canonicalise(expected)), 1, 1)
 
 
-def _date(actual: DateValue | None, expected: DateValue | None) -> Tally:
-    return _scalar(
-        None if actual is None else actual.expected,
-        None if expected is None else expected.expected,
-    )
-
-
 def _list(actual: Iterable[str], expected: Iterable[str]) -> Tally:
-    a, e = _canon(actual), _canon(expected)
+    a = Counter(canonicalise(text) for text in actual)
+    e = Counter(canonicalise(text) for text in expected)
     return Tally(sum((a & e).values()), sum(a.values()), sum(e.values()))
 
 
-def _get(entry: object | None, name: str, absent: object = None) -> object:
-    return absent if entry is None else getattr(entry, name)
+# The missing partner of an unmatched entry: no slots and no items, so every
+# leaf on the other side misses on its own side only.
+_NOTHING = Leaves({}, {})
 
 
-def _entry_leaves(
-    section: Section, actual: Entry | None, expected: Entry | None
-) -> dict[FieldType, Tally]:
-    """Field-by-field tallies for a pair. An unmatched entry is compared
-    against nothing: every scalar absent, every list empty, so each of its
-    leaves misses on its own side only."""
-    a, e = actual, expected
-    dates = _date(_get(a, "start"), _get(e, "start")) + _date(
-        _get(a, "end"), _get(e, "end")
-    )
-    if section is Section.EXPERIENCE:
-        return {
-            FieldType.TITLE: _scalar(_get(a, "title"), _get(e, "title")),
-            FieldType.EMPLOYER: _scalar(_get(a, "employer"), _get(e, "employer")),
-            FieldType.LOCATION: _scalar(_get(a, "location"), _get(e, "location")),
-            FieldType.DATE: dates,
-            FieldType.BULLET: _list(_get(a, "bullets", []), _get(e, "bullets", [])),
-        }
-    return {
-        FieldType.INSTITUTION: _scalar(_get(a, "institution"), _get(e, "institution")),
-        FieldType.QUALIFICATION: _scalar(
-            _get(a, "qualification"), _get(e, "qualification")
-        ),
-        FieldType.DATE: dates,
-        FieldType.DETAIL: _list(_get(a, "details", []), _get(e, "details", [])),
-    }
+def _tallies(actual: Leaves, expected: Leaves) -> dict[FieldType, Tally]:
+    tallies: dict[FieldType, Tally] = {}
+    for field in actual.scalars.keys() | expected.scalars.keys():
+        slots = zip_longest(
+            actual.scalars.get(field, ()), expected.scalars.get(field, ())
+        )
+        tallies[field] = sum((_scalar(a, e) for a, e in slots), Tally())
+    for field in actual.lists.keys() | expected.lists.keys():
+        tallies[field] = _list(
+            actual.lists.get(field, ()), expected.lists.get(field, ())
+        )
+    return tallies
 
 
 def placement_accuracy(actual: CVContent, expected: CVContent) -> PlacementReport:
     by_field = {field: Tally() for field in FieldType}
-    by_field[FieldType.NAME] = _scalar(actual.name, expected.name)
-    by_field[FieldType.PROFILE] = _list(actual.profile, expected.profile)
-    by_field[FieldType.SKILL] = _list(actual.skills, expected.skills)
-    by_field[FieldType.CERTIFICATION] = _list(
-        actual.certifications, expected.certifications
-    )
-    by_field[FieldType.ADDITIONAL] = _list(actual.additional, expected.additional)
+    for field, tally in _tallies(
+        content_leaves(actual), content_leaves(expected)
+    ).items():
+        by_field[field] += tally
 
     alignments = align(actual, expected)
     for section, section_alignments in alignments.items():
         a_entries = section_entries(actual, section)
         e_entries = section_entries(expected, section)
         for alignment in section_alignments:
-            a = None if alignment.actual is None else a_entries[alignment.actual]
-            e = None if alignment.expected is None else e_entries[alignment.expected]
-            for field, tally in _entry_leaves(section, a, e).items():
+            a = (
+                _NOTHING
+                if alignment.actual is None
+                else entry_leaves(a_entries[alignment.actual])
+            )
+            e = (
+                _NOTHING
+                if alignment.expected is None
+                else entry_leaves(e_entries[alignment.expected])
+            )
+            for field, tally in _tallies(a, e).items():
                 by_field[field] += tally
 
     return PlacementReport(

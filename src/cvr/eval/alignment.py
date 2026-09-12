@@ -13,18 +13,17 @@ key. The two are never conflated.
 from dataclasses import dataclass
 from enum import StrEnum
 
-from cvr.models import CVContent, EducationEntry, ExperienceEntry
+from cvr.eval.leaves import Entry, entry_leaves
+from cvr.models import CVContent, ExperienceEntry
 from cvr.text import canonicalise
 
 __all__ = [
     "AlignedBy",
     "Alignment",
-    "Entry",
     "Key",
     "Section",
     "align",
     "entry_key",
-    "entry_leaves",
     "section_entries",
 ]
 
@@ -32,7 +31,6 @@ __all__ = [
 # errors. Half: the point at which more of the entry is wrong than right.
 FALLBACK_CUTOFF = 0.5
 
-Entry = ExperienceEntry | EducationEntry
 # Experience: (employer, (year, month)). Education: (institution, qualification).
 Key = tuple[str, tuple[int | None, int | None]] | tuple[str, str]
 
@@ -75,18 +73,6 @@ def entry_key(entry: Entry) -> Key:
     return (canonicalise(entry.institution), canonicalise(entry.qualification))
 
 
-def entry_leaves(entry: Entry) -> set[str]:
-    """The canonicalised leaves an entry is made of, for overlap scoring."""
-    dates = [d.expected for d in (entry.start, entry.end) if d is not None]
-    if isinstance(entry, ExperienceEntry):
-        scalars = [entry.title, entry.employer, entry.location, *dates]
-        items = entry.bullets
-    else:
-        scalars = [entry.institution, entry.qualification, *dates]
-        items = entry.details
-    return {canonicalise(leaf) for leaf in [*scalars, *items] if leaf is not None}
-
-
 def section_entries(content: CVContent, section: Section) -> list[Entry]:
     return list(
         content.experience if section is Section.EXPERIENCE else content.education
@@ -110,6 +96,10 @@ def _key_pass(
     return pairs
 
 
+def _overlap_leaves(entry: Entry) -> set[str]:
+    return {canonicalise(leaf) for leaf in entry_leaves(entry).present()}
+
+
 def _jaccard(a: set[str], b: set[str]) -> float:
     union = len(a | b)
     return len(a & b) / union if union else 0.0
@@ -126,8 +116,8 @@ def _fallback_pass(
     # entry, then the earlier actual one, so the result is deterministic.
     e_left = [i for i in range(len(expected)) if i not in {p.expected for p in pairs}]
     a_left = [i for i in range(len(actual)) if i not in {p.actual for p in pairs}]
-    e_leaves = {i: entry_leaves(expected[i]) for i in e_left}
-    a_leaves = {i: entry_leaves(actual[i]) for i in a_left}
+    e_leaves = {i: _overlap_leaves(expected[i]) for i in e_left}
+    a_leaves = {i: _overlap_leaves(actual[i]) for i in a_left}
     found: list[Alignment] = []
     while e_left and a_left:
         score, e_index, a_index = max(

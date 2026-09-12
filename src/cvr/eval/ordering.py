@@ -9,14 +9,7 @@ over two of three entries is reported as exactly that, never as green.
 
 from dataclasses import dataclass
 
-from cvr.eval.alignment import (
-    AlignedBy,
-    Key,
-    Section,
-    align,
-    entry_key,
-    section_entries,
-)
+from cvr.eval.alignment import Key, Section, align, entry_key, section_entries
 from cvr.models import CVContent
 
 __all__ = ["OrderingReport", "SectionOrdering", "ordering_report"]
@@ -56,13 +49,17 @@ def ordering_report(actual: CVContent, expected: CVContent) -> OrderingReport:
     sections: dict[Section, SectionOrdering] = {}
     for section, alignments in align(actual, expected).items():
         e_entries = section_entries(expected, section)
-        pairs = [a for a in alignments if a.aligned_by is not AlignedBy.UNMATCHED]
-        # ``align`` lists pairs in expected order already; the actual order is
-        # the same pairs sorted by where the actual side put them.
-        in_expected_order = tuple(entry_key(e_entries[p.expected]) for p in pairs)
+        # (expected index, actual index) of every pair; ``align`` lists pairs
+        # in expected order already, and the actual order is the same pairs
+        # sorted by where the actual side put them.
+        pairs = [
+            (a.expected, a.actual)
+            for a in alignments
+            if a.expected is not None and a.actual is not None
+        ]
+        in_expected_order = tuple(entry_key(e_entries[e]) for e, _ in pairs)
         in_actual_order = tuple(
-            entry_key(e_entries[p.expected])
-            for p in sorted(pairs, key=lambda p: p.actual)
+            entry_key(e_entries[e]) for e, _ in sorted(pairs, key=lambda pair: pair[1])
         )
         sections[section] = SectionOrdering(
             in_expected_order, in_actual_order, len(alignments) - len(pairs)
