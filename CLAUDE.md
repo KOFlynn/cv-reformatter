@@ -8,7 +8,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**Phase 0 — spec, template, golden set. Nothing is built yet.** There is no source code, no `src/`, no tests, no Dockerfile, no CI, and no dependency manifest in this repo yet. Do not invent build/lint/test commands — there is nothing to build, lint, or test until Phase 0/1 work lands. Once code exists, this file should be updated with the actual commands (e.g. `uv run pytest`, `ruff check`, per the brief's proposed tooling).
+**Phase 0 — spec, template, golden set, eval metrics.** The scaffold exists: a `uv` project, the `cvr` package with `text`, `models`, `eval` and `golden` homes, pytest, ruff and a GitHub Actions workflow. `cvr.text` (`CONFUSABLES`, `canonicalise`, `tokenise`) is built; everything else in Phase 0 is in progress. The Phase 0 spec and its tickets are under `.scratch/phase-0/`. The pipeline (parse, label, verify, transform, render, api) is Phase 1 and does not exist yet.
+
+## Commands
+
+```
+uv sync                       # install, using the Python 3.12 pinned in .python-version
+uv run pytest                 # unit tests (tests/)
+uv run pytest tests/text      # one directory
+uv run ruff check .           # lint (defaults + import sorting)
+uv run ruff format .          # format (CI runs --check)
+```
+
+CI (`.github/workflows/ci.yml`) runs sync, lint, format check and tests on every push and pull request.
+
+Package layout under `src/cvr/`: `text` and `models` sit at the bottom; `eval` and `golden` depend on them and never on each other. `cvr.text` is standard library only.
 
 ## What this is
 
@@ -38,18 +52,18 @@ A portfolio demo (not a real product, no real users, no real CVs) that reformats
 | `api` | FastAPI: `POST /reformat`, `GET /health` |
 | `mcp` | Phase 3: MCP server exposing `reformat_cv` |
 
-Planned layout (brief §13):
+Layout (brief §13, adjusted by the Phase 0 spec so that `cvr` is the one import root and data/config directories hold only data and config):
 
 ```
-src/cvr/{parse,label,verify,transform,render,graph,api,mcp}/
+src/cvr/{text,models,eval,golden}/                              # Phase 0 (exists)
+src/cvr/{parse,label,verify,transform,render,graph,api,mcp}/    # Phase 1+
 templates/fictitious_recruitment.docx
 fixtures/candidates/*.json
-fixtures/layouts/*.py
-fixtures/generated/*.docx
-eval/{run_eval.py,thresholds.yaml,report.json}
+fixtures/generated/*.docx + manifests
+eval/{thresholds.yaml,report.json}                              # config and the gitignored generated report
 tests/
 Dockerfile
-.github/workflows/ci.yml
+.github/workflows/ci.yml                                        # exists
 ```
 
 The golden set (brief §7) is fixture JSON treated as ground truth, not downloaded/scraped CVs — synthetic candidates rendered into messy `.docx` layouts by generator scripts, then committed.
@@ -66,8 +80,8 @@ The golden set (brief §7) is fixture JSON treated as ground truth, not download
 
 ## Environment
 
-- Local Python is 3.14, but **pin the container and CI to Python 3.12** unless every dependency is confirmed on a newer version.
-- Dependency management with `uv` (proposed in the brief; open to change).
+- Local Python is 3.14, but `.python-version` pins **3.12** so `uv` uses the same interpreter locally, in CI and (later) in the container. Do not bump it unless every dependency is confirmed on the newer version.
+- Dependency management with `uv`; `uv.lock` is committed and CI syncs with `--locked`.
 - Dev machine: Windows 11, Docker Desktop with WSL2.
 
 ## Agent skills
