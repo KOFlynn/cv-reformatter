@@ -12,7 +12,7 @@ from collections.abc import Iterable
 from cvr.eval.finding import Finding
 from cvr.text import tokenise
 
-__all__ = ["added_tokens"]
+__all__ = ["added_tokens", "dropped_tokens"]
 
 
 def _findings(excess: Counter[str], where: str) -> list[Finding]:
@@ -40,3 +40,20 @@ def added_tokens(
     for _, rendered in date_map:
         permitted.update(tokenise(rendered))
     return _findings(Counter(output) - permitted, where="output")
+
+
+def dropped_tokens(
+    source: Iterable[str],
+    output: Iterable[str],
+    removed: Iterable[str],
+    appendix: Iterable[str],
+) -> list[Finding]:
+    """Source tokens not in the output, the removal log or the appendix.
+
+    ``removed`` is the tokenised text of every logged removal and ``appendix``
+    the tokenised review appendix; the two are the only places source text may
+    legitimately go other than the output. Multiplicity counts: a word that is
+    both an address line and a job location must be accounted for twice.
+    """
+    accounted = Counter(output) + Counter(removed) + Counter(appendix)
+    return _findings(Counter(source) - accounted, where="source")
