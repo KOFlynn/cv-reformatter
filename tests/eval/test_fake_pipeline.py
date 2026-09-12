@@ -2,46 +2,28 @@
 
 Row 0 is the fake pipeline returning the Candidate's own content, which must
 score clean on every metric; a malformed Candidate is the first thing to fail
-here. The corruption rows each declare a blast radius, and the metrics are
-proven independent by every corruption failing exactly its declared metrics.
+here. Each corruption row declares a blast radius, and the metrics are proven
+independent by every corruption failing exactly the metrics it declares.
 """
 
 import pytest
-from fake_pipeline import fake_pipeline, metric_inputs, unplaceable_share
+from corruptions import CHECKS, CORRUPTIONS, NotApplicable, failed_metrics
+from fake_pipeline import fake_pipeline, metric_inputs
 
-from cvr.eval import added_tokens, appendix_rate, dropped_tokens
 from cvr.golden import CANDIDATES_DIR, load_candidate
 
 # Parametrised over files rather than loaded Candidates so that one malformed
 # file fails its own cases, not the collection of the whole module.
 CANDIDATE_FILES = sorted(CANDIDATES_DIR.glob("*.json"))
+candidates = pytest.mark.parametrize("path", CANDIDATE_FILES, ids=lambda p: p.stem)
+corruptions = pytest.mark.parametrize("corruption", CORRUPTIONS, ids=lambda c: c.name)
 
 
-@pytest.mark.parametrize("path", CANDIDATE_FILES, ids=lambda p: p.stem)
-def test_row_0_returning_the_candidate_unchanged_scores_clean(path):
+@candidates
+def test_row_0_returning_the_candidate_unchanged_fails_no_metric(path):
     candidate = load_candidate(path)
     inputs = metric_inputs(candidate, fake_pipeline(candidate))
-    assert (
-        added_tokens(
-            inputs.source_tokens,
-            inputs.output_tokens,
-            inputs.template_tokens,
-            inputs.date_map,
-        )
-        == []
-    )
-    assert (
-        dropped_tokens(
-            inputs.source_tokens,
-            inputs.output_tokens,
-            inputs.removed_tokens,
-            inputs.appendix_tokens,
-        )
-        == []
-    )
-    assert appendix_rate(
-        inputs.appendix_tokens, inputs.source_content_tokens
-    ) == unplaceable_share(candidate)
+    assert failed_metrics(candidate, inputs) == set()
 
 
 def test_the_fake_pipeline_maps_a_candidate_to_every_metric_input():
@@ -63,3 +45,25 @@ def test_the_fake_pipeline_maps_a_candidate_to_every_metric_input():
     assert "sinead.osampla@example.com" not in inputs.source_content_tokens
     # The appendix is the unplaceable list, empty for c01.
     assert inputs.appendix_tokens == []
+
+
+@corruptions
+def test_every_corruption_declares_a_blast_radius_over_every_metric(corruption):
+    # A metric a row forgets to place is a metric nobody has decided about, so
+    # adding a column to CHECKS forces every row to be revisited.
+    assert corruption.fails.isdisjoint(corruption.passes)
+    assert corruption.fails | corruption.passes == CHECKS.keys()
+
+
+@candidates
+@corruptions
+def test_a_corruption_fails_every_metric_inside_its_blast_radius_and_no_other(
+    path, corruption
+):
+    candidate = load_candidate(path)
+    try:
+        damaged = corruption.damage(fake_pipeline(candidate))
+    except NotApplicable as why:
+        pytest.skip(str(why))
+    inputs = metric_inputs(candidate, damaged)
+    assert failed_metrics(candidate, inputs) == corruption.fails
