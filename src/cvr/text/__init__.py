@@ -47,7 +47,7 @@ CONFUSABLES = MappingProxyType(
     }
 )
 
-_TRANSLATION = str.maketrans(dict(CONFUSABLES))
+_CONFUSABLE_TRANSLATION = str.maketrans(dict(CONFUSABLES))
 
 
 def canonicalise(text: str) -> str:
@@ -57,7 +57,7 @@ def canonicalise(text: str) -> str:
     (fractions, trademark). Case and spelling are never touched.
     """
     composed = unicodedata.normalize("NFC", text)
-    mapped = composed.translate(_TRANSLATION)
+    mapped = composed.translate(_CONFUSABLE_TRANSLATION)
     return " ".join(mapped.split())
 
 
