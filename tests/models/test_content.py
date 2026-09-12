@@ -14,7 +14,7 @@ def test_models_import_without_the_golden_set_package():
 
 def test_date_expected_is_required_even_when_structured_parts_are_given():
     with pytest.raises(ValidationError, match="expected"):
-        DateValue(month=3, year=2021)
+        DateValue.model_validate({"month": 3, "year": 2021})
 
 
 def test_date_carries_hand_written_expected_alongside_structured_parts():
@@ -50,4 +50,6 @@ def test_entries_hold_plain_strings_and_optional_dates():
 
 def test_unknown_keys_are_rejected_so_fixture_typos_fail_fast():
     with pytest.raises(ValidationError, match="bullet"):
-        ExperienceEntry(title="Engineer", employer="Acme Ltd", bullet=["typo in key"])
+        ExperienceEntry.model_validate(
+            {"title": "Engineer", "employer": "Acme Ltd", "bullet": ["typo in key"]}
+        )
