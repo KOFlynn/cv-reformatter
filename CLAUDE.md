@@ -20,7 +20,7 @@ uv run ruff check .           # lint (defaults + import sorting)
 uv run ruff format .          # format (CI runs --check)
 ```
 
-CI (`.github/workflows/ci.yml`) runs sync, lint, format check and tests on every push and pull request.
+CI (`.github/workflows/ci.yml`) runs sync, lint, format check and tests on every push and pull request. The fuller command reference (dependency management, venv activation, useful pytest flags) is `docs/development.md`.
 
 Package layout under `src/cvr/`: `text` and `models` sit at the bottom; `eval` and `golden` depend on them and never on each other. `cvr.text` is standard library only.
 
