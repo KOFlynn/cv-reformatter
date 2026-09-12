@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**Phase 0 — spec, template, golden set, eval metrics.** The scaffold exists: a `uv` project, the `cvr` package with `text`, `models`, `eval` and `golden` homes, pytest, ruff and a GitHub Actions workflow. `cvr.text` (`CONFUSABLES`, `canonicalise`, `tokenise`), `cvr.models` (`CVContent`, `ExperienceEntry`, `EducationEntry`, `DateValue`) and the Candidate half of `cvr.golden` (`Candidate`, `PII`, `Tag`, `load_candidates` over `fixtures/candidates/`, c01 committed) are built; Layouts, the template, metrics and the remaining Candidates are in progress. The Phase 0 spec and its tickets are under `.scratch/phase-0/`. The pipeline (parse, label, verify, transform, render, api) is Phase 1 and does not exist yet.
+**Phase 0 — spec, template, golden set, eval metrics.** The scaffold exists: a `uv` project, the `cvr` package with `text`, `models`, `eval` and `golden` homes, pytest, ruff and a GitHub Actions workflow. `cvr.text` (`CONFUSABLES`, `canonicalise`, `tokenise`), `cvr.models` (`CVContent`, `ExperienceEntry`, `EducationEntry`, `DateValue`), the Candidate half of `cvr.golden` (`Candidate`, `PII`, `Tag`, `load_candidates` over `fixtures/candidates/`, c01 committed) and the multiset half of `cvr.eval` (`Finding`, `added_tokens`, `dropped_tokens`, `appendix_rate`, with the fake pipeline and corruption table under `tests/eval/`) are built; Layouts, the template, the remaining metrics and the remaining Candidates are in progress. The Phase 0 spec and its tickets are under `.scratch/phase-0/`. The pipeline (parse, label, verify, transform, render, api) is Phase 1 and does not exist yet.
 
 ## Commands
 
