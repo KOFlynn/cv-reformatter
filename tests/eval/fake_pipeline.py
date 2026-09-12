@@ -77,6 +77,7 @@ class MetricInputs:
 
     source_tokens: list[str]
     source_content_tokens: list[str]  # source minus rule-removed
+    output_content: CVContent  # the placed content; the Candidate's is expected
     output_units: list[str]
     output_tokens: list[str]
     template_tokens: list[str]
@@ -96,6 +97,7 @@ def metric_inputs(candidate: Candidate, result: PipelineResult) -> MetricInputs:
     return MetricInputs(
         source_tokens=_tokens([*source_leaves, *removed, *candidate.unplaceable]),
         source_content_tokens=_tokens([*source_leaves, *candidate.unplaceable]),
+        output_content=result.content,
         output_units=output_units,
         output_tokens=[*_tokens(output_units), *TEMPLATE_TOKENS],
         template_tokens=list(TEMPLATE_TOKENS),

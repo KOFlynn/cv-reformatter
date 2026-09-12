@@ -10,6 +10,7 @@ import pytest
 from corruptions import CHECKS, CORRUPTIONS, NotApplicable, failed_metrics
 from fake_pipeline import fake_pipeline, metric_inputs
 
+from cvr.eval import placement_accuracy
 from cvr.golden import CANDIDATES_DIR, load_candidate
 
 # Parametrised over files rather than loaded Candidates so that one malformed
@@ -47,6 +48,8 @@ def test_the_fake_pipeline_maps_a_candidate_to_every_metric_input():
     assert "sinead.osampla@example.com" not in inputs.source_content_tokens
     # The appendix is the unplaceable list, empty for c01.
     assert inputs.appendix_tokens == []
+    # The placed content is what the structural metrics compare to the Candidate's.
+    assert inputs.output_content == candidate.content
 
 
 @corruptions
@@ -69,3 +72,32 @@ def test_a_corruption_fails_every_metric_inside_its_blast_radius_and_no_other(
         pytest.skip(str(why))
     inputs = metric_inputs(candidate, damaged)
     assert failed_metrics(candidate, inputs) == corruption.fails
+
+
+directed = pytest.mark.parametrize(
+    "corruption",
+    [c for c in CORRUPTIONS if c.direction is not None],
+    ids=lambda c: c.name,
+)
+
+
+@candidates
+@directed
+def test_a_corruption_moves_precision_and_recall_in_its_declared_direction(
+    path, corruption
+):
+    # Row 0 scores 1.0 on both, so "down" is strictly below one and
+    # "unchanged" is still one; a metric failing for the wrong reason (recall
+    # falling when only precision should) is caught here, not by the blast radius.
+    candidate = load_candidate(path)
+    try:
+        damaged = corruption.damage(fake_pipeline(candidate))
+    except NotApplicable as why:
+        pytest.skip(str(why))
+    overall = placement_accuracy(damaged.content, candidate.content).overall
+    for name, trend in (
+        ("precision", corruption.direction.precision),
+        ("recall", corruption.direction.recall),
+    ):
+        score = getattr(overall, name)
+        assert (score < 1.0) if trend == "down" else (score == 1.0), name
