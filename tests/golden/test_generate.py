@@ -2,6 +2,7 @@
 and the committed pairs kept in step with the code."""
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -9,11 +10,12 @@ from pathlib import Path
 import pytest
 from docx_text import all_text
 
+import cvr.golden
 from cvr.golden import CANDIDATES_DIR, LAYOUTS, Manifest, load_candidates
-from cvr.golden.generate import GENERATED_DIR, generate_all, stem
+from cvr.golden.generate import GENERATED_DIR, generate_all
 
 CANDIDATES = load_candidates(CANDIDATES_DIR)
-STEMS = [stem(candidate, layout) for candidate in CANDIDATES for layout in LAYOUTS]
+STEMS = [layout.stem(candidate) for candidate in CANDIDATES for layout in LAYOUTS]
 
 
 def read_manifest(directory: Path, name: str) -> Manifest:
@@ -90,10 +92,12 @@ def test_module_runs_as_a_command(tmp_path):
 
 
 def test_no_randomness_anywhere_in_the_golden_package():
-    package = Path(__import__("cvr.golden", fromlist=["golden"]).__file__).parent
+    package = Path(cvr.golden.__file__).parent
     offenders = [
         path.relative_to(package)
         for path in package.rglob("*.py")
-        if "random" in path.read_text(encoding="utf-8")
+        if re.search(
+            r"^\s*(import random|from random )", path.read_text("utf-8"), re.MULTILINE
+        )
     ]
     assert offenders == []

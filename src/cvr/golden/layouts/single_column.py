@@ -54,52 +54,44 @@ class SingleColumnLayout(Layout):
         document.add_paragraph(content.name, style="Title")
 
         # Contact block at the top of the body, one line per detail.
-        for line in [pii.phone, pii.email, *pii.address, *pii.urls, pii.dob]:
-            if line:
-                document.add_paragraph(line)
-        for line in [pii.personal.nationality, pii.personal.marital_status]:
-            if line:
-                document.add_paragraph(line)
+        _lines(document, [pii.phone, pii.email, *pii.address, *pii.urls, pii.dob])
+        _lines(document, [pii.personal.nationality, pii.personal.marital_status])
 
         if content.profile:
-            _heading(document, "Profile")
-            for paragraph in content.profile:
-                document.add_paragraph(paragraph)
+            document.add_heading("Profile", level=1)
+            _lines(document, content.profile)
 
         if content.skills:
-            _heading(document, "Key Skills")
+            document.add_heading("Key Skills", level=1)
             _bullets(document, content.skills)
 
         if plan.education:
-            _heading(document, "Education")
+            document.add_heading("Education", level=1)
             for planned in plan.education:
                 _education(document, planned)
 
         if plan.experience:
-            _heading(document, "Experience")
+            document.add_heading("Experience", level=1)
             for planned in plan.experience:
                 _experience(document, planned)
 
         if content.certifications:
-            _heading(document, "Certifications")
+            document.add_heading("Certifications", level=1)
             _bullets(document, content.certifications)
 
         if content.additional:
-            _heading(document, "Additional Information")
-            for line in content.additional:
-                document.add_paragraph(line)
+            document.add_heading("Additional Information", level=1)
+            _lines(document, content.additional)
 
         if pii.referees:
-            _heading(document, "References")
+            document.add_heading("References", level=1)
             for referee in pii.referees:
-                document.add_paragraph(referee.name).runs[0].bold = True
-                for line in [referee.role, *referee.contact]:
-                    if line:
-                        document.add_paragraph(line)
+                _line(document, referee.name, bold=True)
+                _lines(document, [referee.role, *referee.contact])
 
         # Unplaceable fragments trail the body as plain paragraphs.
         for index, fragment in enumerate(candidate.unplaceable):
-            document.add_paragraph(fragment)
+            _line(document, fragment)
             decisions.fragments.append(
                 FragmentPlacement(index=index, location="body-end")
             )
@@ -107,8 +99,23 @@ class SingleColumnLayout(Layout):
         return document
 
 
-def _heading(document: DocumentType, text: str) -> None:
-    document.add_heading(text, level=1)
+def _line(
+    document: DocumentType, text: str, *, bold: bool = False, italic: bool = False
+) -> None:
+    # Only set what is asked for: ``run.bold = False`` would write an explicit
+    # off-toggle into the XML rather than nothing.
+    run = document.add_paragraph().add_run(text)
+    if bold:
+        run.bold = True
+    if italic:
+        run.italic = True
+
+
+def _lines(document: DocumentType, texts: list[str | None]) -> None:
+    """One paragraph per text, skipping absent values."""
+    for text in texts:
+        if text:
+            _line(document, text)
 
 
 def _bullets(document: DocumentType, items: list[str]) -> None:
@@ -120,27 +127,25 @@ def _bullets(document: DocumentType, items: list[str]) -> None:
 def _date_line(document: DocumentType, planned: PlannedEntry) -> None:
     parts = [part for part in (planned.start, planned.end) if part is not None]
     if parts:
-        document.add_paragraph(" - ".join(parts))
+        _line(document, " - ".join(parts))
 
 
-def _experience(document: DocumentType, planned: PlannedEntry) -> None:
+def _experience(document: DocumentType, planned: PlannedEntry[ExperienceEntry]) -> None:
     entry = planned.entry
-    assert isinstance(entry, ExperienceEntry)
-    document.add_paragraph(entry.title).runs[0].bold = True
-    where = (
+    _line(document, entry.title, bold=True)
+    employer_line = (
         entry.employer
         if entry.location is None
         else f"{entry.employer}, {entry.location}"
     )
-    document.add_paragraph(where).runs[0].italic = True
+    _line(document, employer_line, italic=True)
     _date_line(document, planned)
     _bullets(document, entry.bullets)
 
 
-def _education(document: DocumentType, planned: PlannedEntry) -> None:
+def _education(document: DocumentType, planned: PlannedEntry[EducationEntry]) -> None:
     entry = planned.entry
-    assert isinstance(entry, EducationEntry)
-    document.add_paragraph(entry.qualification).runs[0].bold = True
-    document.add_paragraph(entry.institution).runs[0].italic = True
+    _line(document, entry.qualification, bold=True)
+    _line(document, entry.institution, italic=True)
     _date_line(document, planned)
     _bullets(document, entry.details)

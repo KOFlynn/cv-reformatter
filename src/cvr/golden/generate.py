@@ -1,6 +1,6 @@
 """Write every Candidate through every registered Layout to ``fixtures/generated/``.
 
-    uv run python -m cvr.golden.generate [--out DIR] [--candidates DIR]
+    uv run python -m cvr.golden.generate [--out DIR]
 
 Each pair shares a stem: ``<candidate-id>__<layout-name>.docx`` and
 ``<candidate-id>__<layout-name>.manifest.json``. Output is byte-stable, so
@@ -11,33 +11,27 @@ import argparse
 from pathlib import Path
 
 from cvr.golden.candidate import Candidate
-from cvr.golden.layouts import LAYOUTS, Layout
+from cvr.golden.layouts import LAYOUTS
 from cvr.golden.loader import CANDIDATES_DIR, load_candidates
 
-__all__ = ["GENERATED_DIR", "generate_all", "main", "stem"]
+__all__ = ["GENERATED_DIR", "generate_all", "main"]
 
-# Beside the candidates directory; see the note on CANDIDATES_DIR.
-GENERATED_DIR = Path(__file__).resolve().parents[3] / "fixtures" / "generated"
-
-
-def stem(candidate: Candidate, layout: Layout) -> str:
-    return f"{candidate.id}__{layout.name}"
+GENERATED_DIR = CANDIDATES_DIR.parent / "generated"
 
 
 def generate_all(
-    candidates: list[Candidate] | None = None,
-    layouts: tuple[Layout, ...] = LAYOUTS,
-    out_dir: Path = GENERATED_DIR,
+    candidates: list[Candidate] | None = None, out_dir: Path = GENERATED_DIR
 ) -> list[Path]:
-    """Render every Candidate through every Layout; return the paths written."""
+    """Render every Candidate through every registered Layout; return the paths
+    written."""
     if candidates is None:
         candidates = load_candidates()
     out_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     for candidate in candidates:
-        for layout in layouts:
+        for layout in LAYOUTS:
             generated = layout.generate(candidate)
-            base = out_dir / stem(candidate, layout)
+            base = out_dir / layout.stem(candidate)
             document = base.with_suffix(".docx")
             manifest = base.with_suffix(".manifest.json")
             document.write_bytes(generated.document)
@@ -51,9 +45,8 @@ def generate_all(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--out", type=Path, default=GENERATED_DIR)
-    parser.add_argument("--candidates", type=Path, default=CANDIDATES_DIR)
     args = parser.parse_args(argv)
-    written = generate_all(load_candidates(args.candidates), out_dir=args.out)
+    written = generate_all(out_dir=args.out)
     for path in written:
         print(path)
     return 0

@@ -5,11 +5,12 @@ import pytest
 from docx_text import all_text
 
 from cvr.golden import CANDIDATES_DIR, LAYOUTS, Candidate, load_candidates
+from cvr.golden.layouts import Decisions
 from cvr.text import canonicalise
 
 CANDIDATES = load_candidates(CANDIDATES_DIR)
 PAIRS = [(candidate, layout) for candidate in CANDIDATES for layout in LAYOUTS]
-PAIR_IDS = [f"{candidate.id}__{layout.name}" for candidate, layout in PAIRS]
+PAIR_IDS = [layout.stem(candidate) for candidate, layout in PAIRS]
 LAYOUT_IDS = [layout.name for layout in LAYOUTS]
 
 
@@ -132,7 +133,7 @@ def test_manifest_records_every_entry_and_every_date_once(candidate, layout):
         for which, date in (("start", entry.start), ("end", entry.end))
         if date is not None
     }
-    recorded = [(d.section, d.entry, d.field) for d in manifest.dates]
+    recorded = [(d.section, d.entry, d.which) for d in manifest.dates]
     assert sorted(recorded) == sorted(expected_dates)
     assert manifest.candidate_id == candidate.id
     assert manifest.layout == layout.name
@@ -161,11 +162,18 @@ def c01_with(**first_experience_overrides) -> Candidate:
 @pytest.mark.parametrize("layout", LAYOUTS, ids=LAYOUT_IDS)
 def test_undated_entries_are_emitted_after_dated_ones(layout):
     candidate = c01_with(start=None, end=None)
-    manifest = layout.generate(candidate).manifest
+    generated = layout.generate(candidate)
+    manifest = generated.manifest
     assert manifest.experience_order[-1] == 0
     assert not any(
         date.section == "experience" and date.entry == 0 for date in manifest.dates
     )
+    # And in the document itself, not only in the generator's own account: the
+    # undated title comes after every dated title in the body's own order.
+    texts = all_text(generated.document)
+    titles = [entry.title for entry in candidate.content.experience]
+    positions = [texts.index(title) for title in titles]
+    assert positions[0] > max(positions[1:])
 
 
 @pytest.mark.parametrize("layout", LAYOUTS, ids=LAYOUT_IDS)
@@ -176,7 +184,7 @@ def test_literal_dates_are_printed_verbatim(layout):
     (start,) = [
         d
         for d in generated.manifest.dates
-        if d.section == "experience" and d.entry == 0 and d.field == "start"
+        if d.section == "experience" and d.entry == 0 and d.which == "start"
     ]
     assert start.printed == literal
     assert any(literal in text for text in all_text(generated.document))
@@ -202,25 +210,33 @@ def test_unplaceable_fragments_appear_and_are_placed_in_the_manifest(layout):
     assert all(f.location for f in generated.manifest.fragments)
 
 
+def test_a_layout_may_only_record_confusables_from_the_shared_table():
+    decisions = Decisions(contact_block="body-top")
+    decisions.injected("\u2019")
+    assert decisions.confusables == {"\u2019"}
+    with pytest.raises(ValueError):
+        decisions.injected("'")
+
+
 # --- The single-column Layout: the style matrix's control column.
-
-
-def test_single_column_prints_month_name_dates_and_year_only_dates():
-    layout = single_column()
-    assert layout.format_date(1, 2020) == "January 2020"
-    assert layout.format_date(None, 2020) == "2020"
 
 
 def test_single_column_c01_dates_appear_in_document_and_manifest():
     generated = single_column().generate(c01())
     texts = all_text(generated.document)
-    assert any("March 2022 - July 2026" in text for text in texts)
+    assert "March 2022 - July 2026" in texts
     first_start = [
         d
         for d in generated.manifest.dates
-        if d.section == "experience" and d.entry == 0 and d.field == "start"
+        if d.section == "experience" and d.entry == 0 and d.which == "start"
     ]
     assert [d.printed for d in first_start] == ["March 2022"]
+
+
+def test_single_column_prints_a_year_only_date_as_the_year():
+    candidate = c01_with(start={"year": 2020, "expected": "2020"})
+    texts = all_text(single_column().generate(candidate).document)
+    assert "2020 - July 2026" in texts
 
 
 def test_single_column_uses_its_heading_vocabulary():

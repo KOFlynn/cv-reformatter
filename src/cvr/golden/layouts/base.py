@@ -75,7 +75,7 @@ class PrintedDate(StrictModel):
 
     section: Section
     entry: int
-    field: Literal["start", "end"]
+    which: Literal["start", "end"]
     printed: str
 
 
@@ -112,12 +112,12 @@ class Manifest(StrictModel):
 
 
 @dataclass(frozen=True)
-class PlannedEntry:
+class PlannedEntry[E: (ExperienceEntry, EducationEntry)]:
     """One entry with the Layout's decisions already made: its position in
     Candidate order, and the date strings the Layout will print."""
 
     index: int
-    entry: ExperienceEntry | EducationEntry
+    entry: E
     start: str | None
     end: str | None
 
@@ -131,8 +131,8 @@ class Plan:
     """The base class's decisions for one Candidate: emit order and date strings.
     A Layout renders the Plan; it does not reorder or reformat."""
 
-    experience: list[PlannedEntry]
-    education: list[PlannedEntry]
+    experience: list[PlannedEntry[ExperienceEntry]]
+    education: list[PlannedEntry[EducationEntry]]
 
 
 @dataclass
@@ -178,6 +178,10 @@ class Layout(ABC):
     ) -> DocumentType:
         """Build the document from the Plan, recording layout decisions."""
 
+    def stem(self, candidate: Candidate) -> str:
+        """The shared file stem of a Candidate's document and manifest."""
+        return f"{candidate.id}__{self.name}"
+
     def scramble(self, section: Section, indices: list[int]) -> list[int]:
         """Reorder the dated entries of a section. The base emits Candidate order."""
         return indices
@@ -192,7 +196,7 @@ class Layout(ABC):
                 f"{self.name}: unplaceable fragments placed {placed}, "
                 f"expected every index below {len(candidate.unplaceable)}"
             )
-        data = _stable_bytes(document, title=f"{candidate.id}__{self.name}")
+        data = _stable_bytes(document, title=self.stem(candidate))
         manifest = Manifest(
             candidate_id=candidate.id,
             layout=self.name,
@@ -228,9 +232,9 @@ class Layout(ABC):
             raise ValueError(f"date has neither year, literal nor present: {date!r}")
         return self.format_date(date.month, date.year)
 
-    def _plan_section(
-        self, section: Section, entries: list[ExperienceEntry] | list[EducationEntry]
-    ) -> list[PlannedEntry]:
+    def _plan_section[E: (ExperienceEntry, EducationEntry)](
+        self, section: Section, entries: list[E]
+    ) -> list[PlannedEntry[E]]:
         planned = [
             PlannedEntry(
                 index=index,
@@ -260,7 +264,7 @@ def _printed_dates(plan: Plan) -> list[PrintedDate]:
                         PrintedDate(
                             section=section,
                             entry=entry.index,
-                            field=which,
+                            which=which,
                             printed=printed,
                         )
                     )
