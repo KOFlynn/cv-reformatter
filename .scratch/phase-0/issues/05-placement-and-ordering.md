@@ -12,7 +12,7 @@
 - [x] Ordering computed over matched entries only; unmatched count reported alongside; the expected order (end desc, start desc, source order) is compared as a sequence, so equal-dated entries are never interchangeable
 - [x] Hand-made cases: one wrong employer aligns on fallback and costs one leaf, a swapped title/employer aligns on fallback and costs two; lost entry is unaligned; promotion (same employer, two starts) aligns on key; duplicate skill counted with multiplicity; concurrent roles with equal dates keep source order
 - [x] Fake-pipeline corruption: reverse experience order fails ordering only, placement passes
-- [x] Direction assertions added to the ticket-04 corruptions: insert a word lowers precision only; drop a bullet lowers recall only; bullets to appendix lowers recall (see the comment: insert a word lowers both, by the maintainer's decision)
+- [x] Direction assertions added to the ticket-04 corruptions: insert a word lowers precision only; drop a bullet lowers recall only; bullets to appendix lowers recall (see the comment: insert a word lowers both; the spec's direction row was wrong and is amended)
 
 ## Comments
 
@@ -20,7 +20,7 @@
 
 Decisions beyond the ticket text, each for the maintainer's eyes:
 
-- **Insert a word lowers recall as well as precision.** Under the spec's own definition (list leaves align by canonicalised text with multiplicity) an altered bullet is a different leaf on both sides. The spec's direction column and this ticket's last checkbox say "precision only", which would need token-level scoring inside matched entries. Raised before building; the maintainer chose whole-leaf scoring, so the row declares `Direction(precision="down", recall="down")` with a comment, and the spec's table is the thing to amend.
+- **Insert a word lowers recall as well as precision.** Under list-leaf alignment by canonicalised text with multiplicity, the altered bullet matches no expected leaf and its expected leaf matches no actual leaf: one error, a false positive and a false negative at once, as set-based extraction scoring always behaves. "Precision only" would need token-level scoring inside a matched leaf, which the spec never defines. Raised before building; the maintainer confirmed the spec's direction table was wrong and it is amended, so the row declares `Direction(precision="down", recall="down")`.
 - **A swapped title and employer costs two leaves, not one**: title and employer each sit in the wrong field. The ticket's "one miss" holds for the story-50 case (one wrong employer), which is tested as such alongside the swap.
 - **Field types.** Structural: name, title, employer, location, date (start and end as one type), institution, qualification. Tunable: profile, skill, bullet, detail, certification, additional. Location is not in the spec's structural list but is an entry-identifying scalar like employer, so it gates at 100%; profile, certifications and additional are not in the spec's tunable list but are free-text lists like bullets. Either can be moved by editing `_STRUCTURAL` in `leaves.py`.
 - **Scalars canonicalise too.** "Compare directly" is read as field-to-field (title against title), with both sides through `canonicalise` like every other metric; raw fidelity is `punctuation_fidelity`'s job.

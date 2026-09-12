@@ -161,9 +161,9 @@ def _row(
 # metric has to be placed in every row on purpose.
 CORRUPTIONS: list[Corruption] = [
     # A bullet with a word inserted is a different leaf: the placed one is
-    # wrong (precision) and the wanted one is not found (recall). The spec's
-    # table says precision only, which would need token-level list scoring;
-    # whole-leaf scoring is the definition the spec actually gives.
+    # wrong (precision) and the wanted one is not found (recall). One error,
+    # a false positive and a false negative at once, as whole-leaf scoring
+    # always behaves; "precision only" would need token-level scoring.
     _row(
         "insert a word into a bullet",
         insert_a_word,
