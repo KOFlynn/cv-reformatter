@@ -6,7 +6,7 @@ The manifest carries layout decisions only: candidate id, layout name, seed, gen
 
 **Blocked by:** 02 (Content model, Candidate model, loader, and c01)
 
-**Status:** in-review
+**Status:** done
 
 - [x] Base Layout defines the interface and the shared rules: undated entries after dated ones in Candidate order; literal dates printed verbatim; manifest schema
 - [x] Single-column Layout renders c01 per the style matrix's first column
