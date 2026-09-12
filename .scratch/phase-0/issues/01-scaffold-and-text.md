@@ -6,7 +6,7 @@ Housekeeping comes first: rename `master` to `main` locally and on GitHub; commi
 
 **Blocked by:** None (can start immediately)
 
-**Status:** in-review
+**Status:** done
 
 - [x] Default branch is `main` locally and on GitHub; the pending docs are its first commit
 - [x] `pyproject.toml` via `uv`: runtime deps pydantic, python-docx, docxtpl, lxml; dev deps pytest, ruff; `requires-python >= 3.12`; `.python-version` pins 3.12
