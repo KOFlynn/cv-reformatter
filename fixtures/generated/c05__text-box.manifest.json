@@ -1,0 +1,74 @@
+{
+  "candidate_id": "c05",
+  "layout": "text-box",
+  "seed": 0,
+  "generator_version": "0.1.0",
+  "manifest_version": 1,
+  "dates": [
+    {
+      "section": "experience",
+      "entry": 0,
+      "which": "start",
+      "printed": "Feb '23"
+    },
+    {
+      "section": "experience",
+      "entry": 0,
+      "which": "end",
+      "printed": "Present"
+    },
+    {
+      "section": "experience",
+      "entry": 1,
+      "which": "start",
+      "printed": "Jun '21"
+    },
+    {
+      "section": "experience",
+      "entry": 1,
+      "which": "end",
+      "printed": "Present"
+    },
+    {
+      "section": "experience",
+      "entry": 2,
+      "which": "start",
+      "printed": "Oct '18"
+    },
+    {
+      "section": "experience",
+      "entry": 2,
+      "which": "end",
+      "printed": "May '21"
+    },
+    {
+      "section": "education",
+      "entry": 0,
+      "which": "start",
+      "printed": "Sep '13"
+    },
+    {
+      "section": "education",
+      "entry": 0,
+      "which": "end",
+      "printed": "Jun '17"
+    }
+  ],
+  "experience_order": [
+    1,
+    2,
+    0,
+    3
+  ],
+  "education_order": [
+    0
+  ],
+  "contact_block": "text-box",
+  "confusables": [
+    "U+00A0",
+    "U+00AD"
+  ],
+  "photo": false,
+  "fragments": [],
+  "document_sha256": "ad688a7a1dcbddbc5b5d1e909583a2fdc6e29938a6f6f9af6fd1ee03ac580a0f"
+}
