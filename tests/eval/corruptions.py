@@ -202,7 +202,7 @@ EN_DASH = "\u2013"
 CONFUSABLE_SWAPS = ((CURLY, "'"), ("'", CURLY), ("-", EN_DASH))
 
 
-def straighten_an_apostrophe(_: Candidate, result: PipelineResult) -> PipelineResult:
+def swap_a_confusable(_: Candidate, result: PipelineResult) -> PipelineResult:
     dumped = result.content.model_dump()
     leaf_set = frozenset(leaves(result.content))
     for old, new in CONFUSABLE_SWAPS:
@@ -313,7 +313,7 @@ CORRUPTIONS: list[Corruption] = [
     # sees the same string on both sides. Only the raw comparison notices.
     _row(
         "straighten a curly apostrophe",
-        straighten_an_apostrophe,
+        swap_a_confusable,
         "punctuation",
         "added dropped appendix ordering placement provenance pii image",
     ),

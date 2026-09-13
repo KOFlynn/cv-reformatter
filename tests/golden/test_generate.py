@@ -28,18 +28,18 @@ def read_manifest(directory: Path, name: str) -> Manifest:
 # module: the per-stem cases stay so that a failure names the file that
 # drifted, but generating the set once per stem made the module quadratic in
 # the size of the golden set.
-@pytest.fixture(scope="module")
-def fresh(tmp_path_factory) -> Path:
-    out_dir = tmp_path_factory.mktemp("fresh")
-    generate_all(out_dir=out_dir)
-    return out_dir
+def _generation(label: str):
+    @pytest.fixture(scope="module", name=label)
+    def generation(tmp_path_factory) -> Path:
+        out_dir = tmp_path_factory.mktemp(label)
+        generate_all(out_dir=out_dir)
+        return out_dir
+
+    return generation
 
 
-@pytest.fixture(scope="module")
-def fresh_again(tmp_path_factory) -> Path:
-    out_dir = tmp_path_factory.mktemp("fresh-again")
-    generate_all(out_dir=out_dir)
-    return out_dir
+fresh = _generation("fresh")
+fresh_again = _generation("fresh_again")
 
 
 def test_generate_all_writes_a_document_and_manifest_pair_per_stem(tmp_path):
@@ -95,19 +95,14 @@ def test_generated_directory_holds_exactly_the_registered_pairs():
 def test_the_set_is_every_candidate_through_every_style_matrix_layout():
     """Coverage is the product, not a sample: each of the twelve Candidates
     through each of the spec's four Layouts, so the per-layout eval breakdown
-    has every cell."""
+    has every cell. That the directory holds exactly these stems is the
+    previous test."""
     layouts = ["single-column", "two-column", "text-box", "header-footer"]
     candidate_ids = [f"c{n:02d}" for n in range(1, 13)]
     assert [layout.name for layout in LAYOUTS] == layouts
     assert [candidate.id for candidate in CANDIDATES] == candidate_ids
     assert STEMS == [f"{c}__{layout}" for c in candidate_ids for layout in layouts]
     assert len(STEMS) == 48
-    assert sorted(GENERATED_DIR.glob("*.docx")) == sorted(
-        GENERATED_DIR / f"{stem}.docx" for stem in STEMS
-    )
-    assert sorted(GENERATED_DIR.glob("*.manifest.json")) == sorted(
-        GENERATED_DIR / f"{stem}.manifest.json" for stem in STEMS
-    )
 
 
 def test_module_runs_as_a_command(tmp_path):

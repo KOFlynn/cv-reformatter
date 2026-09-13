@@ -28,10 +28,12 @@ candidates = pytest.mark.parametrize("path", CANDIDATE_FILES, ids=lambda p: p.st
 corruptions = pytest.mark.parametrize("corruption", CORRUPTIONS, ids=lambda c: c.name)
 
 
-def damage(corruption, candidate):
+def damaged_result(corruption, candidate):
     """The corruption applied to the honest result. The matrix is asserted
     over every committed Candidate, so a row that does not apply to one is a
-    hole in the evidence, not a case to skip."""
+    hole in the evidence, not a case to skip: a new Candidate must carry what
+    every row damages (a job with bullets, two jobs, an email, an apostrophe
+    or a hyphen)."""
     try:
         return corruption.damage(candidate, fake_pipeline(candidate))
     except NotApplicable as why:
@@ -155,7 +157,7 @@ def test_a_corruption_fails_every_metric_inside_its_blast_radius_and_no_other(
     path, corruption
 ):
     candidate = load_candidate(path)
-    damaged = damage(corruption, candidate)
+    damaged = damaged_result(corruption, candidate)
     inputs = metric_inputs(candidate, damaged)
     assert failed_metrics(candidate, inputs) == corruption.fails
 
@@ -176,7 +178,7 @@ def test_a_corruption_moves_precision_and_recall_in_its_declared_direction(
     # "unchanged" is still one; a metric failing for the wrong reason (recall
     # falling when only precision should) is caught here, not by the blast radius.
     candidate = load_candidate(path)
-    damaged = damage(corruption, candidate)
+    damaged = damaged_result(corruption, candidate)
     inputs = metric_inputs(candidate, damaged)
     overall = placement_accuracy(inputs.output_content, candidate.content).overall
     assert (overall.precision < 1.0) == (corruption.direction.precision == "down")
