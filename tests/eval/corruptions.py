@@ -24,8 +24,11 @@ from cvr.eval import (
     dropped_tokens,
     ordering_report,
     placement_accuracy,
+    provenance_violations,
+    punctuation_fidelity,
 )
 from cvr.golden import Candidate
+from cvr.models import CVContent
 
 __all__ = [
     "CHECKS",
@@ -60,6 +63,14 @@ CHECKS: dict[str, Check] = {
     # entry unaligned on either side.
     "placement": lambda c, i: _perfect(placement_accuracy(i.output_content, c.content)),
     "ordering": lambda c, i: ordering_report(i.output_content, c.content).correct,
+    "provenance": lambda _, i: (
+        not provenance_violations(
+            i.output_units, i.source_blocks, i.template_units, i.date_map
+        )
+    ),
+    # Reported, not gated, until the Phase 1 baseline; here it must be clean
+    # all the same, or the corruption that targets it proves nothing.
+    "punctuation": lambda _, i: not punctuation_fidelity(i.pairs),
 }
 
 
@@ -136,6 +147,52 @@ def bullets_to_appendix(result: PipelineResult) -> PipelineResult:
     return replace(damaged, unplaced=[*result.unplaced, *bullets])
 
 
+def swap_two_words(result: PipelineResult) -> PipelineResult:
+    index = _first_job_with_bullets(result)
+    first, *rest = result.content.experience[index].bullets
+    words = first.split(" ")
+    at = next((i for i in range(len(words) - 1) if words[i] != words[i + 1]), None)
+    if at is None:
+        raise NotApplicable("the first bullet has no two different adjacent words")
+    words[at], words[at + 1] = words[at + 1], words[at]
+    return _with_bullets(result, index, [" ".join(words), *rest])
+
+
+def _replace_in_first_leaf(node: object, old: str, new: str) -> object:
+    """The dumped content with ``old`` replaced once, in the first string
+    that carries it, in dump order; unchanged if no string does."""
+    if isinstance(node, str):
+        return node.replace(old, new, 1)
+    if isinstance(node, list):
+        for i, item in enumerate(node):
+            replaced = _replace_in_first_leaf(item, old, new)
+            if replaced != item:
+                return [*node[:i], replaced, *node[i + 1 :]]
+        return node
+    if isinstance(node, dict):
+        for key, value in node.items():
+            replaced = _replace_in_first_leaf(value, old, new)
+            if replaced != value:
+                return {**node, key: replaced}
+    return node
+
+
+CURLY = "\u2019"
+
+
+def straighten_an_apostrophe(result: PipelineResult) -> PipelineResult:
+    # What a renderer that "fixes" quotes does. A Candidate without a curly
+    # apostrophe gets the same one-character change the other way (a straight
+    # one curled, as autocorrect does); every canonicalised metric is equally
+    # blind to both, which is the point of the row.
+    dumped = result.content.model_dump()
+    for old, new in ((CURLY, "'"), ("'", CURLY)):
+        damaged = _replace_in_first_leaf(dumped, old, new)
+        if damaged != dumped:
+            return replace(result, content=CVContent.model_validate(damaged))
+    raise NotApplicable("no apostrophe in any leaf")
+
+
 def reverse_experience(result: PipelineResult) -> PipelineResult:
     if len(result.content.experience) < 2:
         raise NotApplicable("fewer than two experience entries")
@@ -167,28 +224,47 @@ CORRUPTIONS: list[Corruption] = [
     _row(
         "insert a word into a bullet",
         insert_a_word,
-        "added placement",
-        "dropped appendix ordering",
+        "added placement provenance",
+        "dropped appendix ordering punctuation",
         Direction(precision="down", recall="down"),
     ),
     _row(
         "drop a bullet",
         drop_a_bullet,
         "dropped placement",
-        "added appendix ordering",
+        "added appendix ordering provenance punctuation",
         Direction(precision="unchanged", recall="down"),
     ),
     _row(
         "move one job's bullets into the appendix",
         bullets_to_appendix,
         "appendix placement",
-        "added dropped ordering",
+        "added dropped ordering provenance punctuation",
         Direction(precision="unchanged", recall="down"),
     ),
     _row(
         "reverse experience order",
         reverse_experience,
         "ordering",
-        "added dropped appendix placement",
+        "added dropped appendix placement provenance punctuation",
+    ),
+    # The two rows that prove no single check would have been enough
+    # (ADR-0007). Swapped words: the same bag of words, so added and dropped
+    # both pass, and only the whole-unit check sees that the bullet is a
+    # slice of no block. The unit cannot be located, so it has no raw pair
+    # and fidelity has nothing to say.
+    _row(
+        "swap two words inside a bullet",
+        swap_two_words,
+        "provenance placement",
+        "added dropped appendix ordering punctuation",
+    ),
+    # A changed apostrophe: every canonicalised metric, provenance included,
+    # sees the same string on both sides. Only the raw comparison notices.
+    _row(
+        "straighten a curly apostrophe",
+        straighten_an_apostrophe,
+        "punctuation",
+        "added dropped appendix ordering placement provenance",
     ),
 ]
