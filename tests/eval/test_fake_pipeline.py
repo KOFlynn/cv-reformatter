@@ -4,6 +4,11 @@ Row 0 is the fake pipeline returning the Candidate's own content, which must
 score clean on every metric; a malformed Candidate is the first thing to fail
 here. Each corruption row declares a blast radius, and the metrics are proven
 independent by every corruption failing exactly the metrics it declares.
+
+Two rows are the evidence for ADR-0007 that no single check would have been
+enough: "swap two words inside a bullet" fails provenance while both
+multiset checks pass, and "straighten a curly apostrophe" fails punctuation
+fidelity while provenance passes. See the row comments in ``corruptions``.
 """
 
 import pytest
