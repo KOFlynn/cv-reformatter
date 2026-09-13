@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 (Multiset metrics and the fake pipeline)
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 - [ ] Builder script and built template both committed; a note in the builder says never hand-edit the output
 - [ ] Rebuilding produces identical text and tags
