@@ -16,6 +16,7 @@ from cvr.golden.layouts.base import (
 )
 from cvr.golden.layouts.header_footer import HeaderFooterLayout
 from cvr.golden.layouts.single_column import SingleColumnLayout
+from cvr.golden.layouts.text_box import TextBoxLayout
 from cvr.golden.layouts.two_column import TwoColumnLayout
 
 __all__ = [
@@ -33,6 +34,7 @@ __all__ = [
     "PrintedDate",
     "Section",
     "SingleColumnLayout",
+    "TextBoxLayout",
     "TwoColumnLayout",
 ]
 
@@ -41,5 +43,6 @@ __all__ = [
 LAYOUTS: tuple[Layout, ...] = (
     SingleColumnLayout(),
     TwoColumnLayout(),
+    TextBoxLayout(),
     HeaderFooterLayout(),
 )

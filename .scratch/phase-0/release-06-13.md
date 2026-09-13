@@ -2,6 +2,14 @@
 
 ## Review before merging
 
+- Ticket 11: "opens in Word" is evidenced with LibreOffice headless only (Word is not on the dev machine). Open `fixtures/generated/c01__text-box.docx` in Word once to confirm the two VML text boxes render.
+
+
+- Ticket 07: the "straighten a curly apostrophe" corruption row runs only in the *curling* direction (no Candidate carries a curly apostrophe in a leaf, since confusables are a Layout decision), and is skipped for 3 Candidates with no apostrophe at all. The specified straightening direction is unexercised by the fake pipeline until a Candidate has a curly apostrophe in its expected content, or the real Phase 1 pipeline runs on the two-column/header-footer documents.
+- Ticket 07 edited `.scratch/phase-0/spec.md` (one corruption-table row and a note, following ticket 05's precedent) — confirm that is acceptable.
+- Ticket 10: the two-column docx SHAs were produced on Windows; the branch CI run on Linux (push run on `562c39c`) passed, which is the confirmation that the committed bytes are platform-stable.
+
+
 - **Ticket 09: maintainer must review all eleven candidate fixtures (`fixtures/candidates/c02.json`–`c12.json`) before merging release.** The "Maintainer sign-off recorded in the PR" checkbox is deliberately unticked on PR #11. Orch spot-checked names/phones/emails/URLs/addresses: all synthetic (555 numbers, `example.*` domains, `-fictional` handles).
 - Ticket 09 ⇄ 08: seven candidates' address lines had to be reworked (street / non-content road or suburb / postcode, no bare town or county line) because `pii_leak`'s address rule flags any address line that also appears as a work or education location. Design question for Phase 1: real CVs routinely say "Cork" in both places, so the zero PII gate may need a narrower address rule (e.g. only lines with a digit/postcode, or the full address in sequence) — the maintainer should decide before the Phase 1 baseline.
 
@@ -10,6 +18,17 @@
 
 
 ## Per-ticket summary
+
+### 11 text-box-layout — PR #14 (merged)
+`TextBoxLayout` (`text-box`): contact block, skills and unplaceable fragments each in a VML text box written as raw `w:txbxContent` via lxml; `Jan '20` dates, literal `-` bullets, education after experience, experience rotated by one and education reversed; NBSP and soft-hyphen injection recorded on `Decisions`; 26 Layout tests; twelve pairs committed. One follow-up round to merge release (07 + 10) and put `LAYOUTS` in matrix order. 851 passed, 3 skipped, ruff clean.
+
+
+### 07 provenance-and-punctuation-fidelity — PR #12 (merged)
+`cvr.eval.provenance_violations` (canonicalised whole-unit substring of a source block, or whole-unit equality with a template unit or date-map rendered side) and `cvr.eval.punctuation_fidelity` (raw equality, findings name the differing code points); shared `findings` helper; fake pipeline gains `source_blocks`, `template_units`, `locate`, raw `pairs`; every corruption row now carries all eight metrics; two new rows. One follow-up round to merge release (08 + 09). 595 passed, 3 skipped, ruff clean.
+
+### 10 two-column-layout — PR #13 (merged)
+`TwoColumnLayout` (`two-column`): one two-cell table, photo + contact + Academic Background + referees + fragments left, everything else right; `MM/YYYY` dates, en dash ranges, literal `•`, experience reversed; curly apostrophes/double quotes injected via `Decisions.injected`; `placeholder_photo()` stdlib-only PNG with hand-rolled stored deflate for cross-platform byte stability; `image_count` test per pair. One follow-up round to merge release (09) and generate c02–c12 pairs; nothing in the Layout needed changing. 660 passed on branch; 715 after merge with 07. Orch resolved a `CLAUDE.md` conflict.
+
 
 ### 09 eleven-candidates-and-tags — PR #11 (merged)
 Full 19-member `Tag` enum (14 computable predicates, 5 author-declared), fixtures c02–c12 per the spec allocation table, per-predicate and allocation tests, single-column pairs regenerated for c02–c12 (c01 byte-identical). One follow-up round: merged release and reworked seven addresses (see Decisions). 540 tests green, ruff clean. Maintainer sign-off deferred to the release PR.
@@ -24,6 +43,23 @@ Template built by `python -m cvr.template.build` into `templates/fictitious_recr
 
 
 ## Decisions
+
+- 11 · text-box form → VML `w:pict`/`v:shape`/`v:textbox` rather than DrawingML with a VML fallback → the fallback form carries every string twice, which would double-count in every token metric; VML holds it once (sub-agent). Orch verified: c01 text-box has 2 `txbxContent`, 0 `AlternateContent`, the email appears once, no media.
+- 11 · NBSP location → inside `format_date` so the manifest's `printed` string equals what the document carries (sub-agent).
+- 11 · year-only date in `Jan '20` style → printed `2020`, not `'20` (sub-agent).
+- 11 · fragments → a trailing text box, placement `text-box-end` (sub-agent).
+
+
+- 07 · template-unit match semantics → whole-unit equality with a template unit, not substring → spec's Further Notes: whole-unit is what closes the template-word hole (sub-agent).
+- 07 · empty/whitespace-only output unit → skipped by provenance (nothing rendered, nothing to prove), documented (sub-agent).
+- 07 · swap-row punctuation column (blank in spec) → passes, because fidelity only sees located spans (ADR-0007); recorded in the spec table with a ticket-07 note (sub-agent).
+- 07 · `source_blocks` for the fake pipeline → content leaves + PII values + unplaceable, i.e. what a Layout prints (sub-agent).
+- 07 · 08's "re-emit email in header" row passes provenance because the header is not in `output_units` — matches the spec's intent that a leaked email is provenance-clean text (sub-agent, orch agrees).
+- 10 · "curly quotes" scope → apostrophes (U+2019) and alternating double quotes (U+201C/U+201D); no Candidate has straight double quotes, so U+201C/D appear only in unit tests (sub-agent).
+- 10 · `GENERATOR_VERSION` → left at 0.1.0 because no existing Layout's output changed (sub-agent). Same call made independently by 11.
+- 10 · headings not in the matrix (Contact, Certifications, Other Information, Referees) → added, needed for source coverage (sub-agent).
+- 10 · shared paragraph helpers duplicated between `single_column.py` and `two_column.py` → not extracted; 11 duplicated again → **follow-up PR wanted after 11/12 merge** (review topic).
+
 
 - 09 · can `pii-in-bullet` / `inline-skills` be computed predicates? → author-declared → they describe how the *source* prints content; `CVContent` is the expected output, so content alone cannot prove them (sub-agent). Review topic: a Layout (or ticket 13) must actually print the phone inside c08's bullet for the trap to exist in a generated document.
 - 09 · `concurrent-roles` → two experience entries ending Present; `empty-sections` → certifications and additional both empty; `date-in-body-text` → standalone 4-digit year in any body string (sub-agent).
@@ -47,6 +83,11 @@ Template built by `python -m cvr.template.build` into `templates/fictitious_recr
 
 
 ## Merge conflicts resolved
+- 11 into release (after 10): `src/cvr/golden/layouts/__init__.py` (import, `__all__`, `LAYOUTS` set to matrix order). Delegated to the 11 sub-agent; all 36 committed pairs byte-identical after regeneration; 851 green.
+
+- 07 into release (after 08 + 09): `CLAUDE.md`, `tests/eval/corruptions.py` (6 hunks), `tests/eval/fake_pipeline.py` (3), `tests/eval/test_fake_pipeline.py` (1). Delegated to the 07 sub-agent (its context knew both sides); unions only, `Damage(candidate, result)` adopted for its rows; one lost `),` caught by ruff before commit.
+- 10 into release (after 07): `CLAUDE.md` status paragraph only. Resolved locally by orch (union); full suite 715 passed, 3 skipped; pushed; PR #13 shows as merged.
+
 - 09 into release (after 06 + 08): import block of `src/cvr/golden/candidate.py` (union, keeping the `PII`/`Referee`/`Personal` re-export). Resolved by the 09 sub-agent on its branch; 42 `pii_leak` row-0 failures then fixed on the fixture side. 540 green.
 
 
@@ -56,6 +97,10 @@ Template built by `python -m cvr.template.build` into `templates/fictitious_recr
 ## Skipped / incomplete
 
 ## Run log
+
+- 2026-09-13T10:24Z merged 11 (PR #14). 12 running.
+
+- 2026-09-13T10:16Z merged 07 (PR #12) and 10 (PR #13, local conflict resolution). 11 returned → follow-up round 1 (merge release with 10, reorder LAYOUTS). Dispatched 12.
 
 - 2026-09-13T09:54Z 09 returned; conflict + 42 pii failures → follow-up round 1 to the 09 agent; merged 09 (PR #11). 07 returned with 4 conflicting files → follow-up round 1 to the 07 agent (merge release). 10 still running.
 
