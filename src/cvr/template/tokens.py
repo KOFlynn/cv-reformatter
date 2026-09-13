@@ -1,8 +1,8 @@
 """Extracts the template's own fixed text at run time, minus its Jinja tags.
 
-The eval whitelist (``added_tokens``' ``template`` argument, and later
-provenance's template units) must track the template, so it is read from
-the built document every time and never typed into a list. The walk is
+The eval whitelist (``added_tokens``' ``template`` argument and
+``provenance_violations``' ``template_units``) must track the template, so
+it is read from the built document every time and never typed into a list. The walk is
 deliberately structure-blind: every ``w:p`` in every ``word/*.xml`` part,
 including headers and footers, joined per paragraph so a tag split across
 runs would still be recognised as one tag.

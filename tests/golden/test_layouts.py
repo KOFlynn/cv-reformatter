@@ -1,8 +1,8 @@
 """Layouts observed from the outside: Candidate in, document and manifest out,
-seen only through the dumb ``all_text`` helper."""
+seen only through the dumb ``all_text`` and ``image_count`` helpers."""
 
 import pytest
-from docx_text import all_text
+from docx_text import all_text, image_count
 
 from cvr.golden import CANDIDATES_DIR, LAYOUTS, Candidate, load_candidates
 from cvr.golden.layouts import Decisions
@@ -19,8 +19,8 @@ def c01() -> Candidate:
     return candidate
 
 
-def single_column():
-    (layout,) = [layout for layout in LAYOUTS if layout.name == "single-column"]
+def layout_named(name: str):
+    (layout,) = [layout for layout in LAYOUTS if layout.name == name]
     return layout
 
 
@@ -73,6 +73,17 @@ def test_every_pii_value_appears_in_the_document(candidate, layout):
     generated = layout.generate(candidate)
     texts = all_text(generated.document)
     assert_each_appears(pii_values(candidate), texts, f"{candidate.id} PII")
+
+
+# --- The photo
+
+
+@pytest.mark.parametrize(("candidate", "layout"), PAIRS, ids=PAIR_IDS)
+def test_only_two_column_documents_carry_an_image_and_exactly_one(candidate, layout):
+    generated = layout.generate(candidate)
+    expected = 1 if layout.name == "two-column" else 0
+    assert image_count(generated.document) == expected
+    assert generated.manifest.photo is (expected == 1)
 
 
 # --- The manifest
@@ -222,7 +233,7 @@ def test_a_layout_may_only_record_confusables_from_the_shared_table():
 
 
 def test_single_column_c01_dates_appear_in_document_and_manifest():
-    generated = single_column().generate(c01())
+    generated = layout_named("single-column").generate(c01())
     texts = all_text(generated.document)
     assert "March 2022 - July 2026" in texts
     first_start = [
@@ -235,18 +246,18 @@ def test_single_column_c01_dates_appear_in_document_and_manifest():
 
 def test_single_column_prints_a_year_only_date_as_the_year():
     candidate = c01_with(start={"year": 2020, "expected": "2020"})
-    texts = all_text(single_column().generate(candidate).document)
+    texts = all_text(layout_named("single-column").generate(candidate).document)
     assert "2020 - July 2026" in texts
 
 
 def test_single_column_uses_its_heading_vocabulary():
-    texts = all_text(single_column().generate(c01()).document)
+    texts = all_text(layout_named("single-column").generate(c01()).document)
     for heading in ("Profile", "Key Skills", "Education", "Experience"):
         assert heading in texts
 
 
 def test_single_column_is_clean_and_unscrambled():
-    generated = single_column().generate(c01())
+    generated = layout_named("single-column").generate(c01())
     joined = "".join(all_text(generated.document))
     # No confusables: canonicalising changes nothing but whitespace.
     assert canonicalise(joined) == " ".join(joined.split())
@@ -258,3 +269,61 @@ def test_single_column_is_clean_and_unscrambled():
     assert manifest.contact_block == "body-top"
     assert manifest.experience_order == [0, 1, 2]
     assert manifest.education_order == [0, 1]
+
+
+# --- The two-column table Layout: the style matrix's second column.
+
+
+def test_two_column_uses_its_heading_vocabulary():
+    texts = all_text(layout_named("two-column").generate(c01()).document)
+    for heading in ("Summary", "Skills", "Academic Background", "Work History"):
+        assert heading in texts
+
+
+def test_two_column_c01_dates_bullets_and_scramble():
+    generated = layout_named("two-column").generate(c01())
+    texts = all_text(generated.document)
+    # ``MM/YYYY`` dates joined by an en dash, a literal bullet glyph in the text.
+    assert "03/2022 – 07/2026" in texts
+    assert "• Python" in texts
+    manifest = generated.manifest
+    assert manifest.contact_block == "left-column"
+    assert manifest.experience_order == [2, 1, 0]
+    assert manifest.education_order == [0, 1]
+    first_start = [
+        d
+        for d in manifest.dates
+        if d.section == "experience" and d.entry == 0 and d.which == "start"
+    ]
+    assert [d.printed for d in first_start] == ["03/2022"]
+
+
+def test_two_column_prints_a_year_only_date_as_the_year():
+    candidate = c01_with(start={"year": 2020, "expected": "2020"})
+    texts = all_text(layout_named("two-column").generate(candidate).document)
+    assert "2020 – 07/2026" in texts
+
+
+def test_two_column_curls_quotes_and_lists_the_confusables_it_injected():
+    data = c01().model_dump()
+    data["content"]["profile"] = ['Known as "the fixer" on the team.']
+    data["content"]["skills"][0] = "Bob's Toolkit"
+    candidate = Candidate.model_validate(data)
+    generated = layout_named("two-column").generate(candidate)
+    texts = all_text(generated.document)
+    assert "Known as “the fixer” on the team." in texts
+    assert "• Bob’s Toolkit" in texts
+    assert "Sinéad O’Sampla" in texts
+    assert "• PostgreSQL" in texts  # untouched text is untouched
+    # Only what was injected, as U+XXXX, sorted; c01 has a range so the en dash too.
+    assert generated.manifest.confusables == ["U+2013", "U+2019", "U+201C", "U+201D"]
+
+
+def test_two_column_manifest_lists_only_confusables_actually_injected():
+    data = c01().model_dump()
+    data["content"]["name"] = "Sinead Sampla"
+    data["tags"] = []
+    manifest = (
+        layout_named("two-column").generate(Candidate.model_validate(data)).manifest
+    )
+    assert manifest.confusables == ["U+2013"]
