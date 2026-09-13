@@ -4,12 +4,12 @@
 
 **Blocked by:** 05 (Placement and ordering), 07 (Provenance and punctuation fidelity), 08 (PII leak and image leak), 09 (The other eleven Candidates and the full Tag vocabulary), 10 (Two-column table Layout), 11 (Text-box Layout), 12 (Header/footer Layout)
 
-**Status:** in-progress
+**Status:** in-review
 
-- [ ] 48 documents and 48 manifests committed, all regenerated in one run; regeneration test passes across the set
-- [ ] Blast-radius matrix in the test equals the spec table: eight corruptions, all nine metrics plus image leak as columns, direction where specified
-- [ ] Row 0 passes for all twelve Candidates with real template tokens and units
-- [ ] Tag coverage and tag predicate tests pass for the full set
-- [ ] Source coverage passes for all 48; image count test passes for all 48
-- [ ] Project instructions updated: real commands, package layout, `fixtures/` and `eval/` as data/config only, pointer to the spec and ADRs
-- [ ] Phase 0 exit criteria in the brief checked; anything deferred to Phase 1 is listed explicitly in the PR
+- [x] 48 documents and 48 manifests committed, all regenerated in one run; regeneration test passes across the set
+- [x] Blast-radius matrix in the test equals the spec table: eight corruptions, all nine metrics plus image leak as columns, direction where specified
+- [x] Row 0 passes for all twelve Candidates with real template tokens and units
+- [x] Tag coverage and tag predicate tests pass for the full set
+- [x] Source coverage passes for all 48; image count test passes for all 48
+- [x] Project instructions updated: real commands, package layout, `fixtures/` and `eval/` as data/config only, pointer to the spec and ADRs
+- [x] Phase 0 exit criteria in the brief checked; anything deferred to Phase 1 is listed explicitly in the PR
