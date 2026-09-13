@@ -1,0 +1,98 @@
+{
+  "id": "c10",
+  "content": {
+    "name": "Priyanka Venkataraman",
+    "profile": [
+      "Data engineer with eight years of experience building batch and streaming pipelines for e-commerce and payments companies in Bengaluru. Holds a Critical Skills Employment Permit for Ireland and is moving to Dublin with family in the coming months."
+    ],
+    "skills": [
+      "Python",
+      "PySpark",
+      "Scala",
+      "Apache Airflow",
+      "Apache Kafka",
+      "Snowflake",
+      "dbt",
+      "AWS (Glue, EMR, Redshift)",
+      "Terraform"
+    ],
+    "education": [
+      {
+        "institution": "Visvesvaraya Technological University",
+        "qualification": "B.Tech in Computer Science and Engineering",
+        "start": { "year": 2012, "expected": "2012" },
+        "end": { "year": 2016, "expected": "2016" },
+        "details": [
+          "First Class with Distinction, CGPA 8.9 out of 10"
+        ]
+      }
+    ],
+    "experience": [
+      {
+        "title": "Senior Data Engineer",
+        "employer": "Cauvery Payments Pvt. Ltd.",
+        "location": "Bengaluru",
+        "start": { "month": 8, "year": 2021, "expected": "08/2021" },
+        "end": { "month": 9, "year": 2026, "expected": "09/2026" },
+        "bullets": [
+          "Led a team of five building the settlement data platform on Snowflake and dbt, serving finance, risk and regulatory reporting.",
+          "Designed the Kafka-based ingestion for transaction events at a peak of forty thousand messages a second.",
+          "Reduced the monthly AWS bill for the data platform by 38 percent through storage tiering and job right-sizing.",
+          "Ran the on-call rotation for the platform and wrote the incident review template the wider engineering group adopted."
+        ]
+      },
+      {
+        "title": "Data Engineer",
+        "employer": "Nilgiri Retail Technologies",
+        "location": "Bengaluru",
+        "start": { "month": 7, "year": 2018, "expected": "07/2018" },
+        "end": { "month": 7, "year": 2021, "expected": "07/2021" },
+        "bullets": [
+          "Built PySpark pipelines on EMR for a marketplace's catalogue and pricing data, orchestrated with Airflow.",
+          "Migrated the nightly reporting warehouse from a self-managed Postgres cluster to Redshift.",
+          "Mentored two graduate engineers in the team's Python standards and code review process."
+        ]
+      },
+      {
+        "title": "Software Engineer",
+        "employer": "Deccan Infotech Solutions",
+        "location": "Chennai",
+        "start": { "month": 8, "year": 2016, "expected": "08/2016" },
+        "end": { "month": 6, "year": 2018, "expected": "06/2018" },
+        "bullets": [
+          "Developed and supported ETL jobs in Scala for a US insurance client's claims data.",
+          "Rotated through the client's data quality team for six months, writing validation rules against the claims feed."
+        ]
+      }
+    ],
+    "certifications": [
+      "AWS Certified Data Engineer - Associate (valid until March 2027)",
+      "SnowPro Core Certification, obtained 2023",
+      "Databricks Certified Associate Developer for Apache Spark"
+    ],
+    "additional": [
+      "Languages: English (fluent), Tamil (native), Kannada (fluent), Hindi (conversational)",
+      "Critical Skills Employment Permit approved; no sponsorship required",
+      "Interests: Carnatic music, long-distance cycling"
+    ]
+  },
+  "pii": {
+    "phone": "+91 98765 43210",
+    "email": "priyanka.venkataraman@example.com",
+    "address": [
+      "Flat 4B, Lotus Residency",
+      "5th Cross, Koramangala",
+      "Bengaluru 560034",
+      "India"
+    ],
+    "urls": [
+      "https://github.com/pvenkataraman-fictional",
+      "https://www.linkedin.com/in/priyanka-venkataraman-fictional"
+    ],
+    "dob": null,
+    "personal": { "nationality": null, "marital_status": null },
+    "referees": []
+  },
+  "unplaceable": [],
+  "tags": ["non-ie-locale", "year-only-date", "date-in-body-text"]
+}

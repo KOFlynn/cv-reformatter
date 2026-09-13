@@ -1,0 +1,104 @@
+{
+  "id": "c07",
+  "content": {
+    "name": "Jonas Hellwig",
+    "profile": [
+      "Backend engineer from Berlin with six years on JVM services in logistics and e-commerce. Relocating to Ireland in the autumn and looking for a senior role on a team that owns its services in production."
+    ],
+    "skills": [
+      "Java",
+      "Spring Boot",
+      "Kotlin",
+      "PostgreSQL",
+      "Apache Kafka",
+      "Docker",
+      "Kubernetes (CKA)",
+      "Gradle",
+      "Git"
+    ],
+    "education": [
+      {
+        "institution": "Technische Universität Berlin",
+        "qualification": "MSc Computer Science (Informatik)",
+        "start": { "month": 10, "year": 2016, "expected": "10/2016" },
+        "end": { "month": 3, "year": 2019, "expected": "03/2019" },
+        "details": [
+          "Thesis: exactly-once delivery guarantees in stream processing systems",
+          "Grade: 1.7"
+        ]
+      },
+      {
+        "institution": "Hochschule für Technik und Wirtschaft Berlin",
+        "qualification": "BSc Applied Computer Science",
+        "start": { "month": 10, "year": 2012, "expected": "10/2012" },
+        "end": { "month": 9, "year": 2016, "expected": "09/2016" },
+        "details": []
+      }
+    ],
+    "experience": [
+      {
+        "title": "Senior Backend Engineer",
+        "employer": "Spree Logistik GmbH",
+        "location": "Berlin",
+        "start": { "month": 5, "year": 2022, "expected": "05/2022" },
+        "end": { "month": 7, "year": 2026, "expected": "07/2026" },
+        "bullets": [
+          "Owned the shipment tracking service handling roughly two million events a day over Kafka.",
+          "Split a monolith's order module into three Spring Boot services with no downtime for customers.",
+          "Ran the team's on-call rotation and cut the pager volume by two thirds through better alert thresholds.",
+          "Interviewed and onboarded four engineers."
+        ]
+      },
+      {
+        "title": "Backend Engineer",
+        "employer": "Kiezkauf Online AG",
+        "location": "Berlin",
+        "start": { "month": 4, "year": 2019, "expected": "04/2019" },
+        "end": { "month": 4, "year": 2022, "expected": "04/2022" },
+        "bullets": [
+          "Built the checkout and payments integration for a grocery delivery platform in Kotlin.",
+          "Introduced contract tests between the checkout service and the three payment providers.",
+          "Migrated the platform's deployment from hand-managed virtual machines to Kubernetes."
+        ]
+      },
+      {
+        "title": "Working Student (Werkstudent), Software Development",
+        "employer": "Havel Systemhaus",
+        "location": "Potsdam",
+        "start": { "month": 3, "year": 2017, "expected": "03/2017" },
+        "end": { "month": 2, "year": 2019, "expected": "02/2019" },
+        "bullets": [
+          "Twenty hours a week alongside the master's degree, maintaining an internal ticketing system in Java.",
+          "Wrote the integration tests that let the team upgrade the application server without a manual test pass."
+        ]
+      }
+    ],
+    "certifications": [
+      "Certified Kubernetes Administrator (CKA)",
+      "Oracle Certified Professional, Java SE 11 Developer"
+    ],
+    "additional": [
+      "Languages: German (native), English (fluent, C1), Polish (basic)",
+      "EU citizen; no visa required for Ireland",
+      "Interests: bouldering, restoring a vintage racing bicycle"
+    ]
+  },
+  "pii": {
+    "phone": "+49 30 5550 1234",
+    "email": "jonas.hellwig@example.de",
+    "address": [
+      "Musterstraße 12",
+      "10115 Berlin",
+      "Germany"
+    ],
+    "urls": [
+      "https://github.com/jhellwig-fictional",
+      "https://www.linkedin.com/in/jonas-hellwig-fictional"
+    ],
+    "dob": null,
+    "personal": { "nationality": null, "marital_status": null },
+    "referees": []
+  },
+  "unplaceable": [],
+  "tags": ["non-ie-locale", "inline-skills"]
+}
