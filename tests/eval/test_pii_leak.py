@@ -193,3 +193,23 @@ def test_hits_are_sorted_by_part_then_rule_then_text():
             where="header", rule=RemovalRule.EMAIL, what="Aoife.NicShampla@example.com"
         ),
     ]
+
+
+def test_no_dob_form_matches_inside_a_longer_word_or_number():
+    # Every form is guarded, not only the first and last of the alternation.
+    assert hits("ref 214/02/19905", PII(dob="14 February 1990")) == []
+    assert hits("x14 February 1990y", PII(dob="14 February 1990")) == []
+    assert hits("31990-02-14", PII(dob="14/02/1990")) == []
+
+
+def test_a_longer_path_under_the_url_is_a_hit_but_a_different_path_is_not():
+    assert hits("example.com/aoife-fictional/posts") == [
+        PiiHit(where="body", rule=RemovalRule.URL, what="example.com/aoife-fictional/")
+    ]
+    assert hits("example.com/aoife-fictional-two") == []
+
+
+def test_an_international_prefix_written_with_a_space_after_00_is_part_of_the_hit():
+    assert hits("00 353 21 4270000") == [
+        PiiHit(where="body", rule=RemovalRule.PHONE, what="00 353 21 4270000")
+    ]

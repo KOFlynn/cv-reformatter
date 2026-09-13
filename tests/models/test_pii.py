@@ -1,6 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
+from cvr.golden import PII as GoldenPII
 from cvr.models import PII, RemovalRule
 
 
@@ -36,6 +37,4 @@ def test_pii_rejects_an_unknown_key():
 
 
 def test_the_golden_set_reuses_the_models_pii():
-    from cvr.golden import PII as GoldenPII
-
     assert GoldenPII is PII

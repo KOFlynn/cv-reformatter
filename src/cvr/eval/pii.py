@@ -34,15 +34,22 @@ class PiiHit:
     what: str
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class _Matcher:
+    """One PII value as a compiled pattern, and the rule it leaks under."""
+
     rule: RemovalRule
     pattern: re.Pattern[str]
+
+    @classmethod
+    def of(cls, rule: RemovalRule, pattern: str, flags: int = 0) -> "_Matcher":
+        return cls(rule, re.compile(pattern, flags))
 
 
 def _bounded(pattern: str) -> str:
     # Not inside a longer word or number: `Dublin 6` is not in `Dublin 60`.
-    return rf"(?<!\w){pattern}(?!\w)"
+    # Grouped, so an alternation is guarded as a whole and not at its ends.
+    return rf"(?<!\w)(?:{pattern})(?!\w)"
 
 
 def _email(value: str) -> str:
@@ -73,8 +80,8 @@ def _phone(value: str) -> str:
         national = digits[1:]
         codes = "|".join(_COUNTRY_CODES)
     else:
-        return rf"(?<![\d+])(?:\+|00)?{_SEP.join(digits)}(?!\d)"
-    prefix = rf"(?:(?:\+|00)?(?:{codes}){_SEP}(?:\(0\){_SEP}|0{_SEP})?|0{_SEP})?"
+        return rf"(?<![\d+])(?:\+|00{_SEP})?{_SEP.join(digits)}(?!\d)"
+    prefix = rf"(?:(?:\+|00{_SEP})?(?:{codes}){_SEP}(?:\(0\){_SEP}|0{_SEP})?|0{_SEP})?"
     return rf"(?<![\d+]){prefix}{_SEP.join(national)}(?!\d)"
 
 
@@ -83,12 +90,16 @@ def _url(value: str) -> str:
     stripped core is what must not appear, and whatever dressing surrounds
     it is reported with it."""
     core = re.sub(r"^(?:https?://)?(?:www\.)?", "", canonicalise(value)).rstrip("/")
-    return rf"(?<!\w)(?:https?://)?(?:www\.)?{re.escape(core)}(?!\w)/?"
+    # A longer path under the URL is still the URL; `-two` after it is not.
+    return rf"(?<!\w)(?:https?://)?(?:www\.)?{re.escape(core)}(?![\w-])/?"
 
 
 def _address_line(value: str) -> str:
     # Whitespace collapsed, and optional altogether so a postcode or Eircode
     # printed without its space (`T12AB34`, `D06X0X0`) is the same line.
+    # Lines match one at a time, so a one-word line that is also a job
+    # location (`Cork`) would flag the location: a Candidate author writes
+    # the address so that no line is a plain place name the content also uses.
     words = canonicalise(value).split()
     return _bounded(r"\s*".join(re.escape(word) for word in words))
 
@@ -104,6 +115,8 @@ def _dob(value: str) -> str:
     forms = {written}
     for fmt in _DOB_FORMATS:
         try:
+            # time rather than datetime: a date of birth has no timezone to
+            # be naive about.
             born = date(*time.strptime(written, fmt)[:3])
         except ValueError:
             continue
@@ -126,42 +139,44 @@ _EMAIL_IN_LINE = re.compile(r"[^\s@]+@[^\s@]+")
 _DIGITS = re.compile(r"\d")
 
 
-def _contact_line(value: str) -> tuple[str, int]:
+def _contact_line(value: str) -> _Matcher:
     """A referee's contact line matched by what it is: the email in it with
     the email variants, the number in it with the phone variants, anything
     else as written."""
     if email := _EMAIL_IN_LINE.search(value):
-        return _email(email.group().rstrip(".,;")), re.IGNORECASE
+        return _Matcher.of(
+            RemovalRule.REFEREE, _email(email.group().rstrip(".,;")), re.IGNORECASE
+        )
     if len(_DIGITS.findall(value)) >= 6:
         # Drop a `Tel:` label but keep a leading `+`, which names the form.
-        return _phone(re.sub(r"^[^\d+]*", "", value)), 0
-    return _word(value), 0
+        return _Matcher.of(RemovalRule.REFEREE, _phone(re.sub(r"^[^\d+]*", "", value)))
+    return _Matcher.of(RemovalRule.REFEREE, _word(value))
 
 
 def _matchers(pii: PII) -> list[_Matcher]:
-    def add(rule: RemovalRule, pattern: str, flags: int = 0) -> None:
-        matchers.append(_Matcher(rule, re.compile(pattern, flags)))
-
     matchers: list[_Matcher] = []
     if pii.phone:
-        add(RemovalRule.PHONE, _phone(pii.phone))
+        matchers.append(_Matcher.of(RemovalRule.PHONE, _phone(pii.phone)))
     if pii.email:
-        add(RemovalRule.EMAIL, _email(pii.email), re.IGNORECASE)
+        matchers.append(
+            _Matcher.of(RemovalRule.EMAIL, _email(pii.email), re.IGNORECASE)
+        )
     for line in pii.address:
-        add(RemovalRule.ADDRESS, _address_line(line), re.IGNORECASE)
+        matchers.append(
+            _Matcher.of(RemovalRule.ADDRESS, _address_line(line), re.IGNORECASE)
+        )
     for url in pii.urls:
-        add(RemovalRule.URL, _url(url), re.IGNORECASE)
+        matchers.append(_Matcher.of(RemovalRule.URL, _url(url), re.IGNORECASE))
     if pii.dob:
-        add(RemovalRule.DOB, _dob(pii.dob), re.IGNORECASE)
+        matchers.append(_Matcher.of(RemovalRule.DOB, _dob(pii.dob), re.IGNORECASE))
     for detail in (pii.personal.nationality, pii.personal.marital_status):
         if detail:
-            add(RemovalRule.PERSONAL, _word(detail))
+            matchers.append(_Matcher.of(RemovalRule.PERSONAL, _word(detail)))
     for referee in pii.referees:
         for detail in (referee.name, referee.role):
             if detail:
-                add(RemovalRule.REFEREE, _word(detail))
-        for line in referee.contact:
-            add(RemovalRule.REFEREE, *_contact_line(line))
+                matchers.append(_Matcher.of(RemovalRule.REFEREE, _word(detail)))
+        matchers.extend(_contact_line(line) for line in referee.contact)
     return matchers
 
 
