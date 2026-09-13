@@ -251,8 +251,8 @@ _SPECS: dict[Tag, _TagSpec] = {
     ),
     Tag.PII_IN_BULLET: _TagSpec(
         "Declared: a bullet is the text left once the Candidate's own contact detail is "
-        "removed from its end; a Layout printing that detail inside the bullet exercises "
-        "removal inside body text.",
+        "removed from its end, so a Layout may print that detail inside the bullet to "
+        "exercise removal inside body text.",
         None,
     ),
     Tag.UNPLACEABLE: _TagSpec(

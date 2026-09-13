@@ -39,22 +39,6 @@ def test_every_expected_date_is_normalised_or_the_literal(path):
         assert EXPECTED_DATE.match(date.expected) or date.expected == date.literal, date
 
 
-def _candidate(name: str) -> Candidate:
-    return Candidate(id="cx", content=CVContent(name=name), pii={})
-
-
-@pytest.mark.parametrize(
-    "name", ["Sinéad Byrne", "Tom O'Reilly", "Tom O’Reilly", "Anna Smith-Jones"]
-)
-def test_punctuation_in_name_holds_for_fada_apostrophe_and_hyphen(name):
-    assert Tag.PUNCTUATION_IN_NAME.holds(_candidate(name))
-
-
-def test_punctuation_in_name_does_not_hold_for_a_plain_name():
-    assert not Tag.PUNCTUATION_IN_NAME.holds(_candidate("Tom Byrne"))
-    assert not Tag.PUNCTUATION_IN_NAME.declared
-
-
 # --- The vocabulary
 
 
@@ -85,10 +69,6 @@ def test_tag_vocabulary_is_exactly_the_spec_list():
 # --- Predicates, on hand-built Candidates
 
 
-def _date(**parts) -> dict:
-    return parts
-
-
 def _job(employer="Acme Ltd", start=None, end=None, bullets=("Did things.",)) -> dict:
     return {
         "title": "Engineer",
@@ -114,8 +94,20 @@ def _build(*, content: dict | None = None, pii: dict | None = None, **top) -> Ca
     )
 
 
-MMYYYY = _date(month=3, year=2021, expected="03/2021")
-PRESENT = _date(present=True, expected="Present")
+MMYYYY = {"month": 3, "year": 2021, "expected": "03/2021"}
+PRESENT = {"present": True, "expected": "Present"}
+
+
+@pytest.mark.parametrize(
+    "name", ["Sinéad Byrne", "Tom O'Reilly", "Tom O’Reilly", "Anna Smith-Jones"]
+)
+def test_punctuation_in_name_holds_for_fada_apostrophe_and_hyphen(name):
+    assert Tag.PUNCTUATION_IN_NAME.holds(_build(content={"name": name}))
+
+
+def test_punctuation_in_name_does_not_hold_for_a_plain_name():
+    assert not Tag.PUNCTUATION_IN_NAME.holds(_build(content={"name": "Tom Byrne"}))
+    assert not Tag.PUNCTUATION_IN_NAME.declared
 
 
 def test_no_profile_holds_only_when_the_profile_is_empty():
@@ -124,7 +116,7 @@ def test_no_profile_holds_only_when_the_profile_is_empty():
 
 
 def test_year_only_date_holds_for_a_year_with_no_month_in_either_section():
-    year_only = _date(year=2014, expected="2014")
+    year_only = {"year": 2014, "expected": "2014"}
     assert Tag.YEAR_ONLY_DATE.holds(
         _build(content={"education": [_course(end=year_only)]})
     )
@@ -137,7 +129,7 @@ def test_year_only_date_holds_for_a_year_with_no_month_in_either_section():
 
 
 def test_literal_date_holds_only_when_a_date_carries_a_literal():
-    literal = _date(year=2020, literal="Summer 2020", expected="Summer 2020")
+    literal = {"year": 2020, "literal": "Summer 2020", "expected": "Summer 2020"}
     assert Tag.LITERAL_DATE.holds(_build(content={"experience": [_job(end=literal)]}))
     assert not Tag.LITERAL_DATE.holds(
         _build(content={"experience": [_job(end=MMYYYY)]})

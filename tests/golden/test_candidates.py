@@ -69,3 +69,33 @@ def test_every_candidate_has_a_name_skills_education_and_dated_experience(candid
     # The ordering metric trusts Candidate order, so at least one entry must be
     # dated for that order to mean anything.
     assert any(entry.start or entry.end for entry in content.experience)
+
+
+# The misspellings behind every `typo` tag, pinned so that nobody helpfully
+# normalises them out of the fixture: a StrictModel cannot carry a comment.
+TYPOS = {
+    "c02": ["Maintianed", "recieved"],
+    "c06": ["comunication", "liased"],
+    "c12": ["responsibile"],
+}
+
+
+def _strings(candidate) -> list[str]:
+    content = candidate.content
+    strings = [*content.profile, *content.certifications, *content.additional]
+    for entry in content.experience:
+        strings += entry.bullets
+    for entry in content.education:
+        strings += entry.details
+    return strings
+
+
+def test_typo_candidates_are_exactly_the_ones_with_pinned_misspellings():
+    assert sorted(TYPOS) == sorted(c.id for c in CANDIDATES if Tag.TYPO in c.tags)
+
+
+@pytest.mark.parametrize("candidate_id", sorted(TYPOS))
+def test_each_pinned_misspelling_survives_in_the_fixture(candidate_id):
+    strings = _strings(BY_ID[candidate_id])
+    for typo in TYPOS[candidate_id]:
+        assert any(typo in text for text in strings), typo
