@@ -7,8 +7,10 @@ each occurrence once under the rule that should have removed it.
 """
 
 import re
+import time
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from datetime import date
 
 from cvr.models import PII, RemovalRule
 from cvr.text import canonicalise
@@ -76,14 +78,59 @@ def _phone(value: str) -> str:
     return rf"(?<![\d+]){prefix}{_SEP.join(national)}(?!\d)"
 
 
+def _url(value: str) -> str:
+    """The URL with or without scheme, `www.` and a trailing slash: the
+    stripped core is what must not appear, and whatever dressing surrounds
+    it is reported with it."""
+    core = re.sub(r"^(?:https?://)?(?:www\.)?", "", canonicalise(value)).rstrip("/")
+    return rf"(?<!\w)(?:https?://)?(?:www\.)?{re.escape(core)}(?!\w)/?"
+
+
+def _address_line(value: str) -> str:
+    # Whitespace collapsed, and optional altogether so a postcode or Eircode
+    # printed without its space (`T12AB34`, `D06X0X0`) is the same line.
+    words = canonicalise(value).split()
+    return _bounded(r"\s*".join(re.escape(word) for word in words))
+
+
+# How a date of birth is written in a fixture, and how it may be re-emitted.
+_DOB_FORMATS = ("%d %B %Y", "%d %b %Y", "%Y-%m-%d", "%d/%m/%Y", "%d.%m.%Y", "%B %d, %Y")
+
+
+def _dob(value: str) -> str:
+    """As written, and if the date parses, in ISO and `DD/MM/YYYY` too, plus the
+    long and short month-name forms with the day padded or not."""
+    written = canonicalise(value)
+    forms = {written}
+    for fmt in _DOB_FORMATS:
+        try:
+            born = date(*time.strptime(written, fmt)[:3])
+        except ValueError:
+            continue
+        forms.update(born.strftime(f) for f in ("%Y-%m-%d", "%d/%m/%Y"))
+        for month in (born.strftime("%B"), born.strftime("%b")):
+            forms.update(
+                {f"{born.day} {month} {born.year}", f"{born:%d} {month} {born.year}"}
+            )
+        break
+    return _bounded("|".join(re.escape(form) for form in sorted(forms)))
+
+
 def _matchers(pii: PII) -> list[_Matcher]:
+    def add(rule: RemovalRule, pattern: str, flags: int = 0) -> None:
+        matchers.append(_Matcher(rule, re.compile(pattern, flags)))
+
     matchers: list[_Matcher] = []
     if pii.phone:
-        matchers.append(_Matcher(RemovalRule.PHONE, re.compile(_phone(pii.phone))))
+        add(RemovalRule.PHONE, _phone(pii.phone))
     if pii.email:
-        matchers.append(
-            _Matcher(RemovalRule.EMAIL, re.compile(_email(pii.email), re.IGNORECASE))
-        )
+        add(RemovalRule.EMAIL, _email(pii.email), re.IGNORECASE)
+    for line in pii.address:
+        add(RemovalRule.ADDRESS, _address_line(line), re.IGNORECASE)
+    for url in pii.urls:
+        add(RemovalRule.URL, _url(url), re.IGNORECASE)
+    if pii.dob:
+        add(RemovalRule.DOB, _dob(pii.dob), re.IGNORECASE)
     return matchers
 
 

@@ -66,3 +66,58 @@ def test_the_phone_as_written_and_in_national_and_digits_only_forms_all_hit():
 def test_a_different_number_is_not_a_hit():
     assert hits("Tel 021 4270001") == []
     assert hits("Order 10214270000 shipped") == []
+
+
+def test_the_url_hits_with_or_without_scheme_www_and_trailing_slash():
+    for form in (
+        "https://www.example.com/aoife-fictional/",
+        "http://example.com/aoife-fictional",
+        "www.example.com/aoife-fictional",
+        "EXAMPLE.com/aoife-fictional",
+    ):
+        assert hits(f"See {form} for more") == [
+            PiiHit(where="body", rule=RemovalRule.URL, what=form)
+        ], form
+
+
+def test_an_address_line_hits_alone_and_a_postcode_hits_without_its_space():
+    assert hits("7 Sample Quay, Cork") == [
+        PiiHit(where="body", rule=RemovalRule.ADDRESS, what="7 Sample Quay"),
+        PiiHit(where="body", rule=RemovalRule.ADDRESS, what="Cork"),
+    ]
+    assert hits("T12AB34") == [
+        PiiHit(where="body", rule=RemovalRule.ADDRESS, what="T12AB34")
+    ]
+    assert hits("t12 ab34") == [
+        PiiHit(where="body", rule=RemovalRule.ADDRESS, what="t12 ab34")
+    ]
+
+
+def test_an_address_line_inside_a_longer_word_or_number_is_not_a_hit():
+    assert hits("Corkscrew") == []
+    assert hits("T12 AB345") == []
+
+
+def test_the_dob_hits_as_written_iso_and_dd_mm_yyyy():
+    for form in ("14 February 1990", "1990-02-14", "14/02/1990", "14 Feb 1990"):
+        assert hits(f"Born {form}") == [
+            PiiHit(where="body", rule=RemovalRule.DOB, what=form)
+        ], form
+    for form in ("2 March 1990", "02 Mar 1990", "1990-03-02"):
+        assert hits(f"Born {form}", PII(dob="2 March 1990")) == [
+            PiiHit(where="body", rule=RemovalRule.DOB, what=form)
+        ], form
+
+
+def test_a_dob_written_as_iso_is_a_hit_written_long():
+    assert hits("Born 14 February 1990", PII(dob="1990-02-14")) == [
+        PiiHit(where="body", rule=RemovalRule.DOB, what="14 February 1990")
+    ]
+
+
+def test_an_unparseable_dob_still_hits_as_written():
+    pii = PII(dob="Spring '90")
+    assert hits("Born Spring '90", pii) == [
+        PiiHit(where="body", rule=RemovalRule.DOB, what="Spring '90")
+    ]
+    assert hits("Born 1990", pii) == []
