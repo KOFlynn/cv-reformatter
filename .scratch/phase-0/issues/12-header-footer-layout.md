@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 (Tracer bullet — c01 through the single-column Layout to source coverage)
 
-**Status:** in-review
+**Status:** done
 
 - [x] Layout implemented per the style matrix's fourth column and registered with the generator
 - [x] Test: phone and email appear in the header part, address and URL in the footer part, none of them in body paragraphs

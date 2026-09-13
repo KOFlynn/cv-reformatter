@@ -2,6 +2,10 @@
 
 ## Review before merging
 
+- Ticket 12: the header-footer date range is joined with ` to ` (`2022-03 to 2026-07`) rather than a dash, because a dash between dash-separated dates is ambiguous and an en dash is an off-column confusable. Confirm you are happy with that reading of the `2020-01` style.
+- Ticket 12: the golden regeneration test is O(n²) (two full `generate_all` per stem); `tests/golden` now takes ~4.5 min locally. Worth a follow-up to generate once per session.
+
+
 - Ticket 11: "opens in Word" is evidenced with LibreOffice headless only (Word is not on the dev machine). Open `fixtures/generated/c01__text-box.docx` in Word once to confirm the two VML text boxes render.
 
 
@@ -18,6 +22,10 @@
 
 
 ## Per-ticket summary
+
+### 12 header-footer-layout — PR #15 (merged)
+`HeaderFooterLayout` (`header-footer`): phone + email in the page header, address + URLs in the footer, `2020-01` dates, literal `–` bullets, education last, both sections reversed, ZWSP and curly apostrophes recorded via `Decisions.injected`; `text_by_part` walker in `tests/docx_text.py`; 33 tests including per-Candidate "each contact value in its home part and nowhere else"; twelve pairs committed; all 36 pre-existing pairs byte-identical. Sub-agent merged release (11) itself. 984 passed, 3 skipped, ruff clean.
+
 
 ### 11 text-box-layout — PR #14 (merged)
 `TextBoxLayout` (`text-box`): contact block, skills and unplaceable fragments each in a VML text box written as raw `w:txbxContent` via lxml; `Jan '20` dates, literal `-` bullets, education after experience, experience rotated by one and education reversed; NBSP and soft-hyphen injection recorded on `Decisions`; 26 Layout tests; twelve pairs committed. One follow-up round to merge release (07 + 10) and put `LAYOUTS` in matrix order. 851 passed, 3 skipped, ruff clean.
@@ -43,6 +51,14 @@ Template built by `python -m cvr.template.build` into `templates/fictitious_recr
 
 
 ## Decisions
+
+- 12 · date-range join in the `2020-01` style → ` to ` (sub-agent; review topic above).
+- 12 · fragment placement → `footer-end` (sub-agent).
+- 12 · bullet `–` not recorded as an injected confusable → matrix names only ZWSP + curly apostrophes for this Layout; two-column likewise does not record its `•` (sub-agent).
+- 12 · ZWSP placement → one after each bullet glyph, never inside emails/URLs, so PII stays an exact substring of its part (sub-agent).
+- 12 · DOB/personal details go in the body under the name; referees before Qualifications → the ticket only places phone/email/address/URL in header/footer (sub-agent).
+- 10/11/12 · each Layout keeps private paragraph helpers rather than a shared module → three-way duplication now exists; **follow-up ticket wanted** (review topic).
+
 
 - 11 · text-box form → VML `w:pict`/`v:shape`/`v:textbox` rather than DrawingML with a VML fallback → the fallback form carries every string twice, which would double-count in every token metric; VML holds it once (sub-agent). Orch verified: c01 text-box has 2 `txbxContent`, 0 `AlternateContent`, the email appears once, no media.
 - 11 · NBSP location → inside `format_date` so the manifest's `printed` string equals what the document carries (sub-agent).
@@ -83,6 +99,8 @@ Template built by `python -m cvr.template.build` into `templates/fictitious_recr
 
 
 ## Merge conflicts resolved
+- 12 into release (after 11): `src/cvr/golden/layouts/__init__.py` registry and `CLAUDE.md` status paragraph, resolved by the 12 sub-agent on its branch before opening the PR. Full regeneration produced zero diffs on the 36 pre-existing pairs.
+
 - 11 into release (after 10): `src/cvr/golden/layouts/__init__.py` (import, `__all__`, `LAYOUTS` set to matrix order). Delegated to the 11 sub-agent; all 36 committed pairs byte-identical after regeneration; 851 green.
 
 - 07 into release (after 08 + 09): `CLAUDE.md`, `tests/eval/corruptions.py` (6 hunks), `tests/eval/fake_pipeline.py` (3), `tests/eval/test_fake_pipeline.py` (1). Delegated to the 07 sub-agent (its context knew both sides); unions only, `Damage(candidate, result)` adopted for its rows; one lost `),` caught by ruff before commit.
@@ -97,6 +115,8 @@ Template built by `python -m cvr.template.build` into `templates/fictitious_recr
 ## Skipped / incomplete
 
 ## Run log
+
+- 2026-09-13T10:44Z merged 12 (PR #15). Dispatching 13 alone.
 
 - 2026-09-13T10:24Z merged 11 (PR #14). 12 running.
 
