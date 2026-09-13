@@ -12,6 +12,7 @@ from fake_pipeline import fake_pipeline, metric_inputs
 
 from cvr.eval import placement_accuracy
 from cvr.golden import CANDIDATES_DIR, load_candidate
+from cvr.template import template_tokens
 
 # Parametrised over files rather than loaded Candidates so that one malformed
 # file fails its own cases, not the collection of the whole module.
@@ -36,9 +37,12 @@ def test_the_fake_pipeline_maps_a_candidate_to_every_metric_input():
     assert inputs.output_units[0] == candidate.content.name
     assert candidate.content.experience[0].bullets[0] in inputs.output_units
     assert candidate.content.experience[0].start.expected in inputs.output_units
-    # Output tokens are the tokenised leaves plus template tokens (none yet).
-    assert inputs.template_tokens == []
+    # Output tokens are the tokenised leaves plus the template's own fixed
+    # text, extracted from the built template rather than typed in.
+    assert inputs.template_tokens == template_tokens()
     assert "Airflow" in inputs.output_tokens
+    assert "Recruitment" in inputs.output_tokens
+    assert "Recruitment" not in inputs.source_tokens
     # Each expected date maps to itself.
     assert ("03/2022", "03/2022") in inputs.date_map
     # Removed tokens are the PII values; they are in the source, not the output.
