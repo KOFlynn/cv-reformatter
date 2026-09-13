@@ -26,6 +26,10 @@ from cvr.models import EducationEntry, ExperienceEntry
 
 __all__ = ["HeaderFooterLayout"]
 
+_BULLET = "–"
+_ZWSP = "\u200b"
+_APOSTROPHE = "’"
+
 
 class HeaderFooterLayout(Layout):
     name: ClassVar[str] = "header-footer"
@@ -47,51 +51,55 @@ class HeaderFooterLayout(Layout):
 
         # Header: phone and email. Footer: address and URLs. A fresh header or
         # footer already holds one empty paragraph; the first line goes into it.
-        _lines(section.header, [pii.phone, pii.email])
-        _lines(section.footer, [*pii.address, *pii.urls])
+        _lines(section.header, [pii.phone, pii.email], decisions)
+        _lines(section.footer, [*pii.address, *pii.urls], decisions)
 
         body = document
-        body.add_paragraph(content.name, style="Title")
-        _lines(body, [pii.dob, pii.personal.nationality, pii.personal.marital_status])
+        body.add_paragraph(_inject(content.name, decisions), style="Title")
+        _lines(
+            body,
+            [pii.dob, pii.personal.nationality, pii.personal.marital_status],
+            decisions,
+        )
 
         if content.profile:
             body.add_heading("Personal Statement", level=1)
-            _lines(body, content.profile)
+            _lines(body, content.profile, decisions)
 
         if content.skills:
             body.add_heading("Technical Skills", level=1)
-            _bullets(body, content.skills)
+            _bullets(body, content.skills, decisions)
 
         if plan.experience:
             body.add_heading("Employment", level=1)
             for planned in plan.experience:
-                _experience(body, planned)
+                _experience(body, planned, decisions)
 
         if content.certifications:
             body.add_heading("Certifications", level=1)
-            _bullets(body, content.certifications)
+            _bullets(body, content.certifications, decisions)
 
         if content.additional:
             body.add_heading("Further Information", level=1)
-            _lines(body, content.additional)
+            _lines(body, content.additional, decisions)
 
         if pii.referees:
             body.add_heading("Referees", level=1)
             for referee in pii.referees:
-                _line(body, referee.name, bold=True)
-                _lines(body, [referee.role, *referee.contact])
+                _line(body, referee.name, decisions, bold=True)
+                _lines(body, [referee.role, *referee.contact], decisions)
 
         # Education at the very bottom of the body, after everything else.
         if plan.education:
             body.add_heading("Qualifications", level=1)
             for planned in plan.education:
-                _education(body, planned)
+                _education(body, planned, decisions)
 
         # Unplaceable fragments trail the footer, under the contact lines: text
         # a pipeline reading only the body never sees, in a part it must still
         # sweep for the appendix.
         for index, fragment in enumerate(candidate.unplaceable):
-            _line(section.footer, fragment)
+            _line(section.footer, fragment, decisions)
             decisions.fragments.append(
                 FragmentPlacement(index=index, location="footer-end")
             )
@@ -108,54 +116,80 @@ def _paragraph(container):
     return container.add_paragraph()
 
 
-def _line(container, text: str, *, bold: bool = False, italic: bool = False) -> None:
+def _inject(text: str, decisions: Decisions) -> str:
+    """Word's smart apostrophe: every straight apostrophe becomes a right single
+    quote from the shared confusable table, recorded as injected."""
+    if "'" in text:
+        decisions.injected(_APOSTROPHE)
+        text = text.replace("'", _APOSTROPHE)
+    return text
+
+
+def _line(
+    container,
+    text: str,
+    decisions: Decisions,
+    *,
+    bold: bool = False,
+    italic: bool = False,
+) -> None:
+    """One paragraph of content or PII text, apostrophes curled."""
     # Only set what is asked for: ``run.bold = False`` would write an explicit
     # off-toggle into the XML rather than nothing.
-    run = _paragraph(container).add_run(text)
+    run = _paragraph(container).add_run(_inject(text, decisions))
     if bold:
         run.bold = True
     if italic:
         run.italic = True
 
 
-def _lines(container, texts: list[str | None]) -> None:
+def _lines(container, texts: list[str | None], decisions: Decisions) -> None:
     """One paragraph per text, skipping absent values."""
     for text in texts:
         if text:
-            _line(container, text)
+            _line(container, text, decisions)
 
 
-def _bullets(container, items: list[str]) -> None:
-    # A literal en dash as the bullet glyph, in the text itself.
+def _bullets(container, items: list[str], decisions: Decisions) -> None:
+    """A literal en dash as the bullet glyph, in the text itself, with a
+    zero-width space from the shared table between it and the item: the kind
+    of invisible character a web-to-Word paste leaves behind."""
     for item in items:
-        _line(container, f"– {item}")
+        decisions.injected(_ZWSP)
+        _line(container, f"{_BULLET} {_ZWSP}{item}", decisions)
 
 
 def _date_line(container, planned: PlannedEntry) -> None:
-    # ``2022-03 to 2026-07``: joined by a word, since a dash between
-    # dash-separated dates would be ambiguous to read and the column's
-    # confusables are the zero-width space and the curly apostrophe only.
+    """``2022-03 to 2026-07``: joined by a word, since a dash between
+    dash-separated dates reads ambiguously and the column's confusables are
+    the zero-width space and the curly apostrophe only. Written uninjected,
+    so the document prints exactly the strings the manifest says it did,
+    literal dates included."""
     parts = [part for part in (planned.start, planned.end) if part is not None]
     if parts:
-        _line(container, " to ".join(parts))
+        _paragraph(container).add_run(" to ".join(parts))
 
 
-def _experience(container, planned: PlannedEntry[ExperienceEntry]) -> None:
+def _experience(
+    container, planned: PlannedEntry[ExperienceEntry], decisions: Decisions
+) -> None:
     entry = planned.entry
-    _line(container, entry.title, bold=True)
+    _line(container, entry.title, decisions, bold=True)
     employer_line = (
         entry.employer
         if entry.location is None
         else f"{entry.employer}, {entry.location}"
     )
-    _line(container, employer_line, italic=True)
+    _line(container, employer_line, decisions, italic=True)
     _date_line(container, planned)
-    _bullets(container, entry.bullets)
+    _bullets(container, entry.bullets, decisions)
 
 
-def _education(container, planned: PlannedEntry[EducationEntry]) -> None:
+def _education(
+    container, planned: PlannedEntry[EducationEntry], decisions: Decisions
+) -> None:
     entry = planned.entry
-    _line(container, entry.qualification, bold=True)
-    _line(container, entry.institution, italic=True)
+    _line(container, entry.qualification, decisions, bold=True)
+    _line(container, entry.institution, decisions, italic=True)
     _date_line(container, planned)
-    _bullets(container, entry.details)
+    _bullets(container, entry.details, decisions)

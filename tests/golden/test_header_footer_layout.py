@@ -42,11 +42,14 @@ def test_header_footer_uses_its_heading_vocabulary():
 
 
 def texts_in(parts: dict[str, list[str]], prefix: str) -> str:
-    return "".join(
-        text
-        for name, texts in parts.items()
-        if name.startswith(prefix)
-        for text in texts
+    """The canonicalised text of every part whose name starts with ``prefix``."""
+    return canonicalise(
+        " ".join(
+            text
+            for name, texts in parts.items()
+            if name.startswith(prefix)
+            for text in texts
+        )
     )
 
 
@@ -56,7 +59,7 @@ def test_phone_and_email_are_in_the_header_and_nowhere_else(candidate):
     header = texts_in(parts, "word/header")
     body = texts_in(parts, "word/document.xml")
     footer = texts_in(parts, "word/footer")
-    for value in (candidate.pii.phone, candidate.pii.email):
+    for value in map(canonicalise, (candidate.pii.phone, candidate.pii.email)):
         assert value in header
         assert value not in body
         assert value not in footer
@@ -68,7 +71,7 @@ def test_address_and_urls_are_in_the_footer_and_nowhere_else(candidate):
     header = texts_in(parts, "word/header")
     body = texts_in(parts, "word/document.xml")
     footer = texts_in(parts, "word/footer")
-    for value in (*candidate.pii.address, *candidate.pii.urls):
+    for value in map(canonicalise, (*candidate.pii.address, *candidate.pii.urls)):
         assert value in footer
         assert value not in body
         assert value not in header
@@ -91,9 +94,10 @@ def c01_with(**first_experience_overrides) -> Candidate:
 def test_c01_dates_bullets_and_both_sections_reversed():
     generated = layout().generate(c01())
     texts = all_text(generated.document)
-    # Raw text: the bullet is a literal en dash, which canonicalising would fold.
     assert "2022-03 to 2026-07" in texts
-    assert "– Python" in texts
+    # Raw text: the bullet is a literal en dash, which canonicalising would
+    # fold, followed by a zero-width space, which it would strip.
+    assert "– " + chr(0x200B) + "Python" in texts
     manifest = generated.manifest
     assert manifest.experience_order == [2, 1, 0]
     assert manifest.education_order == [1, 0]
@@ -121,3 +125,34 @@ def test_education_is_the_very_bottom_of_the_body():
     institutions = [canonicalise(e.institution) for e in c01().content.education]
     assert all(body.index(i) > qualifications for i in institutions)
     assert body[-1] == canonicalise(f"– {c01().content.education[0].details[-1]}")
+
+
+def test_curls_apostrophes_and_lists_the_confusables_it_injected():
+    data = c01().model_dump()
+    data["content"]["skills"][0] = "Bob's Toolkit"
+    candidate = Candidate.model_validate(data)
+    generated = layout().generate(candidate)
+    texts = all_text(generated.document)
+    assert "Sinéad O’Sampla" in texts
+    assert "– " + chr(0x200B) + "Bob’s Toolkit" in texts
+    assert not any("'" in text for text in texts)
+    # Zero-width spaces are injected too, and everything is from the table:
+    # both as U+XXXX, sorted, and nothing else.
+    assert any("\u200b" in text for text in texts)
+    assert generated.manifest.confusables == ["U+200B", "U+2019"]
+
+
+def test_manifest_lists_only_confusables_actually_injected():
+    data = c01().model_dump()
+    data["content"]["name"] = "Sinead Sampla"
+    data["tags"] = []
+    manifest = layout().generate(Candidate.model_validate(data)).manifest
+    assert manifest.confusables == ["U+200B"]
+
+
+def test_confusables_do_not_break_source_coverage_of_the_curled_text():
+    data = c01().model_dump()
+    data["content"]["skills"][0] = "Bob's Toolkit"
+    candidate = Candidate.model_validate(data)
+    texts = [canonicalise(t) for t in all_text(layout().generate(candidate).document)]
+    assert any("Bob's Toolkit" in text for text in texts)
