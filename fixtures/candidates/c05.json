@@ -1,0 +1,104 @@
+{
+  "id": "c05",
+  "content": {
+    "name": "Niamh Costigan",
+    "profile": [
+      "Product designer who splits the week between an in-house role at a fintech and a small freelance practice. Works end to end from discovery interviews to handover, and prefers shipping a rough thing on Tuesday to a perfect thing next quarter."
+    ],
+    "skills": [
+      "Figma",
+      "Design systems",
+      "User research (interviews, usability testing)",
+      "Prototyping",
+      "Accessibility (WCAG 2.2)",
+      "HTML and CSS",
+      "Miro",
+      "Jira"
+    ],
+    "education": [
+      {
+        "institution": "National College of Art and Design",
+        "qualification": "BA in Visual Communication",
+        "start": { "month": 9, "year": 2013, "expected": "09/2013" },
+        "end": { "month": 6, "year": 2017, "expected": "06/2017" },
+        "details": [
+          "Final year project: a wayfinding system for Dublin Bus interchanges"
+        ]
+      }
+    ],
+    "experience": [
+      {
+        "title": "Product Designer",
+        "employer": "Dodder Pay",
+        "location": "Dublin (hybrid)",
+        "start": { "month": 2, "year": 2023, "expected": "02/2023" },
+        "end": { "present": true, "expected": "Present" },
+        "bullets": [
+          "Sole designer on the merchant onboarding squad, taking sign-up completion from 54% to 71% over four releases.",
+          "Built and maintain the component library in Figma that three squads now draw from.",
+          "Run fortnightly usability sessions with merchants and write up the findings for the whole product group.",
+          "Four days a week; the fifth day is reserved for the freelance practice below by agreement with my manager."
+        ]
+      },
+      {
+        "title": "Freelance UX Designer",
+        "employer": "Self-employed",
+        "location": "Remote",
+        "start": { "month": 6, "year": 2021, "expected": "06/2021" },
+        "end": { "present": true, "expected": "Present" },
+        "bullets": [
+          "Discovery and design for small Irish businesses moving a paper or spreadsheet process online.",
+          "Recent work includes a booking flow for a physiotherapy clinic and an internal stock tool for an independent bookshop.",
+          "Registered for VAT; invoices through my own limited company."
+        ]
+      },
+      {
+        "title": "UX Designer",
+        "employer": "Greystone Interactive",
+        "location": "Dublin",
+        "start": { "month": 10, "year": 2018, "expected": "10/2018" },
+        "end": { "month": 5, "year": 2021, "expected": "05/2021" },
+        "bullets": [
+          "Agency work for public sector and semi-state clients, including a citizen portal redesign that passed an external accessibility audit at the first attempt.",
+          "Paired with front-end developers to build the prototypes in HTML and CSS rather than hand over static mockups."
+        ]
+      },
+      {
+        "title": "Design Intern",
+        "employer": "Liberties Print Studio",
+        "location": "Dublin",
+        "start": null,
+        "end": null,
+        "bullets": [
+          "Summer internship in a small print and identity studio during college.",
+          "Prepared artwork for press and sat in on client presentations."
+        ]
+      }
+    ],
+    "certifications": [
+      "Nielsen Norman Group UX Certification"
+    ],
+    "additional": [
+      "Speaker at UX Dublin meetup on designing for low-literacy users",
+      "Interests: screen printing, five-a-side football"
+    ]
+  },
+  "pii": {
+    "phone": "+353 87 555 0771",
+    "email": "niamh@costigan-design-fictional.example.com",
+    "address": [
+      "31 Harcourt Villas",
+      "Dublin 8",
+      "D08 Y0Y0"
+    ],
+    "urls": [
+      "https://www.costigan-design-fictional.example.com",
+      "https://www.linkedin.com/in/niamh-costigan-fictional"
+    ],
+    "dob": null,
+    "personal": { "nationality": null, "marital_status": null },
+    "referees": []
+  },
+  "unplaceable": [],
+  "tags": ["current-role", "concurrent-roles", "undated-entry"]
+}

@@ -1,0 +1,92 @@
+{
+  "id": "c06",
+  "content": {
+    "name": "Padraig Lonergan",
+    "profile": [
+      "Environmental scientist with seven years in water quality monitoring and catchment management, mostly in the south-east. Good comunication skills with farmers, county council staff and the public, and comfortable presenting technical results to non-technical audiences."
+    ],
+    "skills": [
+      "Water sampling and field surveys",
+      "QGIS",
+      "Microsoft Excel",
+      "R (tidyverse)",
+      "Report writing",
+      "Stakeholder engagement",
+      "Microsoft Excel",
+      "Project management"
+    ],
+    "education": [
+      {
+        "institution": "South East Technological University, Carlow",
+        "qualification": "MSc in Environmental Management",
+        "start": { "month": 9, "year": 2017, "expected": "09/2017" },
+        "end": { "month": 9, "year": 2018, "expected": "09/2018" },
+        "details": [
+          "Thesis: nitrate trends in the River Barrow catchment"
+        ]
+      },
+      {
+        "institution": "University College Dublin",
+        "qualification": "BSc in Environmental Biology",
+        "start": { "month": 9, "year": 2013, "expected": "09/2013" },
+        "end": { "month": 5, "year": 2017, "expected": "05/2017" },
+        "details": []
+      }
+    ],
+    "experience": [
+      {
+        "title": "Catchment Scientist",
+        "employer": "Slaney Rivers Trust",
+        "location": "Enniscorthy, Co. Wexford",
+        "start": { "month": 3, "year": 2021, "expected": "03/2021" },
+        "end": { "month": 8, "year": 2026, "expected": "08/2026" },
+        "bullets": [
+          "Designed and ran the trust's monitoring programme across forty sampling points, from field work to the annual report.",
+          "Worked with over sixty farm holdings on nutrient management plans under an agri-environment scheme.",
+          "Secured grant funding for a riparian fencing project and managed the contractors who delivered it.",
+          "Presented results to the county council water forum twice a year."
+        ]
+      },
+      {
+        "title": "Environmental Technician",
+        "employer": "Barrow Valley Consulting",
+        "location": "Carlow",
+        "start": { "month": 10, "year": 2018, "expected": "10/2018" },
+        "end": { "month": 2, "year": 2021, "expected": "02/2021" },
+        "bullets": [
+          "Carried out water and soil sampling for environmental impact assessments on wind farm and road schemes.",
+          "Maintained the sample chain-of-custody records and liased with the accredited laboratory."
+        ]
+      }
+    ],
+    "certifications": [
+      "Safe Pass",
+      "Electrofishing operator (Inland Fisheries Ireland)"
+    ],
+    "additional": [
+      "Volunteering: Tidy Towns river clean-up coordinator, Enniscorthy",
+      "Volunteering: volunteer angling instructor with a local youth club",
+      "Publications: co-author of a technical note on nitrate trends in the Barrow, Irish Freshwater Bulletin",
+      "Languages: English (native), Irish (fluent)",
+      "Full clean driving licence and own vehicle"
+    ]
+  },
+  "pii": {
+    "phone": "+353 83 555 0284",
+    "email": "padraig.lonergan@example.net",
+    "address": [
+      "Rathnure",
+      "Enniscorthy",
+      "Co. Wexford",
+      "Y21 Z0Z0"
+    ],
+    "urls": [
+      "https://www.linkedin.com/in/padraig-lonergan-fictional"
+    ],
+    "dob": null,
+    "personal": { "nationality": null, "marital_status": null },
+    "referees": []
+  },
+  "unplaceable": [],
+  "tags": ["unusual-sections", "duplicate-skill", "typo"]
+}

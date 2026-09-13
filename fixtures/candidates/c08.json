@@ -1,0 +1,94 @@
+{
+  "id": "c08",
+  "content": {
+    "name": "Eoin Fitzgibbon",
+    "profile": [
+      "IT support engineer with eight years looking after Windows estates, Microsoft 365 and networking for small and mid-sized businesses in Limerick and Clare. Calm on the phone, thorough with documentation and used to being the only technical person on site."
+    ],
+    "skills": [
+      "Microsoft 365 administration",
+      "Windows Server (Active Directory, Group Policy)",
+      "Intune",
+      "Networking (Ubiquiti, FortiGate)",
+      "PowerShell",
+      "Backup and recovery (Veeam)",
+      "Helpdesk ticketing (Freshservice, Jira Service Management)"
+    ],
+    "education": [
+      {
+        "institution": "Technological University of the Shannon, Moylish",
+        "qualification": "BSc in Computer Networks and Systems Management",
+        "start": { "month": 9, "year": 2014, "expected": "09/2014" },
+        "end": { "month": 5, "year": 2018, "expected": "05/2018" },
+        "details": [
+          "Second Class Honours, Grade 1"
+        ]
+      }
+    ],
+    "experience": [
+      {
+        "title": "IT Support Engineer",
+        "employer": "Shannonside Managed IT",
+        "location": "Limerick",
+        "start": { "month": 1, "year": 2022, "expected": "01/2022" },
+        "end": { "month": 8, "year": 2026, "expected": "08/2026" },
+        "bullets": [
+          "Second-line support for eighteen client sites, mostly solicitors, accountants and a haulage firm, covering 400 users in total.",
+          "Acted as the named contact for three retail clients, who reached me directly on my personal mobile",
+          "Rolled out Intune and conditional access across every client tenant over eighteen months without a single lockout incident.",
+          "Wrote the runbooks that let first-line staff close two thirds of tickets without escalating."
+        ]
+      },
+      {
+        "title": "IT Technician",
+        "employer": "Ennis Business Machines",
+        "location": "Ennis, Co. Clare",
+        "start": { "month": 6, "year": 2018, "expected": "06/2018" },
+        "end": { "month": 12, "year": 2021, "expected": "12/2021" },
+        "bullets": [
+          "Installed and supported PCs, printers and small office networks for local businesses.",
+          "Migrated a dozen clients from on-premises Exchange to Microsoft 365, including a solicitors' practice with twelve years of mailbox history.",
+          "Kept the workshop's stock of spares and managed warranty returns with the distributors."
+        ]
+      },
+      {
+        "title": "Placement Student, IT Department",
+        "employer": "Shannon Valley Hospital Group",
+        "location": "Limerick",
+        "start": { "month": 1, "year": 2017, "expected": "01/2017" },
+        "end": { "month": 6, "year": 2017, "expected": "06/2017" },
+        "bullets": [
+          "Six-month college placement imaging laptops, resetting passwords and logging tickets for a 300-user department.",
+          "Documented the printer fleet and its network drops, a map the department still used two years later."
+        ]
+      }
+    ],
+    "certifications": [
+      "Microsoft 365 Certified: Endpoint Administrator Associate",
+      "CompTIA Network+",
+      "Fortinet Certified Associate in Cybersecurity"
+    ],
+    "additional": [
+      "Full clean driving licence",
+      "Interests: hurling with a junior club, building mechanical keyboards"
+    ]
+  },
+  "pii": {
+    "phone": "085 555 0177",
+    "email": "eoin.fitzgibbon@example.com",
+    "address": [
+      "48 Castletroy Heights",
+      "Castletroy",
+      "Limerick",
+      "V94 A0A0"
+    ],
+    "urls": [
+      "https://www.linkedin.com/in/eoin-fitzgibbon-fictional"
+    ],
+    "dob": null,
+    "personal": { "nationality": null, "marital_status": null },
+    "referees": []
+  },
+  "unplaceable": [],
+  "tags": ["pii-in-bullet"]
+}

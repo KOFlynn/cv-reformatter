@@ -2,7 +2,7 @@
 
 **Owner:** Kieran O'Flynn
 **Spec date:** 11 September 2026
-**Status:** Phase 0 (spec, template, golden set). Nothing built yet.
+**Status:** Phase 0 (spec, template, golden set, eval metrics) complete; see §10. Phase 1 not started.
 
 ---
 
@@ -246,10 +246,10 @@ Thresholds live in `eval/thresholds.yaml`. **CI fails, and deployment is blocked
 Every phase ends in a shippable state. **Phase 1 alone is valid standalone evidence.** If later phases stall, stop at Phase 1 rather than let scope creep block everything.
 
 ### Phase 0: spec, template, golden set
-- [ ] `templates/fictitious_recruitment.docx` designed in Word, with docxtpl tags and the appendix block
-- [ ] 10–15 candidate fixtures
-- [ ] 3–4 layout generators; source .docx files generated and committed
-- [ ] Eval metric functions written and unit tested against hand-made cases (no LLM yet)
+- [x] `templates/fictitious_recruitment.docx` designed in Word, with docxtpl tags and the appendix block (built by a committed script rather than in Word, so tags cannot be split across runs; ADR-0006)
+- [x] 10–15 candidate fixtures (twelve, `fixtures/candidates/`)
+- [x] 3–4 layout generators; source .docx files generated and committed (four Layouts, 48 documents with manifests in `fixtures/generated/`)
+- [x] Eval metric functions written and unit tested against hand-made cases (no LLM yet) (eight metrics in `cvr.eval`, plus the fake-pipeline corruption table under `tests/eval/`)
 
 ### Phase 1: end-to-end lifecycle
 - [ ] parse, label (single pass, Anthropic), verify, transform, render, working on the golden set

@@ -1,0 +1,77 @@
+{
+  "candidate_id": "c08",
+  "layout": "text-box",
+  "seed": 0,
+  "generator_version": "0.2.0",
+  "manifest_version": 2,
+  "dates": [
+    {
+      "section": "experience",
+      "entry": 0,
+      "which": "start",
+      "printed": "Jan '22"
+    },
+    {
+      "section": "experience",
+      "entry": 0,
+      "which": "end",
+      "printed": "Aug '26"
+    },
+    {
+      "section": "experience",
+      "entry": 1,
+      "which": "start",
+      "printed": "Jun '18"
+    },
+    {
+      "section": "experience",
+      "entry": 1,
+      "which": "end",
+      "printed": "Dec '21"
+    },
+    {
+      "section": "experience",
+      "entry": 2,
+      "which": "start",
+      "printed": "Jan '17"
+    },
+    {
+      "section": "experience",
+      "entry": 2,
+      "which": "end",
+      "printed": "Jun '17"
+    },
+    {
+      "section": "education",
+      "entry": 0,
+      "which": "start",
+      "printed": "Sep '14"
+    },
+    {
+      "section": "education",
+      "entry": 0,
+      "which": "end",
+      "printed": "May '18"
+    }
+  ],
+  "experience_order": [
+    1,
+    2,
+    0
+  ],
+  "education_order": [
+    0
+  ],
+  "contact_block": "text-box",
+  "confusables": [
+    "U+00A0",
+    "U+00AD"
+  ],
+  "photo": false,
+  "fragments": [],
+  "pii_in_bullet": {
+    "experience": 0,
+    "bullet": 1
+  },
+  "document_sha256": "d17a17026474a5da7d6f117d49f12127cc6000c3653b22dbec4d00ac311e0060"
+}

@@ -4,6 +4,7 @@ the generator iterates."""
 from cvr.golden.layouts.base import (
     GENERATOR_VERSION,
     MANIFEST_VERSION,
+    BulletPlacement,
     Decisions,
     FragmentPlacement,
     Generated,
@@ -14,15 +15,20 @@ from cvr.golden.layouts.base import (
     PrintedDate,
     Section,
 )
+from cvr.golden.layouts.header_footer import HeaderFooterLayout
 from cvr.golden.layouts.single_column import SingleColumnLayout
+from cvr.golden.layouts.text_box import TextBoxLayout
+from cvr.golden.layouts.two_column import TwoColumnLayout
 
 __all__ = [
     "GENERATOR_VERSION",
     "LAYOUTS",
     "MANIFEST_VERSION",
+    "BulletPlacement",
     "Decisions",
     "FragmentPlacement",
     "Generated",
+    "HeaderFooterLayout",
     "Layout",
     "Manifest",
     "Plan",
@@ -30,8 +36,15 @@ __all__ = [
     "PrintedDate",
     "Section",
     "SingleColumnLayout",
+    "TextBoxLayout",
+    "TwoColumnLayout",
 ]
 
 # Every registered Layout, in the style matrix's column order. The generator
 # renders every Candidate through every one of these.
-LAYOUTS: tuple[Layout, ...] = (SingleColumnLayout(),)
+LAYOUTS: tuple[Layout, ...] = (
+    SingleColumnLayout(),
+    TwoColumnLayout(),
+    TextBoxLayout(),
+    HeaderFooterLayout(),
+)

@@ -1,0 +1,104 @@
+{
+  "id": "c03",
+  "content": {
+    "name": "Aoife Kearns",
+    "profile": [
+      "Production supervisor with ten years in food manufacturing, the last four running a shift of twenty-two operators on a chilled ready-meals line. Strong on hygiene standards, line efficiency and bringing new starters up to speed quickly."
+    ],
+    "skills": [
+      "HACCP",
+      "BRCGS audit preparation",
+      "Shift planning and rostering",
+      "Line changeovers",
+      "Root cause analysis (5 Whys, fishbone)",
+      "Manual handling instruction",
+      "SAP (goods receipt, stock counts)"
+    ],
+    "education": [
+      {
+        "institution": "Atlantic Technological University, Galway",
+        "qualification": "Certificate in Food Manufacturing Management",
+        "start": { "month": 9, "year": 2019, "expected": "09/2019" },
+        "end": { "month": 5, "year": 2020, "expected": "05/2020" },
+        "details": [
+          "Part-time evening course completed alongside full-time work"
+        ]
+      },
+      {
+        "institution": "Presentation College, Athenry",
+        "qualification": "Leaving Certificate",
+        "start": null,
+        "end": { "year": 2011, "expected": "2011" },
+        "details": [
+          "Six higher level subjects including biology and home economics"
+        ]
+      }
+    ],
+    "experience": [
+      {
+        "title": "Production Supervisor",
+        "employer": "Corrib Foods Ltd",
+        "location": "Oranmore, Co. Galway",
+        "start": { "month": 4, "year": 2022, "expected": "04/2022" },
+        "end": { "month": 5, "year": 2026, "expected": "05/2026" },
+        "bullets": [
+          "Ran the evening shift on the ready-meals line, responsible for output, hygiene sign-off and the safety of twenty-two operators.",
+          "Cut average changeover time from thirty-five minutes to nineteen by re-sequencing the product plan with the planning office.",
+          "Led the line through two unannounced BRCGS audits with no major non-conformances.",
+          "Trained and signed off every new operator on the shift against the standard work instructions."
+        ]
+      },
+      {
+        "title": "Line Lead",
+        "employer": "Corrib Foods Ltd",
+        "location": "Oranmore, Co. Galway",
+        "start": { "month": 1, "year": 2018, "expected": "01/2018" },
+        "end": { "month": 3, "year": 2022, "expected": "03/2022" },
+        "bullets": [
+          "Ran one of three packing lines, allocating operators and keeping the line fed with packaging and labels.",
+          "First point of contact for machine faults, logging each stoppage and calling in maintenance.",
+          "Promoted to supervisor after deputising for six months during a long-term absence."
+        ]
+      },
+      {
+        "title": "General Operative",
+        "employer": "Claddagh Bakery Supplies",
+        "location": "Galway",
+        "start": { "month": 9, "year": 2015, "expected": "09/2015" },
+        "end": { "month": 12, "year": 2017, "expected": "12/2017" },
+        "bullets": [
+          "Weighed and mixed ingredients to batch sheets on a bakery ingredients line.",
+          "Kept the mixing area to the cleaning schedule and completed the daily hygiene records."
+        ]
+      }
+    ],
+    "certifications": [
+      "HACCP Level 2 (Food Safety Authority of Ireland approved)",
+      "Manual Handling Instructor (QQI Level 6)",
+      "Occupational First Aid"
+    ],
+    "additional": [
+      "Languages: English, Irish (conversational)",
+      "Full clean driving licence",
+      "Interests: camogie, sourdough baking"
+    ]
+  },
+  "pii": {
+    "phone": "+353 85 555 0918",
+    "email": "aoife.kearns@example.org",
+    "address": [
+      "Apartment 3, Riverside Court",
+      "Oranmore",
+      "Co. Galway",
+      "H91 X0X0"
+    ],
+    "urls": [
+      "https://www.linkedin.com/in/aoife-kearns-fictional"
+    ],
+    "dob": null,
+    "personal": { "nationality": null, "marital_status": null },
+    "referees": []
+  },
+  "unplaceable": [],
+  "tags": ["year-only-date", "repeat-employer"]
+}

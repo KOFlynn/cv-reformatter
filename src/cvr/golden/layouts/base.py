@@ -9,6 +9,10 @@ style matrix does not vary per column:
 - date printing: a literal date is printed verbatim whatever the date style,
   ``present`` prints the Layout's present text, everything else goes through
   the Layout's ``format_date``;
+- the ``pii-in-bullet`` trap: a Candidate carrying the tag holds the expected
+  text, so the phone is printed at the end of the marked bullet (the first
+  experience bullet that ends without a full stop) at plan time, and the
+  manifest records which bullet;
 - the manifest, which records the layout decisions made and never Candidate
   content, so it cannot become a second ground truth;
 - byte-stable packaging, so the document SHA is a real file hash.
@@ -27,13 +31,14 @@ from docx.enum.style import WD_STYLE_TYPE
 from docx.opc.constants import RELATIONSHIP_TYPE as RT
 from pydantic import Field
 
-from cvr.golden.candidate import Candidate
+from cvr.golden.candidate import Candidate, Tag
 from cvr.models import DateValue, EducationEntry, ExperienceEntry, StrictModel
 from cvr.text import CONFUSABLES
 
 __all__ = [
     "GENERATOR_VERSION",
     "MANIFEST_VERSION",
+    "BulletPlacement",
     "Decisions",
     "FragmentPlacement",
     "Generated",
@@ -46,9 +51,9 @@ __all__ = [
 ]
 
 # Bump when a Layout's output changes, so a manifest says which generator wrote it.
-GENERATOR_VERSION = "0.1.0"
+GENERATOR_VERSION = "0.2.0"
 # Bump when the manifest schema changes.
-MANIFEST_VERSION = 1
+MANIFEST_VERSION = 2
 
 Section = Literal["experience", "education"]
 
@@ -86,6 +91,14 @@ class FragmentPlacement(StrictModel):
     location: str
 
 
+class BulletPlacement(StrictModel):
+    """Which experience bullet (by Candidate-order indices) had the phone printed
+    at its end for the ``pii-in-bullet`` trap."""
+
+    experience: int
+    bullet: int
+
+
 class Manifest(StrictModel):
     """The generator's own account of one document. Read by generator tests and
     humans, never by a metric."""
@@ -108,6 +121,7 @@ class Manifest(StrictModel):
     )
     photo: bool
     fragments: list[FragmentPlacement]
+    pii_in_bullet: BulletPlacement | None
     document_sha256: str
 
 
@@ -133,6 +147,7 @@ class Plan:
 
     experience: list[PlannedEntry[ExperienceEntry]]
     education: list[PlannedEntry[EducationEntry]]
+    pii_in_bullet: BulletPlacement | None = None
 
 
 @dataclass
@@ -212,14 +227,20 @@ class Layout(ABC):
             fragments=sorted(
                 decisions.fragments, key=lambda placement: placement.index
             ),
+            pii_in_bullet=plan.pii_in_bullet,
             document_sha256=hashlib.sha256(data).hexdigest(),
         )
         return Generated(document=data, manifest=manifest)
 
     def plan(self, candidate: Candidate) -> Plan:
+        experience = candidate.content.experience
+        marked = _marked_bullet(candidate)
+        if marked is not None:
+            experience = _with_phone_in_bullet(experience, marked, candidate.pii.phone)
         return Plan(
-            experience=self._plan_section("experience", candidate.content.experience),
+            experience=self._plan_section("experience", experience),
             education=self._plan_section("education", candidate.content.education),
+            pii_in_bullet=marked,
         )
 
     def print_date(self, date: DateValue) -> str:
@@ -249,6 +270,33 @@ class Layout(ABC):
         if sorted(order) != sorted(dated):
             raise ValueError(f"{self.name}: scramble of {section} is not a permutation")
         return [dated[index] for index in order] + [p for p in planned if not p.dated]
+
+
+def _marked_bullet(candidate: Candidate) -> BulletPlacement | None:
+    """The bullet the phone goes into: the first experience bullet that ends
+    without a full stop. Only for Candidates carrying ``pii-in-bullet``."""
+    if Tag.PII_IN_BULLET not in candidate.tags:
+        return None
+    for index, entry in enumerate(candidate.content.experience):
+        for position, bullet in enumerate(entry.bullets):
+            if not bullet.endswith("."):
+                return BulletPlacement(experience=index, bullet=position)
+    raise ValueError(
+        f"{candidate.id}: tagged pii-in-bullet but no experience bullet ends "
+        "without a full stop to carry the phone"
+    )
+
+
+def _with_phone_in_bullet(
+    entries: list[ExperienceEntry], marked: BulletPlacement, phone: str
+) -> list[ExperienceEntry]:
+    """The entries with the phone appended to the marked bullet, separated by a
+    space, so that removing the phone and trimming gives the expected text."""
+    entry = entries[marked.experience]
+    bullets = list(entry.bullets)
+    bullets[marked.bullet] = f"{bullets[marked.bullet]} {phone}"
+    printed = entry.model_copy(update={"bullets": bullets})
+    return [printed if i == marked.experience else e for i, e in enumerate(entries)]
 
 
 def _printed_dates(plan: Plan) -> list[PrintedDate]:
