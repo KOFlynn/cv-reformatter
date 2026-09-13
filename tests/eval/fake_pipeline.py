@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 
 from cvr.golden import PII, Candidate
 from cvr.models import CVContent, EducationEntry, ExperienceEntry
+from cvr.template import template_tokens
 from cvr.text import tokenise
 
 __all__ = [
@@ -86,8 +87,10 @@ class MetricInputs:
     appendix_tokens: list[str]
 
 
-# Extracted from the template at run time once ticket 06 builds it.
-TEMPLATE_TOKENS: list[str] = []
+# The template's own fixed words (headings, wordmark, footer, banner), read
+# from the built template so the whitelist cannot drift from it. A real
+# renderer emits these alongside the content, so the honest pipeline does too.
+TEMPLATE_TOKENS: list[str] = template_tokens()
 
 
 def metric_inputs(candidate: Candidate, result: PipelineResult) -> MetricInputs:
