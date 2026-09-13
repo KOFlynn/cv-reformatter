@@ -9,7 +9,6 @@ change the document SHA from one platform to the next.
 
 import struct
 import zlib
-from functools import cache
 
 __all__ = ["placeholder_photo"]
 
@@ -18,9 +17,12 @@ _BACKGROUND, _FIGURE = 0xD9, 0x8C  # greyscale levels
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 _GREYSCALE_8BIT = (8, 0)  # bit depth, colour type
 _STORED_BLOCK_MAX = 0xFFFF
+# Silhouette geometry, in pixels: a circle for the head over a half-ellipse
+# (its centre on the bottom edge) for the shoulders.
+_HEAD_CENTRE_Y, _HEAD_RADIUS = 52, 28
+_SHOULDER_TOP_Y, _SHOULDER_RADIUS = 96, 54
 
 
-@cache
 def placeholder_photo() -> bytes:
     """A ``WIDTH`` x ``HEIGHT`` greyscale PNG of a head-and-shoulders outline."""
     rows = b"".join(b"\x00" + bytes(_row(y)) for y in range(HEIGHT))
@@ -41,10 +43,12 @@ def _row(y: int) -> list[int]:
 
 
 def _in_silhouette(x: int, y: int) -> bool:
-    """A circle for the head over a half-ellipse for the shoulders."""
-    cx = WIDTH / 2
-    head = ((x - cx) / 28) ** 2 + ((y - 52) / 28) ** 2 <= 1
-    shoulders = y >= 96 and ((x - cx) / 54) ** 2 + ((y - HEIGHT) / 54) ** 2 <= 1
+    dx = x - WIDTH / 2
+    head = (dx / _HEAD_RADIUS) ** 2 + ((y - _HEAD_CENTRE_Y) / _HEAD_RADIUS) ** 2 <= 1
+    shoulders = (
+        y >= _SHOULDER_TOP_Y
+        and (dx / _SHOULDER_RADIUS) ** 2 + ((y - HEIGHT) / _SHOULDER_RADIUS) ** 2 <= 1
+    )
     return head or shoulders
 
 

@@ -1,5 +1,5 @@
 """Layouts observed from the outside: Candidate in, document and manifest out,
-seen only through the dumb ``all_text`` helper."""
+seen only through the dumb ``all_text`` and ``image_count`` helpers."""
 
 import pytest
 from docx_text import all_text, image_count
@@ -19,8 +19,8 @@ def c01() -> Candidate:
     return candidate
 
 
-def single_column():
-    (layout,) = [layout for layout in LAYOUTS if layout.name == "single-column"]
+def layout_named(name: str):
+    (layout,) = [layout for layout in LAYOUTS if layout.name == name]
     return layout
 
 
@@ -233,7 +233,7 @@ def test_a_layout_may_only_record_confusables_from_the_shared_table():
 
 
 def test_single_column_c01_dates_appear_in_document_and_manifest():
-    generated = single_column().generate(c01())
+    generated = layout_named("single-column").generate(c01())
     texts = all_text(generated.document)
     assert "March 2022 - July 2026" in texts
     first_start = [
@@ -246,18 +246,18 @@ def test_single_column_c01_dates_appear_in_document_and_manifest():
 
 def test_single_column_prints_a_year_only_date_as_the_year():
     candidate = c01_with(start={"year": 2020, "expected": "2020"})
-    texts = all_text(single_column().generate(candidate).document)
+    texts = all_text(layout_named("single-column").generate(candidate).document)
     assert "2020 - July 2026" in texts
 
 
 def test_single_column_uses_its_heading_vocabulary():
-    texts = all_text(single_column().generate(c01()).document)
+    texts = all_text(layout_named("single-column").generate(c01()).document)
     for heading in ("Profile", "Key Skills", "Education", "Experience"):
         assert heading in texts
 
 
 def test_single_column_is_clean_and_unscrambled():
-    generated = single_column().generate(c01())
+    generated = layout_named("single-column").generate(c01())
     joined = "".join(all_text(generated.document))
     # No confusables: canonicalising changes nothing but whitespace.
     assert canonicalise(joined) == " ".join(joined.split())
@@ -274,19 +274,14 @@ def test_single_column_is_clean_and_unscrambled():
 # --- The two-column table Layout: the style matrix's second column.
 
 
-def two_column():
-    (layout,) = [layout for layout in LAYOUTS if layout.name == "two-column"]
-    return layout
-
-
 def test_two_column_uses_its_heading_vocabulary():
-    texts = all_text(two_column().generate(c01()).document)
+    texts = all_text(layout_named("two-column").generate(c01()).document)
     for heading in ("Summary", "Skills", "Academic Background", "Work History"):
         assert heading in texts
 
 
 def test_two_column_c01_dates_bullets_and_scramble():
-    generated = two_column().generate(c01())
+    generated = layout_named("two-column").generate(c01())
     texts = all_text(generated.document)
     # ``MM/YYYY`` dates joined by an en dash, a literal bullet glyph in the text.
     assert "03/2022 – 07/2026" in texts
@@ -305,7 +300,7 @@ def test_two_column_c01_dates_bullets_and_scramble():
 
 def test_two_column_prints_a_year_only_date_as_the_year():
     candidate = c01_with(start={"year": 2020, "expected": "2020"})
-    texts = all_text(two_column().generate(candidate).document)
+    texts = all_text(layout_named("two-column").generate(candidate).document)
     assert "2020 – 07/2026" in texts
 
 
@@ -314,7 +309,7 @@ def test_two_column_curls_quotes_and_lists_the_confusables_it_injected():
     data["content"]["profile"] = ['Known as "the fixer" on the team.']
     data["content"]["skills"][0] = "Bob's Toolkit"
     candidate = Candidate.model_validate(data)
-    generated = two_column().generate(candidate)
+    generated = layout_named("two-column").generate(candidate)
     texts = all_text(generated.document)
     assert "Known as “the fixer” on the team." in texts
     assert "• Bob’s Toolkit" in texts
@@ -328,5 +323,7 @@ def test_two_column_manifest_lists_only_confusables_actually_injected():
     data = c01().model_dump()
     data["content"]["name"] = "Sinead Sampla"
     data["tags"] = []
-    manifest = two_column().generate(Candidate.model_validate(data)).manifest
+    manifest = (
+        layout_named("two-column").generate(Candidate.model_validate(data)).manifest
+    )
     assert manifest.confusables == ["U+2013"]

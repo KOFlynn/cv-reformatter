@@ -142,18 +142,15 @@ def _curl(text: str, decisions: Decisions) -> str:
 def _line(
     cell: _Cell,
     text: str,
-    decisions: Decisions | None = None,
+    decisions: Decisions,
     *,
     bold: bool = False,
     italic: bool = False,
 ) -> None:
-    """One paragraph. Pass ``decisions`` to curl the text's quotes; date lines
-    pass nothing so the document says what the manifest says was printed."""
-    if decisions is not None:
-        text = _curl(text, decisions)
+    """One paragraph of content or PII text, quotes curled."""
     # Only set what is asked for: ``run.bold = False`` would write an explicit
     # off-toggle into the XML rather than nothing.
-    run = cell.add_paragraph().add_run(text)
+    run = cell.add_paragraph().add_run(_curl(text, decisions))
     if bold:
         run.bold = True
     if italic:
@@ -175,12 +172,13 @@ def _bullets(cell: _Cell, items: list[str], decisions: Decisions) -> None:
 
 def _date_line(cell: _Cell, planned: PlannedEntry, decisions: Decisions) -> None:
     """``start – end`` with an en dash from the shared table; a lone date has
-    no dash and injects nothing."""
+    no dash and injects nothing. Written uncurled, so the document prints
+    exactly the strings the manifest says it did, literal dates included."""
     parts = [part for part in (planned.start, planned.end) if part is not None]
     if len(parts) == 2:
         decisions.injected(_EN_DASH)
     if parts:
-        _line(cell, f" {_EN_DASH} ".join(parts))
+        cell.add_paragraph().add_run(f" {_EN_DASH} ".join(parts))
 
 
 def _experience(
