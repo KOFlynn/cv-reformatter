@@ -2,10 +2,18 @@
 
 ## Review before merging
 
+- **Ticket 09: maintainer must review all eleven candidate fixtures (`fixtures/candidates/c02.json`–`c12.json`) before merging release.** The "Maintainer sign-off recorded in the PR" checkbox is deliberately unticked on PR #11. Orch spot-checked names/phones/emails/URLs/addresses: all synthetic (555 numbers, `example.*` domains, `-fictional` handles).
+- Ticket 09 ⇄ 08: seven candidates' address lines had to be reworked (street / non-content road or suburb / postcode, no bare town or county line) because `pii_leak`'s address rule flags any address line that also appears as a work or education location. Design question for Phase 1: real CVs routinely say "Cork" in both places, so the zero PII gate may need a narrower address rule (e.g. only lines with a digit/postcode, or the full address in sequence) — the maintainer should decide before the Phase 1 baseline.
+
+
 - Ticket 08: `pii_leak` blind spot — a one-word address line that is also a job location (e.g. `Cork`) will flag the location; the fixtures from ticket 09 should avoid plain place names as address lines (orch checks this on 09; see Decisions).
 
 
 ## Per-ticket summary
+
+### 09 eleven-candidates-and-tags — PR #11 (merged)
+Full 19-member `Tag` enum (14 computable predicates, 5 author-declared), fixtures c02–c12 per the spec allocation table, per-predicate and allocation tests, single-column pairs regenerated for c02–c12 (c01 byte-identical). One follow-up round: merged release and reworked seven addresses (see Decisions). 540 tests green, ruff clean. Maintainer sign-off deferred to the release PR.
+
 
 ### 08 pii-leak-and-image-leak — PR #10 (merged)
 `cvr.eval.pii_leak` (per-class variant matching, one hit per occurrence, most specific rule wins, `PiiHit`), `cvr.eval.image_leak` (hash membership), `RemovalRule` ids and `PII`/`Referee`/`Personal` moved to `cvr.models` (re-exported by `cvr.golden`), two new corruption rows. 193 tests green on branch; 208 after merge with 06, ruff clean.
@@ -16,6 +24,14 @@ Template built by `python -m cvr.template.build` into `templates/fictitious_recr
 
 
 ## Decisions
+
+- 09 · can `pii-in-bullet` / `inline-skills` be computed predicates? → author-declared → they describe how the *source* prints content; `CVContent` is the expected output, so content alone cannot prove them (sub-agent). Review topic: a Layout (or ticket 13) must actually print the phone inside c08's bullet for the trap to exist in a generated document.
+- 09 · `concurrent-roles` → two experience entries ending Present; `empty-sections` → certifications and additional both empty; `date-in-body-text` → standalone 4-digit year in any body string (sub-agent).
+- 09 · literal date sorting → `Summer 2020` carries `year: 2020` per the brief; `year-only-date` excludes literals (sub-agent).
+- 09 · address lines colliding with job/education locations under 08's `pii_leak` → fixed on the fixture side (orch): town/county lines dropped in favour of street + non-content road/suburb + Eircode/postcode for c02, c03, c04, c06, c08, c11, c12; locations, tags and allocation table untouched (sub-agent executed). Why: 08 documented the blind spot as a fixture convention and the metric is deliberately over-sensitive for a zero gate; the Phase 1 question is logged above.
+- 09 · real institutions are used (as c01 already does); all employers invented (sub-agent).
+- 09 · `CONTEXT.md`'s Tag entry does not mention author-declared tags → left untouched; a one-line domain-doc update may be wanted (review topic).
+
 
 - 08 · `eval` may not import `golden` but `pii_leak` takes `PII` → `PII`/`Referee`/`Personal` moved to `cvr.models`, re-exported by `cvr.golden` → keeps the dependency direction and every existing import (sub-agent).
 - 08 · shape of `output_text` → mapping of docx part name (body/header/footer) to text; `where` on a hit is the part (sub-agent).
@@ -31,6 +47,8 @@ Template built by `python -m cvr.template.build` into `templates/fictitious_recr
 
 
 ## Merge conflicts resolved
+- 09 into release (after 06 + 08): import block of `src/cvr/golden/candidate.py` (union, keeping the `PII`/`Referee`/`Personal` re-export). Resolved by the 09 sub-agent on its branch; 42 `pii_leak` row-0 failures then fixed on the fixture side. 540 green.
+
 
 - 08 into release (after 06): `CLAUDE.md` status paragraph (union of both wordings) and `tests/eval/fake_pipeline.py` (kept 06's `template_tokens()`, added 08's `TEMPLATE_IMAGE_HASHES = []`). Resolved locally by orch, full suite 208 green, pushed; PR #10 shows as merged.
 
@@ -38,6 +56,8 @@ Template built by `python -m cvr.template.build` into `templates/fictitious_recr
 ## Skipped / incomplete
 
 ## Run log
+
+- 2026-09-13T09:54Z 09 returned; conflict + 42 pii failures → follow-up round 1 to the 09 agent; merged 09 (PR #11). 07 returned with 4 conflicting files → follow-up round 1 to the 07 agent (merge release). 10 still running.
 
 - 2026-09-13T09:44Z merged 08 (PR #10, local conflict resolution); dispatched 10.
 
