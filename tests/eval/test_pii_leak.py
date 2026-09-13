@@ -80,16 +80,45 @@ def test_the_url_hits_with_or_without_scheme_www_and_trailing_slash():
         ], form
 
 
-def test_an_address_line_hits_alone_and_a_postcode_hits_without_its_space():
-    assert hits("7 Sample Quay, Cork") == [
+def test_an_address_line_with_a_number_hits_alone_and_a_postcode_without_its_space():
+    assert hits("7 Sample Quay") == [
         PiiHit(where="body", rule=RemovalRule.ADDRESS, what="7 Sample Quay"),
-        PiiHit(where="body", rule=RemovalRule.ADDRESS, what="Cork"),
     ]
     assert hits("T12AB34") == [
         PiiHit(where="body", rule=RemovalRule.ADDRESS, what="T12AB34")
     ]
     assert hits("t12 ab34") == [
         PiiHit(where="body", rule=RemovalRule.ADDRESS, what="t12 ab34")
+    ]
+
+
+def test_place_name_lines_alone_or_together_are_not_a_hit():
+    # Someone may live and work in the same town: a town, or a town and its
+    # county, is a location the CV may say, not the address.
+    assert hits("Support engineer, Cork") == []
+    assert hits("Cork and Cork again") == []
+    pii = PII_VALUES.model_copy(
+        update={"address": ["Rathnure", "Enniscorthy", "Co. Wexford", "Y21 Z0Z0"]}
+    )
+    assert hits("Rathnure", pii) == []
+    assert hits("Enniscorthy, Co. Wexford", pii) == []
+
+
+def test_address_lines_printed_together_around_a_numbered_line_are_one_hit():
+    assert hits("7 Sample Quay, Cork") == [
+        PiiHit(where="body", rule=RemovalRule.ADDRESS, what="7 Sample Quay, Cork"),
+    ]
+    assert hits("Cork\nT12 AB34") == [
+        PiiHit(where="body", rule=RemovalRule.ADDRESS, what="Cork T12 AB34"),
+    ]
+    assert hits("7 Sample Quay Cork T12 AB34") == [
+        PiiHit(
+            where="body", rule=RemovalRule.ADDRESS, what="7 Sample Quay Cork T12 AB34"
+        ),
+    ]
+    # Only address order counts as "together".
+    assert hits("Cork, 7 Sample Quay") == [
+        PiiHit(where="body", rule=RemovalRule.ADDRESS, what="7 Sample Quay"),
     ]
 
 
@@ -173,20 +202,20 @@ def test_a_referee_contact_shared_with_the_candidate_is_reported_once_under_rm_r
 
 
 def test_two_occurrences_are_two_hits():
-    assert hits("Cork and Cork again") == [
-        PiiHit(where="body", rule=RemovalRule.ADDRESS, what="Cork"),
-        PiiHit(where="body", rule=RemovalRule.ADDRESS, what="Cork"),
+    assert hits("7 Sample Quay and 7 Sample Quay again") == [
+        PiiHit(where="body", rule=RemovalRule.ADDRESS, what="7 Sample Quay"),
+        PiiHit(where="body", rule=RemovalRule.ADDRESS, what="7 Sample Quay"),
     ]
 
 
 def test_hits_are_sorted_by_part_then_rule_then_text():
     out = {
         "footer": "Irish",
-        "body": "Cork, 0214270000",
+        "body": "7 Sample Quay, 0214270000",
         "header": "Aoife.NicShampla@example.com",
     }
     assert pii_leak(out, PII_VALUES) == [
-        PiiHit(where="body", rule=RemovalRule.ADDRESS, what="Cork"),
+        PiiHit(where="body", rule=RemovalRule.ADDRESS, what="7 Sample Quay"),
         PiiHit(where="body", rule=RemovalRule.PHONE, what="0214270000"),
         PiiHit(where="footer", rule=RemovalRule.PERSONAL, what="Irish"),
         PiiHit(

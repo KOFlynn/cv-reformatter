@@ -61,7 +61,9 @@ PARTS = {"header": "word/header", "body": "word/document.xml", "footer": "word/f
     ("home", "select"),
     [
         ("header", lambda pii: [pii.phone, pii.email]),
-        ("footer", lambda pii: [*pii.address, *pii.urls]),
+        # The address as printed, its lines together: a town on its own is a
+        # place the body may say as a work location, as pii_leak allows.
+        ("footer", lambda pii: [" ".join(pii.address), *pii.urls]),
     ],
     ids=["phone-and-email", "address-and-urls"],
 )

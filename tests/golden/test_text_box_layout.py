@@ -57,7 +57,9 @@ def appears(value: str, texts: list[str]) -> bool:
 
 def contact_strings(candidate: Candidate) -> list[str]:
     pii = candidate.pii
-    values = [pii.phone, pii.email, *pii.address, *pii.urls, pii.dob]
+    # The address as printed, its lines together: a town on its own is a
+    # place the body may say as a work location, as pii_leak allows.
+    values = [pii.phone, pii.email, " ".join(pii.address), *pii.urls, pii.dob]
     values += [pii.personal.nationality, pii.personal.marital_status]
     return [value for value in values if value]
 
@@ -68,8 +70,8 @@ def contact_strings(candidate: Candidate) -> list[str]:
 @pytest.mark.parametrize("candidate", CANDIDATES, ids=[c.id for c in CANDIDATES])
 def test_contact_block_lives_in_a_text_box_not_the_body(candidate):
     document = text_box().generate(candidate).document
-    body = body_texts(document)
-    everywhere = all_text(document)
+    body = [" ".join(body_texts(document))]
+    everywhere = [" ".join(all_text(document))]
     for value in contact_strings(candidate):
         # The pii-in-bullet trap prints the phone inside a body bullet on purpose.
         if not (Tag.PII_IN_BULLET in candidate.tags and value == candidate.pii.phone):
@@ -82,8 +84,9 @@ def test_contact_block_and_skills_are_real_txbx_content_elements():
     boxes = text_box_texts(text_box().generate(candidate).document)
     assert len(boxes) == 2
     contact, skills = boxes
+    # The address is several w:t runs; join the box so it is matched as printed.
     for value in contact_strings(candidate):
-        assert appears(value, contact), value
+        assert appears(value, [" ".join(contact)]), value
     for skill in candidate.content.skills:
         assert appears(skill, skills), skill
 
