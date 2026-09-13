@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 (Multiset metrics and the fake pipeline)
 
-**Status:** in-review
+**Status:** done
 
 - [x] `pii_leak` variant matching per class as specified; `PiiHit` carries rule id, matched text, where
 - [x] Precedence: a referee's email or phone is reported once under `RM_REFEREE`
