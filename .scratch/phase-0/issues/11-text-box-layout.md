@@ -4,11 +4,11 @@
 
 **Blocked by:** 03 (Tracer bullet — c01 through the single-column Layout to source coverage)
 
-**Status:** ready-for-agent
+**Status:** in-review
 
-- [ ] Text boxes are real `w:txbxContent` elements that open in Word and hold the contact block and skills
-- [ ] Layout implemented per the style matrix's third column and registered with the generator
-- [ ] Test: the contact block's strings are absent from the body paragraphs and present in `all_text` (proving they live in the text boxes)
-- [ ] Rotation and reversal recorded in the manifest as emitted order; undated entries still last
-- [ ] Source coverage and regeneration tests pass for all generated text-box documents
-- [ ] Documents and manifests committed
+- [x] Text boxes are real `w:txbxContent` elements that open in Word and hold the contact block and skills
+- [x] Layout implemented per the style matrix's third column and registered with the generator
+- [x] Test: the contact block's strings are absent from the body paragraphs and present in `all_text` (proving they live in the text boxes)
+- [x] Rotation and reversal recorded in the manifest as emitted order; undated entries still last
+- [x] Source coverage and regeneration tests pass for all generated text-box documents
+- [x] Documents and manifests committed
