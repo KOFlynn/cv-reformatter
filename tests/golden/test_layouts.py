@@ -296,3 +296,26 @@ def test_two_column_prints_a_year_only_date_as_the_year():
     candidate = c01_with(start={"year": 2020, "expected": "2020"})
     texts = all_text(two_column().generate(candidate).document)
     assert "2020 – 07/2026" in texts
+
+
+def test_two_column_curls_quotes_and_lists_the_confusables_it_injected():
+    data = c01().model_dump()
+    data["content"]["profile"] = ['Known as "the fixer" on the team.']
+    data["content"]["skills"][0] = "Bob's Toolkit"
+    candidate = Candidate.model_validate(data)
+    generated = two_column().generate(candidate)
+    texts = all_text(generated.document)
+    assert "Known as “the fixer” on the team." in texts
+    assert "• Bob’s Toolkit" in texts
+    assert "Sinéad O’Sampla" in texts
+    assert "• PostgreSQL" in texts  # untouched text is untouched
+    # Only what was injected, as U+XXXX, sorted; c01 has a range so the en dash too.
+    assert generated.manifest.confusables == ["U+2013", "U+2019", "U+201C", "U+201D"]
+
+
+def test_two_column_manifest_lists_only_confusables_actually_injected():
+    data = c01().model_dump()
+    data["content"]["name"] = "Sinead Sampla"
+    data["tags"] = []
+    manifest = two_column().generate(Candidate.model_validate(data)).manifest
+    assert manifest.confusables == ["U+2013"]

@@ -30,6 +30,8 @@ __all__ = ["TwoColumnLayout"]
 _LEFT_WIDTH = Cm(5.5)
 _RIGHT_WIDTH = Cm(11.5)
 _EN_DASH = "–"
+_APOSTROPHE = "’"
+_OPEN_DOUBLE, _CLOSE_DOUBLE = "“", "”"
 
 
 class TwoColumnLayout(Layout):
@@ -54,8 +56,9 @@ class TwoColumnLayout(Layout):
         left.width, right.width = _LEFT_WIDTH, _RIGHT_WIDTH
         # Left column: contact block, then education.
         _heading(left, "Contact")
-        _lines(left, [pii.phone, pii.email, *pii.address, *pii.urls, pii.dob])
-        _lines(left, [pii.personal.nationality, pii.personal.marital_status])
+        contact = [pii.phone, pii.email, *pii.address, *pii.urls, pii.dob]
+        _lines(left, contact, decisions)
+        _lines(left, [pii.personal.nationality, pii.personal.marital_status], decisions)
 
         if plan.education:
             _heading(left, "Academic Background")
@@ -65,19 +68,19 @@ class TwoColumnLayout(Layout):
         if pii.referees:
             _heading(left, "Referees")
             for referee in pii.referees:
-                _line(left, referee.name, bold=True)
-                _lines(left, [referee.role, *referee.contact])
+                _line(left, referee.name, decisions, bold=True)
+                _lines(left, [referee.role, *referee.contact], decisions)
 
         # Right column: name, then the rest.
-        right.add_paragraph(content.name, style="Title")
+        right.add_paragraph(_curl(content.name, decisions), style="Title")
 
         if content.profile:
             _heading(right, "Summary")
-            _lines(right, content.profile)
+            _lines(right, content.profile, decisions)
 
         if content.skills:
             _heading(right, "Skills")
-            _bullets(right, content.skills)
+            _bullets(right, content.skills, decisions)
 
         if plan.experience:
             _heading(right, "Work History")
@@ -86,15 +89,15 @@ class TwoColumnLayout(Layout):
 
         if content.certifications:
             _heading(right, "Certifications")
-            _bullets(right, content.certifications)
+            _bullets(right, content.certifications, decisions)
 
         if content.additional:
             _heading(right, "Other Information")
-            _lines(right, content.additional)
+            _lines(right, content.additional, decisions)
 
         # Unplaceable fragments trail the left column, under the referees.
         for index, fragment in enumerate(candidate.unplaceable):
-            _line(left, fragment)
+            _line(left, fragment, decisions)
             decisions.fragments.append(
                 FragmentPlacement(index=index, location="left-column-end")
             )
@@ -106,7 +109,35 @@ def _heading(cell: _Cell, text: str) -> None:
     cell.add_paragraph(text, style="Heading 1")
 
 
-def _line(cell: _Cell, text: str, *, bold: bool = False, italic: bool = False) -> None:
+def _curl(text: str, decisions: Decisions) -> str:
+    """Word's smart quotes: every apostrophe becomes a right single quote and
+    straight double quotes alternate open and close. Each curly character comes
+    from the shared confusable table and is recorded as injected."""
+    if "'" in text:
+        decisions.injected(_APOSTROPHE)
+        text = text.replace("'", _APOSTROPHE)
+    if '"' in text:
+        halves = text.split('"')
+        text = halves[0]
+        for position, half in enumerate(halves[1:]):
+            quote = _OPEN_DOUBLE if position % 2 == 0 else _CLOSE_DOUBLE
+            decisions.injected(quote)
+            text += quote + half
+    return text
+
+
+def _line(
+    cell: _Cell,
+    text: str,
+    decisions: Decisions | None = None,
+    *,
+    bold: bool = False,
+    italic: bool = False,
+) -> None:
+    """One paragraph. Pass ``decisions`` to curl the text's quotes; date lines
+    pass nothing so the document says what the manifest says was printed."""
+    if decisions is not None:
+        text = _curl(text, decisions)
     # Only set what is asked for: ``run.bold = False`` would write an explicit
     # off-toggle into the XML rather than nothing.
     run = cell.add_paragraph().add_run(text)
@@ -116,17 +147,17 @@ def _line(cell: _Cell, text: str, *, bold: bool = False, italic: bool = False) -
         run.italic = True
 
 
-def _lines(cell: _Cell, texts: list[str | None]) -> None:
+def _lines(cell: _Cell, texts: list[str | None], decisions: Decisions) -> None:
     """One paragraph per text, skipping absent values."""
     for text in texts:
         if text:
-            _line(cell, text)
+            _line(cell, text, decisions)
 
 
-def _bullets(cell: _Cell, items: list[str]) -> None:
+def _bullets(cell: _Cell, items: list[str], decisions: Decisions) -> None:
     # A literal bullet glyph in the text itself, not Word list numbering.
     for item in items:
-        _line(cell, f"• {item}")
+        _line(cell, f"• {item}", decisions)
 
 
 def _date_line(cell: _Cell, planned: PlannedEntry, decisions: Decisions) -> None:
@@ -143,22 +174,22 @@ def _experience(
     cell: _Cell, planned: PlannedEntry[ExperienceEntry], decisions: Decisions
 ) -> None:
     entry = planned.entry
-    _line(cell, entry.title, bold=True)
+    _line(cell, entry.title, decisions, bold=True)
     employer_line = (
         entry.employer
         if entry.location is None
         else f"{entry.employer}, {entry.location}"
     )
-    _line(cell, employer_line, italic=True)
+    _line(cell, employer_line, decisions, italic=True)
     _date_line(cell, planned, decisions)
-    _bullets(cell, entry.bullets)
+    _bullets(cell, entry.bullets, decisions)
 
 
 def _education(
     cell: _Cell, planned: PlannedEntry[EducationEntry], decisions: Decisions
 ) -> None:
     entry = planned.entry
-    _line(cell, entry.qualification, bold=True)
-    _line(cell, entry.institution, italic=True)
+    _line(cell, entry.qualification, decisions, bold=True)
+    _line(cell, entry.institution, decisions, italic=True)
     _date_line(cell, planned, decisions)
-    _bullets(cell, entry.details)
+    _bullets(cell, entry.details, decisions)
