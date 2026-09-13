@@ -4,10 +4,10 @@
 
 **Blocked by:** 03 (Tracer bullet — c01 through the single-column Layout to source coverage)
 
-**Status:** in-progress
+**Status:** in-review
 
-- [ ] Layout implemented per the style matrix's fourth column and registered with the generator
-- [ ] Test: phone and email appear in the header part, address and URL in the footer part, none of them in body paragraphs
-- [ ] Manifest records contact-block location as header/footer and both sections' emitted order
-- [ ] Source coverage and regeneration tests pass for all generated header/footer documents
-- [ ] Documents and manifests committed
+- [x] Layout implemented per the style matrix's fourth column and registered with the generator
+- [x] Test: phone and email appear in the header part, address and URL in the footer part, none of them in body paragraphs
+- [x] Manifest records contact-block location as header/footer and both sections' emitted order
+- [x] Source coverage and regeneration tests pass for all generated header/footer documents
+- [x] Documents and manifests committed
