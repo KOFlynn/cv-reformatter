@@ -116,6 +116,28 @@ def _dob(value: str) -> str:
     return _bounded("|".join(re.escape(form) for form in sorted(forms)))
 
 
+def _word(value: str) -> str:
+    # A plain word, as written and in its own case: `Single` the marital
+    # status is not `Single-handedly` the bullet, so a hyphen bounds it too.
+    return rf"(?<![\w-]){re.escape(canonicalise(value))}(?![\w-])"
+
+
+_EMAIL_IN_LINE = re.compile(r"[^\s@]+@[^\s@]+")
+_DIGITS = re.compile(r"\d")
+
+
+def _contact_line(value: str) -> tuple[str, int]:
+    """A referee's contact line matched by what it is: the email in it with
+    the email variants, the number in it with the phone variants, anything
+    else as written."""
+    if email := _EMAIL_IN_LINE.search(value):
+        return _email(email.group().rstrip(".,;")), re.IGNORECASE
+    if len(_DIGITS.findall(value)) >= 6:
+        # Drop a `Tel:` label but keep a leading `+`, which names the form.
+        return _phone(re.sub(r"^[^\d+]*", "", value)), 0
+    return _word(value), 0
+
+
 def _matchers(pii: PII) -> list[_Matcher]:
     def add(rule: RemovalRule, pattern: str, flags: int = 0) -> None:
         matchers.append(_Matcher(rule, re.compile(pattern, flags)))
@@ -131,16 +153,60 @@ def _matchers(pii: PII) -> list[_Matcher]:
         add(RemovalRule.URL, _url(url), re.IGNORECASE)
     if pii.dob:
         add(RemovalRule.DOB, _dob(pii.dob), re.IGNORECASE)
+    for detail in (pii.personal.nationality, pii.personal.marital_status):
+        if detail:
+            add(RemovalRule.PERSONAL, _word(detail))
+    for referee in pii.referees:
+        for detail in (referee.name, referee.role):
+            if detail:
+                add(RemovalRule.REFEREE, _word(detail))
+        for line in referee.contact:
+            add(RemovalRule.REFEREE, *_contact_line(line))
     return matchers
+
+
+# Most specific first: an occurrence matched under two rules is reported once,
+# under the earliest of these. A referee's phone or email is the referee's.
+_PRECEDENCE = {
+    rule: rank
+    for rank, rule in enumerate(
+        (
+            RemovalRule.REFEREE,
+            RemovalRule.EMAIL,
+            RemovalRule.URL,
+            RemovalRule.PHONE,
+            RemovalRule.DOB,
+            RemovalRule.ADDRESS,
+            RemovalRule.PERSONAL,
+        )
+    )
+}
 
 
 def _hits_in(where: str, text: str, matchers: Iterable[_Matcher]) -> list[PiiHit]:
     canonical = canonicalise(text)
-    return [
-        PiiHit(where=where, rule=matcher.rule, what=match.group())
-        for matcher in matchers
-        for match in matcher.pattern.finditer(canonical)
-    ]
+    matches = sorted(
+        (
+            (
+                _PRECEDENCE[matcher.rule],
+                match.start(),
+                -match.end(),
+                matcher.rule,
+                match,
+            )
+            for matcher in matchers
+            for match in matcher.pattern.finditer(canonical)
+        ),
+        key=lambda item: item[:3],
+    )
+    taken: list[tuple[int, int]] = []
+    hits: list[PiiHit] = []
+    for _, start, _, rule, match in matches:
+        if any(start < end and match.end() > begin for begin, end in taken):
+            continue  # already reported under a more specific rule
+        taken.append((start, match.end()))
+        hits.append(PiiHit(where=where, rule=rule, what=match.group()))
+    return hits
 
 
 def pii_leak(output_text: Mapping[str, str], pii: PII) -> list[PiiHit]:

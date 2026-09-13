@@ -121,3 +121,75 @@ def test_an_unparseable_dob_still_hits_as_written():
         PiiHit(where="body", rule=RemovalRule.DOB, what="Spring '90")
     ]
     assert hits("Born 1990", pii) == []
+
+
+def test_personal_details_hit_as_written_and_not_inside_a_hyphenated_word():
+    assert hits("Nationality: Irish. Status: Single") == [
+        PiiHit(where="body", rule=RemovalRule.PERSONAL, what="Irish"),
+        PiiHit(where="body", rule=RemovalRule.PERSONAL, what="Single"),
+    ]
+    # Case carries meaning for a plain word; the bullet is not a leak.
+    assert hits("Single-handedly rebuilt the single sign-on") == []
+
+
+def test_a_referee_name_role_and_contact_lines_each_hit_under_rm_referee():
+    assert hits("Dr Pádraig Ó Sampla, Head of Platform, +353 1 555 0100") == [
+        PiiHit(where="body", rule=RemovalRule.REFEREE, what="+353 1 555 0100"),
+        PiiHit(where="body", rule=RemovalRule.REFEREE, what="Dr Pádraig Ó Sampla"),
+        PiiHit(where="body", rule=RemovalRule.REFEREE, what="Head of Platform"),
+    ]
+
+
+def test_a_referee_contact_line_matches_with_the_variants_of_its_kind():
+    # The line is a phone or an email as far as the leak is concerned, so the
+    # digits-only and casefolded forms count, and one line is one hit.
+    assert hits("Ref: 01 555 0100") == [
+        PiiHit(where="body", rule=RemovalRule.REFEREE, what="01 555 0100")
+    ]
+    assert hits("Ref: PADRAIG.OSAMPLA@EXAMPLE.ORG") == [
+        PiiHit(
+            where="body", rule=RemovalRule.REFEREE, what="PADRAIG.OSAMPLA@EXAMPLE.ORG"
+        )
+    ]
+
+
+def test_a_referee_contact_shared_with_the_candidate_is_reported_once_under_rm_referee():
+    pii = PII(
+        phone="+353 1 555 0100",
+        email="padraig.osampla@example.org",
+        referees=[
+            Referee(
+                name="P. Ó Sampla",
+                contact=["+353 1 555 0100", "padraig.osampla@example.org"],
+            )
+        ],
+    )
+    assert hits("015550100 padraig.osampla@example.org", pii) == [
+        PiiHit(where="body", rule=RemovalRule.REFEREE, what="015550100"),
+        PiiHit(
+            where="body", rule=RemovalRule.REFEREE, what="padraig.osampla@example.org"
+        ),
+    ]
+
+
+def test_two_occurrences_are_two_hits():
+    assert hits("Cork and Cork again") == [
+        PiiHit(where="body", rule=RemovalRule.ADDRESS, what="Cork"),
+        PiiHit(where="body", rule=RemovalRule.ADDRESS, what="Cork"),
+    ]
+
+
+def test_hits_are_sorted_by_part_then_rule_then_text():
+    out = {
+        "footer": "Irish",
+        "body": "Cork, 0214270000",
+        "header": "Aoife.NicShampla@example.com",
+    }
+    assert pii_leak(out, PII_VALUES) == [
+        PiiHit(where="body", rule=RemovalRule.ADDRESS, what="Cork"),
+        PiiHit(where="body", rule=RemovalRule.PHONE, what="0214270000"),
+        PiiHit(where="footer", rule=RemovalRule.PERSONAL, what="Irish"),
+        PiiHit(
+            where="header", rule=RemovalRule.EMAIL, what="Aoife.NicShampla@example.com"
+        ),
+    ]
