@@ -190,21 +190,26 @@ def _replace_in_first_leaf(
 
 
 CURLY = "\u2019"
+EN_DASH = "\u2013"
+# One-character swaps drawn from the shared confusable table, so that every
+# canonicalised metric is blind to them by construction: the straightening a
+# renderer that "fixes" quotes does; then the same change the other way (a
+# straight apostrophe curled, as autocorrect does); then a hyphen to an en
+# dash, for a Candidate with no apostrophe in any leaf. Every Candidate
+# carries a hyphen, so the row applies to all twelve. The straightening
+# direction itself is exercised only once a Candidate carries a curly
+# apostrophe in a leaf, which none does yet.
+CONFUSABLE_SWAPS = ((CURLY, "'"), ("'", CURLY), ("-", EN_DASH))
 
 
 def straighten_an_apostrophe(_: Candidate, result: PipelineResult) -> PipelineResult:
-    # What a renderer that "fixes" quotes does. A Candidate without a curly
-    # apostrophe gets the same one-character change the other way (a straight
-    # one curled, as autocorrect does); every canonicalised metric is equally
-    # blind to both, which is the point of the row. Until a Candidate with a
-    # curly apostrophe lands, only the curling direction is exercised.
     dumped = result.content.model_dump()
     leaf_set = frozenset(leaves(result.content))
-    for old, new in ((CURLY, "'"), ("'", CURLY)):
+    for old, new in CONFUSABLE_SWAPS:
         damaged = _replace_in_first_leaf(dumped, old, new, leaf_set)
         if damaged != dumped:
             return replace(result, content=CVContent.model_validate(damaged))
-    raise NotApplicable("no apostrophe in any leaf")
+    raise NotApplicable("no apostrophe or hyphen in any leaf")
 
 
 def reverse_experience(_: Candidate, result: PipelineResult) -> PipelineResult:
