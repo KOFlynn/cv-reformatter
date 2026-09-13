@@ -10,7 +10,7 @@ being used as filler inside a bullet.
 from collections import Counter
 from collections.abc import Iterable
 
-from cvr.eval.finding import Finding
+from cvr.eval.finding import Finding, findings
 from cvr.text import canonicalise
 
 __all__ = ["provenance_violations"]
@@ -32,15 +32,14 @@ def provenance_violations(
     rendered, counted on the output side, sorted.
     """
     blocks = [canonicalise(block) for block in source_blocks]
-    whole = {canonicalise(unit) for unit in template_units}
-    whole |= {canonicalise(rendered) for _, rendered in date_map}
-    violations: Counter[str] = Counter()
+    # Template text and mapped dates are permitted as whole units only; a
+    # template word inside a bullet is not template text.
+    permitted = {canonicalise(unit) for unit in template_units}
+    permitted |= {canonicalise(rendered) for _, rendered in date_map}
+    violations: Counter[tuple[str, str]] = Counter()
     for unit in output_units:
         text = canonicalise(unit)
-        if not text or text in whole or any(text in block for block in blocks):
+        if not text or text in permitted or any(text in block for block in blocks):
             continue
-        violations[unit] += 1
-    return sorted(
-        Finding(what=unit, count=count, where="output")
-        for unit, count in violations.items()
-    )
+        violations["output", unit] += 1
+    return findings(violations)

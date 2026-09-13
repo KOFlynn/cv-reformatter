@@ -104,17 +104,18 @@ def locate(unit: str, blocks: Iterable[str]) -> str | None:
     Stands in for Phase 1's verifier: a unit is located by canonicalised
     match, as provenance finds it, and the located text is returned raw so
     punctuation fidelity can compare what the renderer was given with what
-    it produced. Every unit here is a whole leaf, so a span is a whole
-    block. A block equal to the unit as rendered wins over one that is only
-    canonically equal, so two leaves differing only in punctuation are each
-    paired with their own.
+    it produced. Every unit here is a whole leaf, so the match is whole-block
+    equality, narrower than provenance's substring rule; a unit that is only
+    part of a block has no span here. A block equal to the unit as rendered
+    wins over one that is only canonically equal, so two leaves differing
+    only in punctuation are each paired with their own.
     """
-    candidates = [
-        block for block in blocks if canonicalise(block) == canonicalise(unit)
-    ]
-    return next((block for block in candidates if block == unit), None) or (
-        candidates[0] if candidates else None
-    )
+    text = canonicalise(unit)
+    matches = [block for block in blocks if canonicalise(block) == text]
+    for block in matches:
+        if block == unit:
+            return block
+    return matches[0] if matches else None
 
 
 def metric_inputs(candidate: Candidate, result: PipelineResult) -> MetricInputs:

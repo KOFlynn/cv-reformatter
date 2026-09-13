@@ -9,17 +9,14 @@ tokenised with ``cvr.text.tokenise``; nothing here normalises on its own.
 from collections import Counter
 from collections.abc import Iterable
 
-from cvr.eval.finding import Finding
+from cvr.eval.finding import Finding, findings
 from cvr.text import tokenise
 
 __all__ = ["added_tokens", "dropped_tokens"]
 
 
 def _findings(excess: Counter[str], where: str) -> list[Finding]:
-    # Counter subtraction has already dropped everything at zero or below.
-    return sorted(
-        Finding(what=token, count=count, where=where) for token, count in excess.items()
-    )
+    return findings({(where, token): count for token, count in excess.items()})
 
 
 def added_tokens(

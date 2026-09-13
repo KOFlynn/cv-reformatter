@@ -15,7 +15,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import Literal
 
-from fake_pipeline import MetricInputs, PipelineResult, unplaceable_share
+from fake_pipeline import MetricInputs, PipelineResult, leaves, unplaceable_share
 
 from cvr.eval import (
     PlacementReport,
@@ -158,20 +158,24 @@ def swap_two_words(result: PipelineResult) -> PipelineResult:
     return _with_bullets(result, index, [" ".join(words), *rest])
 
 
-def _replace_in_first_leaf(node: object, old: str, new: str) -> object:
-    """The dumped content with ``old`` replaced once, in the first string
-    that carries it, in dump order; unchanged if no string does."""
+def _replace_in_first_leaf(
+    node: object, old: str, new: str, leaves: frozenset[str]
+) -> object:
+    """The dumped content with ``old`` replaced once, in the first leaf that
+    carries it, in dump order; unchanged if no leaf does. Strings that are
+    not leaves (a date's ``literal``) are left alone: no metric would see
+    the change, so it would not be a corruption."""
     if isinstance(node, str):
-        return node.replace(old, new, 1)
+        return node.replace(old, new, 1) if node in leaves else node
     if isinstance(node, list):
         for i, item in enumerate(node):
-            replaced = _replace_in_first_leaf(item, old, new)
+            replaced = _replace_in_first_leaf(item, old, new, leaves)
             if replaced != item:
                 return [*node[:i], replaced, *node[i + 1 :]]
         return node
     if isinstance(node, dict):
         for key, value in node.items():
-            replaced = _replace_in_first_leaf(value, old, new)
+            replaced = _replace_in_first_leaf(value, old, new, leaves)
             if replaced != value:
                 return {**node, key: replaced}
     return node
@@ -184,10 +188,12 @@ def straighten_an_apostrophe(result: PipelineResult) -> PipelineResult:
     # What a renderer that "fixes" quotes does. A Candidate without a curly
     # apostrophe gets the same one-character change the other way (a straight
     # one curled, as autocorrect does); every canonicalised metric is equally
-    # blind to both, which is the point of the row.
+    # blind to both, which is the point of the row. Until a Candidate with a
+    # curly apostrophe lands, only the curling direction is exercised.
     dumped = result.content.model_dump()
+    leaf_set = frozenset(leaves(result.content))
     for old, new in ((CURLY, "'"), ("'", CURLY)):
-        damaged = _replace_in_first_leaf(dumped, old, new)
+        damaged = _replace_in_first_leaf(dumped, old, new, leaf_set)
         if damaged != dumped:
             return replace(result, content=CVContent.model_validate(damaged))
     raise NotApplicable("no apostrophe in any leaf")
@@ -252,12 +258,14 @@ CORRUPTIONS: list[Corruption] = [
     # (ADR-0007). Swapped words: the same bag of words, so added and dropped
     # both pass, and only the whole-unit check sees that the bullet is a
     # slice of no block. The unit cannot be located, so it has no raw pair
-    # and fidelity has nothing to say.
+    # and fidelity has nothing to say. Placement moves as for the inserted
+    # word: one leaf wrong and one leaf missing.
     _row(
         "swap two words inside a bullet",
         swap_two_words,
         "provenance placement",
         "added dropped appendix ordering punctuation",
+        Direction(precision="down", recall="down"),
     ),
     # A changed apostrophe: every canonicalised metric, provenance included,
     # sees the same string on both sides. Only the raw comparison notices.

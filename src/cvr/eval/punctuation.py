@@ -13,7 +13,7 @@ A reported metric first; promoted to a hard gate after the Phase 1 baseline.
 from collections import Counter
 from collections.abc import Iterable
 
-from cvr.eval.finding import Finding
+from cvr.eval.finding import Finding, findings
 
 __all__ = ["punctuation_fidelity"]
 
@@ -24,7 +24,8 @@ def _name(text: str, position: int) -> str:
     if position >= len(text):
         return _END
     char = text[position]
-    return f"{char} (U+{ord(char):04X})"
+    # repr, so a space or an invisible character is readable in a report.
+    return f"{char!r} (U+{ord(char):04X})"
 
 
 def _first_difference(span: str, unit: str) -> str:
@@ -39,15 +40,12 @@ def punctuation_fidelity(pairs: Iterable[tuple[str, str]]) -> list[Finding]:
 
     No canonicalisation, no NFC: a decomposed accent is as much a change as a
     straightened quote. Each finding names the rendered unit (``where``) and
-    the first differing character on each side as ``<char> (U+XXXX)``
+    the first differing character on each side as ``'<char>' (U+XXXX)``
     (``what``), with ``(end)`` when one side has run out; the same difference
     in the same unit twice is one finding of two. Sorted.
     """
-    findings: Counter[tuple[str, str]] = Counter()
+    differences: Counter[tuple[str, str]] = Counter()
     for span, unit in pairs:
         if span != unit:
-            findings[unit, _first_difference(span, unit)] += 1
-    return sorted(
-        Finding(what=what, count=count, where=where)
-        for (where, what), count in findings.items()
-    )
+            differences[unit, _first_difference(span, unit)] += 1
+    return findings(differences)

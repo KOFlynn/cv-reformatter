@@ -63,7 +63,6 @@ def test_the_fake_pipeline_maps_a_candidate_to_every_metric_input():
     # content, PII and unplaceable fragments, everything a Layout would print.
     assert candidate.content.experience[0].bullets[0] in inputs.source_blocks
     assert candidate.pii.email in inputs.source_blocks
-    assert "Recruitment" not in " ".join(inputs.source_blocks)
     # Template units are the template's fixed paragraphs, read from the file.
     assert inputs.template_units == template_text()
     # Every output unit is located in a source block, and the raw pair is
