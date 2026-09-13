@@ -4,7 +4,7 @@
 
 **Blocked by:** 06 (Fictitious Recruitment template, built by script)
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 - [ ] `provenance_violations` implemented as specified; template units extracted from the template, never hardcoded
 - [ ] `punctuation_fidelity` implemented on raw text; findings name the unit and the differing character
