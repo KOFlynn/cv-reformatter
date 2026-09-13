@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 (Multiset metrics and the fake pipeline)
 
-**Status:** in-review
+**Status:** done
 
 - [x] Two-pass alignment with the keys and cutoff as specified; `aligned_by` distinguishes key, fallback, unmatched
 - [x] Precision and recall reported separately, overall and per field type; structural vs tunable field types are distinguishable in the report
