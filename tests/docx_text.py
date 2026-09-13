@@ -31,3 +31,10 @@ def all_text(document: Path | bytes) -> list[str]:
             root = etree.fromstring(package.read(name))
             texts.extend(element.text or "" for element in root.iter(W_T))
     return texts
+
+
+def image_count(document: Path | bytes) -> int:
+    """How many image parts the package carries, whatever references them."""
+    data = document if isinstance(document, bytes) else document.read_bytes()
+    with zipfile.ZipFile(io.BytesIO(data)) as package:
+        return sum(1 for name in package.namelist() if name.startswith("word/media/"))

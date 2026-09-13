@@ -1,12 +1,14 @@
 """The two-column table Layout: the style matrix's second column.
 
 One two-cell table holds the whole CV. The left cell carries the contact
-block and education; the right cell carries the name, summary, skills and
-work history. ``01/2020`` dates, literal ``•`` bullets, experience reversed
-(oldest first). Reading order is a trap in itself: the pipeline has to
-realise the columns are not one stream of text.
+block, a generated placeholder photo and education; the right cell carries
+the name, summary, skills and work history. ``01/2020`` dates, literal ``•``
+bullets, experience reversed (oldest first), curly quotes and en dashes from
+the shared confusable table. Reading order is a trap in itself: the pipeline
+has to realise the columns are not one stream of text.
 """
 
+import io
 from typing import ClassVar
 
 from docx import Document
@@ -23,12 +25,14 @@ from cvr.golden.layouts.base import (
     PlannedEntry,
     Section,
 )
+from cvr.golden.layouts.photo import placeholder_photo
 from cvr.models import EducationEntry, ExperienceEntry
 
 __all__ = ["TwoColumnLayout"]
 
 _LEFT_WIDTH = Cm(5.5)
 _RIGHT_WIDTH = Cm(11.5)
+_PHOTO_WIDTH = Cm(3.2)
 _EN_DASH = "–"
 _APOSTROPHE = "’"
 _OPEN_DOUBLE, _CLOSE_DOUBLE = "“", "”"
@@ -54,7 +58,12 @@ class TwoColumnLayout(Layout):
         table.style = "Table Grid"
         left, right = table.rows[0].cells
         left.width, right.width = _LEFT_WIDTH, _RIGHT_WIDTH
-        # Left column: contact block, then education.
+        # Left column: photo, contact block, then education.
+        left.add_paragraph().add_run().add_picture(
+            io.BytesIO(placeholder_photo()), width=_PHOTO_WIDTH
+        )
+        decisions.photo = True
+
         _heading(left, "Contact")
         contact = [pii.phone, pii.email, *pii.address, *pii.urls, pii.dob]
         _lines(left, contact, decisions)

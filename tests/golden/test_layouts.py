@@ -2,7 +2,7 @@
 seen only through the dumb ``all_text`` helper."""
 
 import pytest
-from docx_text import all_text
+from docx_text import all_text, image_count
 
 from cvr.golden import CANDIDATES_DIR, LAYOUTS, Candidate, load_candidates
 from cvr.golden.layouts import Decisions
@@ -73,6 +73,17 @@ def test_every_pii_value_appears_in_the_document(candidate, layout):
     generated = layout.generate(candidate)
     texts = all_text(generated.document)
     assert_each_appears(pii_values(candidate), texts, f"{candidate.id} PII")
+
+
+# --- The photo
+
+
+@pytest.mark.parametrize(("candidate", "layout"), PAIRS, ids=PAIR_IDS)
+def test_only_two_column_documents_carry_an_image_and_exactly_one(candidate, layout):
+    generated = layout.generate(candidate)
+    expected = 1 if layout.name == "two-column" else 0
+    assert image_count(generated.document) == expected
+    assert generated.manifest.photo is (expected == 1)
 
 
 # --- The manifest
