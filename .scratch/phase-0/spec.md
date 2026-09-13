@@ -216,11 +216,11 @@ Corruptions, each with a declared blast radius:
 | re-emit the source email in the header | pii | everything else | — |
 | reverse experience order | ordering | everything else | — |
 | swap two words inside a bullet | provenance, placement | added, dropped, pii, image, ordering, appendix, punctuation | precision down, recall down |
-| move one job's bullets into the appendix | appendix, placement | added, dropped, provenance, pii, image, ordering | recall down |
+| move one job's bullets into the appendix | appendix, placement | added, dropped, provenance, pii, image, ordering | recall down, precision unchanged |
 | leave the photo in | image | everything else | — |
 | straighten a curly apostrophe | punctuation | everything else, provenance included | — |
 
-Direction for placement follows from whole-leaf scoring: a bullet with a word inserted matches no expected leaf and its expected leaf matches no actual leaf, so one error is a false positive and a false negative at once. "Precision only" would need token-level scoring inside a matched leaf, which nothing here defines. (Corrected during ticket 05; the original row said recall unchanged.) The swapped-words row moves placement the same way, and passes punctuation fidelity because a unit provenance cannot locate has no raw span to compare. (Placed during ticket 07; the original row left punctuation out.)
+Direction for placement follows from whole-leaf scoring: a bullet with a word inserted matches no expected leaf and its expected leaf matches no actual leaf, so one error is a false positive and a false negative at once. "Precision only" would need token-level scoring inside a matched leaf, which nothing here defines. (Corrected during ticket 05; the original row said recall unchanged.) The swapped-words row moves placement the same way, and passes punctuation fidelity because a unit provenance cannot locate has no raw span to compare. (Placed during ticket 07; the original row left punctuation out.) The appendix row leaves precision unchanged: the moved bullets are leaves not found, and nothing wrong is placed. (Made explicit during ticket 13; the original row said only recall down.) A corruption must apply to every committed Candidate, so a new Candidate must carry what every row damages: a job with bullets, at least two jobs, an email, and an apostrophe or a hyphen in some leaf.
 
 ### Scaffolding
 

@@ -12,7 +12,7 @@ fidelity while provenance passes. See the row comments in ``corruptions``.
 """
 
 import pytest
-from corruptions import CHECKS, CORRUPTIONS, NotApplicable, failed_metrics
+from corruptions import CHECKS, CORRUPTIONS, Direction, NotApplicable, failed_metrics
 from fake_pipeline import fake_pipeline, metric_inputs
 
 from cvr.eval import placement_accuracy
@@ -26,6 +26,18 @@ CANDIDATE_FILES = sorted(CANDIDATES_DIR.glob("*.json"))
 assert CANDIDATE_FILES, f"no Candidate files in {CANDIDATES_DIR}"
 candidates = pytest.mark.parametrize("path", CANDIDATE_FILES, ids=lambda p: p.stem)
 corruptions = pytest.mark.parametrize("corruption", CORRUPTIONS, ids=lambda c: c.name)
+
+
+def damaged_result(corruption, candidate):
+    """The corruption applied to the honest result. The matrix is asserted
+    over every committed Candidate, so a row that does not apply to one is a
+    hole in the evidence, not a case to skip: a new Candidate must carry what
+    every row damages (a job with bullets, two jobs, an email, an apostrophe
+    or a hyphen)."""
+    try:
+        return corruption.damage(candidate, fake_pipeline(candidate))
+    except NotApplicable as why:
+        pytest.fail(f"{corruption.name!r} does not apply to {candidate.id}: {why}")
 
 
 @candidates
@@ -80,6 +92,57 @@ def test_the_fake_pipeline_maps_a_candidate_to_every_metric_input():
     assert (candidate.content.name, candidate.content.name) in inputs.pairs
 
 
+# The spec's table ("Test the test", Phase 0 spec), copied here as data so the
+# corruption module cannot drift from it: a row is named, the metrics it must
+# fail are listed, and the direction is given where the spec gives one. The
+# spec writes "recall down" alone for the appendix row; with two figures
+# reported separately, that reads as precision unchanged.
+SPEC_TABLE: dict[str, tuple[set[str], Direction | None]] = {
+    "insert a word into a bullet": (
+        {"added", "provenance", "placement"},
+        Direction(precision="down", recall="down"),
+    ),
+    "drop a bullet": (
+        {"dropped", "placement"},
+        Direction(precision="unchanged", recall="down"),
+    ),
+    "re-emit the source email in the header": ({"pii"}, None),
+    "reverse experience order": ({"ordering"}, None),
+    "swap two words inside a bullet": (
+        {"provenance", "placement"},
+        Direction(precision="down", recall="down"),
+    ),
+    "move one job's bullets into the appendix": (
+        {"appendix", "placement"},
+        Direction(precision="unchanged", recall="down"),
+    ),
+    "leave the photo in": ({"image"}, None),
+    "straighten a curly apostrophe": ({"punctuation"}, None),
+}
+SPEC_COLUMNS = {
+    "added",
+    "dropped",
+    "provenance",
+    "punctuation",
+    "pii",
+    "image",
+    "placement",
+    "ordering",
+    "appendix",
+}
+
+
+def test_the_corruption_table_is_the_spec_table():
+    assert CHECKS.keys() == SPEC_COLUMNS
+    assert {c.name for c in CORRUPTIONS} == SPEC_TABLE.keys()
+    assert len(CORRUPTIONS) == len(SPEC_TABLE) == 8
+    for corruption in CORRUPTIONS:
+        fails, direction = SPEC_TABLE[corruption.name]
+        assert corruption.fails == fails, corruption.name
+        assert corruption.passes == SPEC_COLUMNS - fails, corruption.name
+        assert corruption.direction == direction, corruption.name
+
+
 @corruptions
 def test_every_corruption_declares_a_blast_radius_over_every_metric(corruption):
     # A metric a row forgets to place is a metric nobody has decided about, so
@@ -94,10 +157,7 @@ def test_a_corruption_fails_every_metric_inside_its_blast_radius_and_no_other(
     path, corruption
 ):
     candidate = load_candidate(path)
-    try:
-        damaged = corruption.damage(candidate, fake_pipeline(candidate))
-    except NotApplicable as why:
-        pytest.skip(str(why))
+    damaged = damaged_result(corruption, candidate)
     inputs = metric_inputs(candidate, damaged)
     assert failed_metrics(candidate, inputs) == corruption.fails
 
@@ -118,10 +178,7 @@ def test_a_corruption_moves_precision_and_recall_in_its_declared_direction(
     # "unchanged" is still one; a metric failing for the wrong reason (recall
     # falling when only precision should) is caught here, not by the blast radius.
     candidate = load_candidate(path)
-    try:
-        damaged = corruption.damage(candidate, fake_pipeline(candidate))
-    except NotApplicable as why:
-        pytest.skip(str(why))
+    damaged = damaged_result(corruption, candidate)
     inputs = metric_inputs(candidate, damaged)
     overall = placement_accuracy(inputs.output_content, candidate.content).overall
     assert (overall.precision < 1.0) == (corruption.direction.precision == "down")
