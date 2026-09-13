@@ -8,10 +8,11 @@ reversed (oldest first), zero-width spaces and curly apostrophes from the
 shared confusable table.
 """
 
-from typing import ClassVar
+from typing import ClassVar, Protocol
 
 from docx import Document
 from docx.document import Document as DocumentType
+from docx.text.paragraph import Paragraph
 
 from cvr.golden.candidate import Candidate
 from cvr.golden.layouts.base import (
@@ -29,6 +30,16 @@ __all__ = ["HeaderFooterLayout"]
 _BULLET = "–"
 _ZWSP = "\u200b"
 _APOSTROPHE = "’"
+
+
+class _Container(Protocol):
+    """What the body, a header and a footer have in common: python-docx has
+    no shared base for the three, so this names the two members used here."""
+
+    @property
+    def paragraphs(self) -> list[Paragraph]: ...
+
+    def add_paragraph(self) -> Paragraph: ...
 
 
 class HeaderFooterLayout(Layout):
@@ -107,11 +118,11 @@ class HeaderFooterLayout(Layout):
         return document
 
 
-def _paragraph(container):
+def _paragraph(container: _Container) -> Paragraph:
     """The next paragraph to write into: a header or footer's one empty
     paragraph while it is still empty, otherwise a fresh one."""
     paragraphs = container.paragraphs
-    if paragraphs and not paragraphs[0].text and len(paragraphs) == 1:
+    if len(paragraphs) == 1 and not paragraphs[0].text:
         return paragraphs[0]
     return container.add_paragraph()
 
@@ -126,7 +137,7 @@ def _inject(text: str, decisions: Decisions) -> str:
 
 
 def _line(
-    container,
+    container: _Container,
     text: str,
     decisions: Decisions,
     *,
@@ -143,14 +154,16 @@ def _line(
         run.italic = True
 
 
-def _lines(container, texts: list[str | None], decisions: Decisions) -> None:
+def _lines(
+    container: _Container, texts: list[str | None], decisions: Decisions
+) -> None:
     """One paragraph per text, skipping absent values."""
     for text in texts:
         if text:
             _line(container, text, decisions)
 
 
-def _bullets(container, items: list[str], decisions: Decisions) -> None:
+def _bullets(container: _Container, items: list[str], decisions: Decisions) -> None:
     """A literal en dash as the bullet glyph, in the text itself, with a
     zero-width space from the shared table between it and the item: the kind
     of invisible character a web-to-Word paste leaves behind."""
@@ -159,7 +172,7 @@ def _bullets(container, items: list[str], decisions: Decisions) -> None:
         _line(container, f"{_BULLET} {_ZWSP}{item}", decisions)
 
 
-def _date_line(container, planned: PlannedEntry) -> None:
+def _date_line(container: _Container, planned: PlannedEntry) -> None:
     """``2022-03 to 2026-07``: joined by a word, since a dash between
     dash-separated dates reads ambiguously and the column's confusables are
     the zero-width space and the curly apostrophe only. Written uninjected,
@@ -171,7 +184,7 @@ def _date_line(container, planned: PlannedEntry) -> None:
 
 
 def _experience(
-    container, planned: PlannedEntry[ExperienceEntry], decisions: Decisions
+    container: _Container, planned: PlannedEntry[ExperienceEntry], decisions: Decisions
 ) -> None:
     entry = planned.entry
     _line(container, entry.title, decisions, bold=True)
@@ -186,7 +199,7 @@ def _experience(
 
 
 def _education(
-    container, planned: PlannedEntry[EducationEntry], decisions: Decisions
+    container: _Container, planned: PlannedEntry[EducationEntry], decisions: Decisions
 ) -> None:
     entry = planned.entry
     _line(container, entry.qualification, decisions, bold=True)
