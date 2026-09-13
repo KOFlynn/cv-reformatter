@@ -4,6 +4,7 @@ the generator iterates."""
 from cvr.golden.layouts.base import (
     GENERATOR_VERSION,
     MANIFEST_VERSION,
+    BulletPlacement,
     Decisions,
     FragmentPlacement,
     Generated,
@@ -23,6 +24,7 @@ __all__ = [
     "GENERATOR_VERSION",
     "LAYOUTS",
     "MANIFEST_VERSION",
+    "BulletPlacement",
     "Decisions",
     "FragmentPlacement",
     "Generated",

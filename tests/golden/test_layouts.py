@@ -4,8 +4,8 @@ seen only through the dumb ``all_text`` and ``image_count`` helpers."""
 import pytest
 from docx_text import all_text, image_count
 
-from cvr.golden import CANDIDATES_DIR, LAYOUTS, Candidate, load_candidates
-from cvr.golden.layouts import Decisions
+from cvr.golden import CANDIDATES_DIR, LAYOUTS, Candidate, Tag, load_candidates
+from cvr.golden.layouts import BulletPlacement, Decisions
 from cvr.text import canonicalise
 
 CANDIDATES = load_candidates(CANDIDATES_DIR)
@@ -219,6 +219,53 @@ def test_unplaceable_fragments_appear_and_are_placed_in_the_manifest(layout):
     )
     assert [f.index for f in generated.manifest.fragments] == [0, 1]
     assert all(f.location for f in generated.manifest.fragments)
+
+
+@pytest.mark.parametrize("layout", LAYOUTS, ids=LAYOUT_IDS)
+def test_pii_in_bullet_prints_the_phone_at_the_end_of_the_marked_bullet(layout):
+    # The marked bullet is the first one that ends without a full stop: the
+    # fixture holds the expected text, so the phone is added at print time.
+    data = c01().model_dump()
+    data["content"]["experience"][0]["bullets"] = [
+        "Ran the on-call rota for the platform team.",
+        "Took escalations directly on my own mobile",
+    ]
+    data["tags"] = ["pii-in-bullet"]
+    candidate = Candidate.model_validate(data)
+    generated = layout.generate(candidate)
+    texts = [canonicalise(text) for text in all_text(generated.document)]
+    printed = canonicalise(
+        f"Took escalations directly on my own mobile {candidate.pii.phone}"
+    )
+    assert any(text.endswith(printed) for text in texts), texts
+    assert generated.manifest.pii_in_bullet == BulletPlacement(experience=0, bullet=1)
+
+
+@pytest.mark.parametrize("layout", LAYOUTS, ids=LAYOUT_IDS)
+def test_without_the_tag_no_bullet_carries_the_phone(layout):
+    candidate = c01()
+    assert Tag.PII_IN_BULLET not in candidate.tags
+    generated = layout.generate(candidate)
+    phone = canonicalise(candidate.pii.phone)
+    bullets = [
+        canonicalise(bullet)
+        for entry in candidate.content.experience
+        for bullet in entry.bullets
+    ]
+    texts = [canonicalise(text) for text in all_text(generated.document)]
+    assert not any(
+        text.endswith(phone) and any(bullet in text for bullet in bullets)
+        for text in texts
+    )
+    assert generated.manifest.pii_in_bullet is None
+
+
+def test_the_tag_without_a_bullet_ending_open_is_an_error():
+    data = c01().model_dump()
+    data["tags"] = ["pii-in-bullet"]
+    candidate = Candidate.model_validate(data)
+    with pytest.raises(ValueError, match="pii-in-bullet"):
+        LAYOUTS[0].generate(candidate)
 
 
 def test_a_layout_may_only_record_confusables_from_the_shared_table():

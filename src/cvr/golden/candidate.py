@@ -222,9 +222,9 @@ _SPECS: dict[Tag, _TagSpec] = {
         _current_role,
     ),
     Tag.PII_IN_BULLET: _TagSpec(
-        "Declared: a bullet is the text left once the Candidate's own contact detail is "
-        "removed from its end, so a Layout may print that detail inside the bullet to "
-        "exercise removal inside body text.",
+        "Declared: the base Layout prints the phone at the end of the first experience "
+        "bullet that ends without a full stop, so the fixture holds the expected text and "
+        "every generated document exercises removal inside body text.",
         None,
     ),
     Tag.UNPLACEABLE: _TagSpec(

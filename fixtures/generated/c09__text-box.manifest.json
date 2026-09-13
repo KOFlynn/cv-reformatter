@@ -2,8 +2,8 @@
   "candidate_id": "c09",
   "layout": "text-box",
   "seed": 0,
-  "generator_version": "0.1.0",
-  "manifest_version": 1,
+  "generator_version": "0.2.0",
+  "manifest_version": 2,
   "dates": [
     {
       "section": "experience",
@@ -91,5 +91,6 @@
       "location": "text-box-end"
     }
   ],
+  "pii_in_bullet": null,
   "document_sha256": "e2d0810d519100db0de5c6cdf3494134b0c95390f34e1894f749ee265f272a9a"
 }

@@ -7,7 +7,7 @@ because it is in ``LAYOUTS``; this file covers what is specific to the column.
 import pytest
 from docx_text import all_text, text_by_part
 
-from cvr.golden import CANDIDATES_DIR, LAYOUTS, Candidate, load_candidates
+from cvr.golden import CANDIDATES_DIR, LAYOUTS, Candidate, Tag, load_candidates
 from cvr.text import canonicalise
 
 CANDIDATES = load_candidates(CANDIDATES_DIR)
@@ -61,15 +61,24 @@ PARTS = {"header": "word/header", "body": "word/document.xml", "footer": "word/f
     ("home", "select"),
     [
         ("header", lambda pii: [pii.phone, pii.email]),
-        ("footer", lambda pii: [*pii.address, *pii.urls]),
+        # The address as printed, its lines together: a town on its own is a
+        # place the body may say as a work location, as pii_leak allows.
+        ("footer", lambda pii: [" ".join(pii.address), *pii.urls]),
     ],
     ids=["phone-and-email", "address-and-urls"],
 )
 def test_contact_values_are_in_their_part_and_nowhere_else(candidate, home, select):
     parts = text_by_part(header_footer().generate(candidate).document)
+    # The pii-in-bullet trap prints the phone inside a body bullet on purpose.
+    also_in_body = (
+        {canonicalise(candidate.pii.phone)}
+        if Tag.PII_IN_BULLET in candidate.tags
+        else set()
+    )
     for value in map(canonicalise, select(candidate.pii)):
         for part, prefix in PARTS.items():
-            assert (value in part_text(parts, prefix)) is (part == home), (
+            expected = part == home or (part == "body" and value in also_in_body)
+            assert (value in part_text(parts, prefix)) is expected, (
                 f"{candidate.id}: {value!r} "
                 f"{'missing from' if part == home else 'found in'} {part}"
             )

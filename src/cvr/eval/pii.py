@@ -97,11 +97,33 @@ def _url(value: str) -> str:
 def _address_line(value: str) -> str:
     # Whitespace collapsed, and optional altogether so a postcode or Eircode
     # printed without its space (`T12AB34`, `D06X0X0`) is the same line.
-    # Lines match one at a time, so a one-word line that is also a job
-    # location (`Cork`) would flag the location: a Candidate author writes
-    # the address so that no line is a plain place name the content also uses.
     words = canonicalise(value).split()
-    return _bounded(r"\s*".join(re.escape(word) for word in words))
+    return r"\s*".join(re.escape(word) for word in words)
+
+
+_DIGITS = re.compile(r"\d")
+
+# Between two address lines printed together: a newline (collapsed to a space
+# by canonicalisation), a comma, a semicolon, or nothing at all.
+_LINE_JOIN = r"[\s,;]*"
+
+
+def _address(lines: list[str]) -> str:
+    """What identifies the address is a line that carries a number: a house
+    number, a postal district, a postcode. A line without one is a place name
+    (a street, a townland, a town, a county, a country) the CV may legitimately
+    say as a work location, so it is never a leak on its own, nor with other
+    place names. A numbered line is a leak alone, and the run of address lines
+    printed together around it is reported as one hit, longest run first."""
+    parts = [_address_line(line) for line in lines]
+    numbered = [bool(_DIGITS.search(line)) for line in lines]
+    runs = [
+        _LINE_JOIN.join(parts[start:stop])
+        for start in range(len(parts))
+        for stop in range(len(parts), start, -1)
+        if any(numbered[start:stop])
+    ]
+    return _bounded("|".join(runs))
 
 
 # How a date of birth is written in a fixture, and how it may be re-emitted.
@@ -136,7 +158,6 @@ def _word(value: str) -> str:
 
 
 _EMAIL_IN_LINE = re.compile(r"[^\s@]+@[^\s@]+")
-_DIGITS = re.compile(r"\d")
 
 
 def _contact_line(value: str) -> _Matcher:
@@ -161,9 +182,9 @@ def _matchers(pii: PII) -> list[_Matcher]:
         matchers.append(
             _Matcher.of(RemovalRule.EMAIL, _email(pii.email), re.IGNORECASE)
         )
-    for line in pii.address:
+    if pii.address:
         matchers.append(
-            _Matcher.of(RemovalRule.ADDRESS, _address_line(line), re.IGNORECASE)
+            _Matcher.of(RemovalRule.ADDRESS, _address(pii.address), re.IGNORECASE)
         )
     for url in pii.urls:
         matchers.append(_Matcher.of(RemovalRule.URL, _url(url), re.IGNORECASE))
