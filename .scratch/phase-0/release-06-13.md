@@ -2,6 +2,11 @@
 
 ## Review before merging
 
+- Ticket 13 changed test semantics: an inapplicable corruption is now a **failure, not a skip**, and the apostrophe row falls back to a hyphen→en-dash swap from the confusable table on Candidates without an apostrophe (989 passed, 0 skipped). This constrains future Candidates (documented in the spec); confirm you agree with fail-over-skip.
+- Ticket 13 edited `docs/project-brief.md` (status line and §10 Phase 0 checkboxes) and `.scratch/phase-0/spec.md` (appendix-row direction wording, future-Candidate constraint). The brief is the source of truth — check those edits.
+- Ticket 13 rewrote `tests/golden/test_generate.py` to module-scoped generation fixtures (tests/golden ~4.5 min → ~12 s). Behaviourally equivalent per its report; worth a glance since it is the regression net for all 48 pairs.
+
+
 - Ticket 12: the header-footer date range is joined with ` to ` (`2022-03 to 2026-07`) rather than a dash, because a dash between dash-separated dates is ambiguous and an en dash is an off-column confusable. Confirm you are happy with that reading of the `2020-01` style.
 - Ticket 12: the golden regeneration test is O(n²) (two full `generate_all` per stem); `tests/golden` now takes ~4.5 min locally. Worth a follow-up to generate once per session.
 
@@ -22,6 +27,10 @@
 
 
 ## Per-ticket summary
+
+### 13 integrate-and-verify — PR #16 (merged)
+All 48 pairs regenerated in one run, byte-identical; spec's eight-row corruption table pinned as a literal against `CORRUPTIONS` (directions included); `NotApplicable` now fails instead of skipping, apostrophe row falls back to a confusable-table swap; golden regeneration test made module-scoped (full suite ~5 min → ~30 s); `CLAUDE.md` rewritten for "Phase 0 complete"; brief §10 Phase 0 boxes ticked. 989 passed, 0 skipped, ruff clean.
+
 
 ### 12 header-footer-layout — PR #15 (merged)
 `HeaderFooterLayout` (`header-footer`): phone + email in the page header, address + URLs in the footer, `2020-01` dates, literal `–` bullets, education last, both sections reversed, ZWSP and curly apostrophes recorded via `Decisions.injected`; `text_by_part` walker in `tests/docx_text.py`; 33 tests including per-Candidate "each contact value in its home part and nowhere else"; twelve pairs committed; all 36 pre-existing pairs byte-identical. Sub-agent merged release (11) itself. 984 passed, 3 skipped, ruff clean.
@@ -51,6 +60,13 @@ Template built by `python -m cvr.template.build` into `templates/fictitious_recr
 
 
 ## Decisions
+
+- 13 · inapplicable corruption → fail rather than skip → the ticket says "over all twelve Candidates"; a skip narrows that silently (sub-agent).
+- 13 · apostrophe row on Candidates with no apostrophe → hyphen→en-dash swap from the shared confusable table, not a Candidate content change → Candidates are maintainer-reviewed ground truth (sub-agent).
+- 13 · fix the O(n²) golden regeneration test → yes, the checklist's regeneration item touches it (sub-agent; orch had flagged it as optional).
+- 13 · "Designed in Word" exit criterion → ticked with an ADR-0006 note rather than reworded (sub-agent).
+- 13 · spec table order vs `CORRUPTIONS` order → compared by row name; ADR-0007 rows stay grouped last (sub-agent).
+
 
 - 12 · date-range join in the `2020-01` style → ` to ` (sub-agent; review topic above).
 - 12 · fragment placement → `footer-end` (sub-agent).
@@ -114,7 +130,13 @@ Template built by `python -m cvr.template.build` into `templates/fictitious_recr
 
 ## Skipped / incomplete
 
+- Nothing skipped. All eight tickets (06–13) merged into release.
+- Deferred, not delivered (each logged above): maintainer sign-off on the eleven fixtures (ticket 09, by design); a Candidate with a curly apostrophe in a leaf so the straightening direction of the apostrophe row is exercised; a shared paragraph-helper module for the three newer Layouts; the Phase 1 question on the `pii_leak` address rule vs job locations.
+
+
 ## Run log
+
+- 2026-09-13T10:57Z merged 13 (PR #16). Finish checks on release: uv sync, ruff check, ruff format --check, pytest — 989 passed. Worktrees and feature branches all removed. Opening release PR.
 
 - 2026-09-13T10:44Z merged 12 (PR #15). Dispatching 13 alone.
 
