@@ -2,8 +2,8 @@
   "candidate_id": "c08",
   "layout": "text-box",
   "seed": 0,
-  "generator_version": "0.1.0",
-  "manifest_version": 1,
+  "generator_version": "0.2.0",
+  "manifest_version": 2,
   "dates": [
     {
       "section": "experience",
@@ -69,5 +69,9 @@
   ],
   "photo": false,
   "fragments": [],
-  "document_sha256": "fa314d8fc4f5e258a321d1f74075aecda43f17b0055bfeed6f9e4cc517475c8f"
+  "pii_in_bullet": {
+    "experience": 0,
+    "bullet": 1
+  },
+  "document_sha256": "35b40a62ecd4aeb6cb8f8471fe7cfd0975d385e8b1bd9eac8db3a267c9e77e13"
 }

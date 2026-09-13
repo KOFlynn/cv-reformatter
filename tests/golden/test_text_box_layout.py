@@ -8,7 +8,7 @@ import pytest
 from docx import Document
 from docx_text import all_text
 
-from cvr.golden import CANDIDATES_DIR, LAYOUTS, Candidate, load_candidates
+from cvr.golden import CANDIDATES_DIR, LAYOUTS, Candidate, Tag, load_candidates
 from cvr.text import canonicalise
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -71,7 +71,9 @@ def test_contact_block_lives_in_a_text_box_not_the_body(candidate):
     body = body_texts(document)
     everywhere = all_text(document)
     for value in contact_strings(candidate):
-        assert not appears(value, body), value
+        # The pii-in-bullet trap prints the phone inside a body bullet on purpose.
+        if not (Tag.PII_IN_BULLET in candidate.tags and value == candidate.pii.phone):
+            assert not appears(value, body), value
         assert appears(value, everywhere), value
 
 
