@@ -1,0 +1,110 @@
+{
+  "id": "c11",
+  "content": {
+    "name": "Cathal Brennan",
+    "profile": [
+      "Site engineer with five years on residential and commercial builds in the greater Dublin area, most recently a two-hundred-unit apartment scheme. Setting out, quality control and subcontractor coordination are the core of the job, and I keep the paperwork as tidy as the site."
+    ],
+    "skills": [
+      "Setting out (Leica total station, GPS rover)",
+      "AutoCAD",
+      "Revit (viewing and mark-up)",
+      "Procore",
+      "Quality inspections and snagging",
+      "Temporary works coordination",
+      "Method statements and risk assessments"
+    ],
+    "education": [
+      {
+        "institution": "Technological University Dublin, Bolton Street",
+        "qualification": "BSc (Hons) in Civil Engineering",
+        "start": { "month": 9, "year": 2016, "expected": "09/2016" },
+        "end": { "month": 5, "year": 2020, "expected": "05/2020" },
+        "details": [
+          "Second Class Honours, Grade 1",
+          "Final year project on precast facade tolerances"
+        ]
+      },
+      {
+        "institution": "Coláiste Naomh Fiachra, Ballymun",
+        "qualification": "Leaving Certificate",
+        "start": { "month": 9, "year": 2010, "expected": "09/2010" },
+        "end": { "month": 6, "year": 2016, "expected": "06/2016" },
+        "details": []
+      }
+    ],
+    "experience": [
+      {
+        "title": "Site Engineer",
+        "employer": "Tolka Construction",
+        "location": "Dublin 15",
+        "start": { "month": 3, "year": 2023, "expected": "03/2023" },
+        "end": { "month": 8, "year": 2026, "expected": "08/2026" },
+        "bullets": [
+          "Setting out and levels for a two-hundred-unit apartment scheme across four blocks, from piling through to facade.",
+          "Coordinated the precast, steel and window subcontractors on a shared programme and chaired the weekly lookahead meeting.",
+          "Ran the quality inspection and sign-off process in Procore, closing out over two thousand inspection records.",
+          "Temporary works coordinator for the scheme's tower crane bases and formwork."
+        ]
+      },
+      {
+        "title": "Junior Site Engineer",
+        "employer": "Fingal Build Ltd",
+        "location": "Swords, Co. Dublin",
+        "start": { "month": 7, "year": 2020, "expected": "07/2020" },
+        "end": { "month": 2, "year": 2023, "expected": "02/2023" },
+        "bullets": [
+          "Setting out for housing estates and a primary school extension under a senior engineer.",
+          "Kept the site diary, delivery records and as-built drawings for the handover file.",
+          "Trained as the site's first aider and manual handling instructor."
+        ]
+      }
+    ],
+    "certifications": [
+      "Safe Pass",
+      "CSCS Signing, Lighting and Guarding",
+      "Occupational First Aid (PHECC)"
+    ],
+    "additional": [
+      "Full clean driving licence, category B",
+      "Interests: Gaelic football, sea angling"
+    ]
+  },
+  "pii": {
+    "phone": "+353 87 555 0466",
+    "email": "cathal.brennan@example.net",
+    "address": [
+      "112 Sillogue Road",
+      "Dublin 11",
+      "D11 X0X0"
+    ],
+    "urls": [
+      "https://www.linkedin.com/in/cathal-brennan-fictional"
+    ],
+    "dob": null,
+    "personal": { "nationality": null, "marital_status": null },
+    "referees": [
+      {
+        "name": "Deirdre Mac Suibhne",
+        "role": "Project Manager, Tolka Construction",
+        "contact": [
+          "+353 86 555 0921",
+          "deirdre.macsuibhne@tolka-construction-fictional.example.com"
+        ]
+      },
+      {
+        "name": "Liam Ó Dúill",
+        "role": "Contracts Manager, Fingal Build Ltd",
+        "contact": [
+          "+353 1 555 0134",
+          "liam.odull@fingalbuild-fictional.example.com"
+        ]
+      }
+    ]
+  },
+  "unplaceable": [
+    "I confirm that the information given above is accurate and complete.",
+    "Page 2 of 2"
+  ],
+  "tags": ["unplaceable", "has-referees"]
+}

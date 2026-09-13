@@ -1,0 +1,91 @@
+{
+  "id": "c02",
+  "content": {
+    "name": "Fergal Twomey",
+    "profile": [],
+    "skills": [
+      "Sage 50 Accounts",
+      "Microsoft Excel (pivot tables, VLOOKUP)",
+      "Accounts payable",
+      "Accounts receivable",
+      "Bank reconciliations",
+      "VAT returns",
+      "Payroll (Thesaurus)"
+    ],
+    "education": [
+      {
+        "institution": "Munster Technological University",
+        "qualification": "Higher Certificate in Business in Accounting",
+        "start": { "month": 9, "year": 2016, "expected": "09/2016" },
+        "end": { "month": 5, "year": 2018, "expected": "05/2018" },
+        "details": [
+          "Modules included financial accounting, taxation and management accounting"
+        ]
+      },
+      {
+        "institution": "Coláiste an Chroí Naofa, Carrignavar",
+        "qualification": "Leaving Certificate",
+        "start": { "month": 9, "year": 2010, "expected": "09/2010" },
+        "end": { "month": 6, "year": 2016, "expected": "06/2016" },
+        "details": []
+      }
+    ],
+    "experience": [
+      {
+        "title": "Accounts Assistant",
+        "employer": "Blackwater Timber Merchants",
+        "location": "Fermoy, Co. Cork",
+        "start": { "month": 2, "year": 2021, "expected": "02/2021" },
+        "end": { "month": 6, "year": 2026, "expected": "06/2026" },
+        "bullets": [
+          "Processed supplier invoices and matched them to purchase orders and delivery dockets for a yard turning over roughly forty thousand euro a week.",
+          "Maintianed the creditors ledger and prepared the fortnightly payment run for sign-off by the finance manager.",
+          "Completed the bi-monthly VAT return and recieved no queries from Revenue across five years of filings.",
+          "Reconciled three bank accounts and the credit card statement every Monday morning."
+        ]
+      },
+      {
+        "title": "Accounts Administrator",
+        "employer": "Nagle Motor Factors",
+        "location": "Mallow, Co. Cork",
+        "start": { "month": 7, "year": 2018, "expected": "07/2018" },
+        "end": { "month": 1, "year": 2021, "expected": "01/2021" },
+        "bullets": [
+          "Raised customer invoices and chased overdue accounts by phone and letter, bringing debtor days down from sixty to thirty-eight.",
+          "Ran the weekly payroll for fourteen staff in Thesaurus and submitted the returns to Revenue.",
+          "Covered the trade counter at lunchtime and during staff holidays."
+        ]
+      },
+      {
+        "title": "Office Junior",
+        "employer": "Mallow Print and Design",
+        "location": "Mallow, Co. Cork",
+        "start": { "month": 6, "year": 2016, "expected": "06/2016" },
+        "end": { "month": 8, "year": 2016, "expected": "08/2016" },
+        "bullets": [
+          "Summer placement filing, answering the phone and entering supplier invoices into Sage.",
+          "Offered a part-time role for the following year on the strength of the placement."
+        ]
+      }
+    ],
+    "certifications": [],
+    "additional": []
+  },
+  "pii": {
+    "phone": "+353 86 555 0342",
+    "email": "fergal.twomey@example.com",
+    "address": [
+      "7 Glenview Park",
+      "Kilworth Road",
+      "P61 A0A0"
+    ],
+    "urls": [
+      "https://www.linkedin.com/in/fergal-twomey-fictional"
+    ],
+    "dob": null,
+    "personal": { "nationality": null, "marital_status": null },
+    "referees": []
+  },
+  "unplaceable": [],
+  "tags": ["no-profile", "empty-sections", "typo"]
+}

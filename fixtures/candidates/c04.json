@@ -1,0 +1,102 @@
+{
+  "id": "c04",
+  "content": {
+    "name": "Harriet Ashworth",
+    "profile": [
+      "Marketing manager with nine years' experience across B2B software and professional services in the North West of England. Specialises in demand generation, marketing automation and turning a small budget into a measurable pipeline.",
+      "Recently relocated to Dublin and available at short notice."
+    ],
+    "skills": [
+      "HubSpot (Marketing Hub, Sales Hub)",
+      "Google Ads",
+      "LinkedIn Campaign Manager",
+      "Google Analytics 4",
+      "Copywriting",
+      "Webinar programmes",
+      "Budget management",
+      "Agency management"
+    ],
+    "education": [
+      {
+        "institution": "Chartered Institute of Marketing",
+        "qualification": "Level 6 Diploma in Professional Marketing",
+        "start": { "month": 1, "year": 2016, "expected": "01/2016" },
+        "end": { "month": 12, "year": 2016, "expected": "12/2016" },
+        "details": []
+      },
+      {
+        "institution": "University of Salford",
+        "qualification": "BA (Hons) Marketing, 2:1",
+        "start": { "month": 9, "year": 2010, "expected": "09/2010" },
+        "end": { "month": 7, "year": 2013, "expected": "07/2013" },
+        "details": [
+          "Dissertation on trust signals in B2B landing pages"
+        ]
+      }
+    ],
+    "experience": [
+      {
+        "title": "Marketing Manager",
+        "employer": "Pennine Ledger Software Ltd",
+        "location": "Manchester",
+        "start": { "month": 9, "year": 2020, "expected": "09/2020" },
+        "end": { "month": 4, "year": 2026, "expected": "04/2026" },
+        "bullets": [
+          "Owned the marketing plan and a budget of £320k for a 90-person accounting software vendor, reporting to the commercial director.",
+          "Grew marketing-sourced pipeline from 18% to 41% of new business over three years through a webinar programme and targeted LinkedIn campaigns.",
+          "Migrated the company from Pardot to HubSpot, rebuilding every nurture sequence and lead scoring model in the process.",
+          "Managed two executives and an external content agency, and organised the annual customer conference for 300 attendees."
+        ]
+      },
+      {
+        "title": "Marketing Executive",
+        "employer": "Cheshire & Wirral Business Advisers LLP",
+        "location": "Chester",
+        "start": { "month": 1, "year": 2018, "expected": "01/2018" },
+        "end": { "year": 2020, "literal": "Summer 2020", "expected": "Summer 2020" },
+        "bullets": [
+          "Ran email, social and events for a regional accountancy and advisory firm with six offices.",
+          "Launched the firm's first podcast, which reached 2,000 downloads an episode within a year.",
+          "Role made redundant during the firm's merger; left on good terms with a reference available."
+        ]
+      },
+      {
+        "title": "Marketing Assistant",
+        "employer": "Brightwater Digital Agency",
+        "location": "Warrington",
+        "start": { "month": 9, "year": 2013, "expected": "09/2013" },
+        "end": { "month": 12, "year": 2017, "expected": "12/2017" },
+        "bullets": [
+          "Supported account managers on paid search and social campaigns for a dozen SME clients.",
+          "Wrote monthly performance reports and presented them to clients alongside the account lead."
+        ]
+      }
+    ],
+    "certifications": [
+      "HubSpot Marketing Software Certification",
+      "Google Ads Search Certification"
+    ],
+    "additional": [
+      "Eligible to work in Ireland and the UK without sponsorship",
+      "Interests: fell running, restoring a narrowboat"
+    ]
+  },
+  "pii": {
+    "phone": "+44 7700 900412",
+    "email": "harriet.ashworth@example.co.uk",
+    "address": [
+      "22 Larkspur Close",
+      "Didsbury",
+      "M20 2XX"
+    ],
+    "urls": [
+      "https://www.linkedin.com/in/harriet-ashworth-fictional",
+      "https://harrietashworth-fictional.example.co.uk"
+    ],
+    "dob": null,
+    "personal": { "nationality": null, "marital_status": null },
+    "referees": []
+  },
+  "unplaceable": [],
+  "tags": ["literal-date", "non-ie-locale"]
+}
