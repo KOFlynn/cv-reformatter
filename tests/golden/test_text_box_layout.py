@@ -2,11 +2,11 @@
 ``all_text``, python-docx's own view of the body, and the manifest."""
 
 import io
+import zipfile
 
 import pytest
 from docx import Document
 from docx_text import all_text
-from lxml import etree
 
 from cvr.golden import CANDIDATES_DIR, LAYOUTS, Candidate, load_candidates
 from cvr.text import canonicalise
@@ -86,12 +86,23 @@ def test_contact_block_and_skills_are_real_txbx_content_elements():
         assert appears(skill, skills), skill
 
 
-def test_document_xml_is_well_formed_and_reloads():
-    document = text_box().generate(c01()).document
-    with io.BytesIO(document) as raw:
-        loaded = Document(raw)
-    etree.tostring(loaded.element)
-    assert loaded.paragraphs
+def test_unplaceable_fragments_share_a_trailing_text_box():
+    data = c01().model_dump()
+    data["unplaceable"] = ["Page 1 of 2", "I hereby declare the above is true."]
+    candidate = Candidate.model_validate(data)
+    generated = text_box().generate(candidate)
+    *_, last = text_box_texts(generated.document)
+    assert last == candidate.unplaceable
+    body = body_texts(generated.document)
+    assert not any(appears(fragment, body) for fragment in candidate.unplaceable)
+    assert [f.location for f in generated.manifest.fragments] == ["text-box-end"] * 2
+
+
+@pytest.mark.parametrize("candidate", CANDIDATES, ids=[c.id for c in CANDIDATES])
+def test_documents_contain_no_images(candidate):
+    document = text_box().generate(candidate).document
+    with zipfile.ZipFile(io.BytesIO(document)) as package:
+        assert not [n for n in package.namelist() if n.startswith("word/media/")]
 
 
 # --- Date style: ``Jan '20``
@@ -224,6 +235,12 @@ def test_manifest_is_clean_of_confusables_when_nothing_is_injected():
     data["content"]["certifications"] = []
     data["content"]["additional"] = []
     data["pii"]["phone"] = "0870000000"
+    # A literal date is printed verbatim, so a non-breaking space inside one
+    # is the Candidate's, not an injection.
+    data["content"]["experience"][0]["start"] = {
+        "literal": "Summer\u00a02020",
+        "expected": "Summer\u00a02020",
+    }
     data["tags"] = []
     candidate = Candidate.model_validate(data)
     assert text_box().generate(candidate).manifest.confusables == []

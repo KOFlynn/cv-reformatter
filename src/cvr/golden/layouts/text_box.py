@@ -1,8 +1,9 @@
 """The text-box Layout: the style matrix's third column.
 
-The contact block and the skills sit inside text boxes, which python-docx can
-neither create nor read, so they are written as raw ``w:txbxContent`` XML and
-python-docx's ``document.paragraphs`` never sees them. Anything the parser
+The contact block, the skills and any unplaceable fragments sit inside text
+boxes, which python-docx can neither create nor read, so they are written as
+raw ``w:txbxContent`` XML and python-docx's ``document.paragraphs`` never sees
+them. Anything the parser
 gets wrong here it gets wrong on text it can only reach through the XML.
 
 ``Jan '20`` dates with a non-breaking space between month and year, non-
@@ -53,7 +54,8 @@ _MONTHS = [
     "Dec",
 ]
 
-_W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+_W_URI = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+_W = f"{{{_W_URI}}}"
 _XML_SPACE = "{http://www.w3.org/XML/1998/namespace}space"
 
 # A VML text box: the form Word 2007 wrote and every later Word still opens.
@@ -66,9 +68,13 @@ _SHAPE_TYPE = (
     'path="m,l,21600r21600,l21600,xe"><v:stroke joinstyle="miter"/>'
     '<v:path gradientshapeok="t" o:connecttype="rect"/></v:shapetype>'
 )
+_NS_DECLS = (
+    f'xmlns:w="{_W_URI}" xmlns:v="urn:schemas-microsoft-com:vml" '
+    'xmlns:o="urn:schemas-microsoft-com:office:office"'
+)
+# Filled with str.format: shape_type, id, content.
 _TEXT_BOX = (
-    f'<w:r xmlns:w="{_W}" xmlns:v="urn:schemas-microsoft-com:vml" '
-    'xmlns:o="urn:schemas-microsoft-com:office:office">'
+    "<w:r " + _NS_DECLS + ">"
     '<w:pict>{shape_type}<v:shape id="{id}" type="#_x0000_t202" '
     'style="width:450pt;height:40pt;mso-position-horizontal:left" '
     'strokecolor="#7f7f7f"><v:textbox style="mso-fit-shape-to-text:t" '
@@ -104,8 +110,7 @@ class TextBoxLayout(Layout):
         writer.document.add_paragraph(content.name, style="Title")
 
         writer.text_box(
-            shape_id="_x0000_s1025",
-            texts=[
+            [
                 writer.non_breaking(pii.phone),
                 pii.email,
                 *pii.address,
@@ -122,7 +127,7 @@ class TextBoxLayout(Layout):
 
         if content.skills:
             writer.heading("Core Competencies")
-            writer.text_box(shape_id="_x0000_s1026", texts=content.skills)
+            writer.text_box(content.skills)
 
         if plan.experience:
             writer.heading("Professional Experience")
@@ -148,12 +153,15 @@ class TextBoxLayout(Layout):
                 writer.line(referee.name, bold=True)
                 writer.lines([referee.role, *referee.contact])
 
-        # Unplaceable fragments trail the body as plain paragraphs.
-        for index, fragment in enumerate(candidate.unplaceable):
-            writer.line(fragment)
-            decisions.fragments.append(
-                FragmentPlacement(index=index, location="body-end")
-            )
+        # Unplaceable fragments share one more text box at the end of the
+        # body, where a declaration or a page marker ends up when a CV has
+        # been assembled from boxes.
+        if candidate.unplaceable:
+            writer.text_box(list(candidate.unplaceable))
+            decisions.fragments += [
+                FragmentPlacement(index=index, location="text-box-end")
+                for index in range(len(candidate.unplaceable))
+            ]
 
         return writer.document
 
@@ -165,7 +173,7 @@ class _Writer:
     def __init__(self, document: DocumentType, decisions: Decisions) -> None:
         self.document = document
         self.decisions = decisions
-        self._shape_type_declared = False
+        self._shapes = 0
 
     # --- Injections
 
@@ -212,8 +220,14 @@ class _Writer:
         parts = [part for part in (planned.start, planned.end) if part is not None]
         if not parts:
             return
-        if any(_NBSP in part for part in parts):
-            self.decisions.injected(_NBSP)
+        # The NBSP was injected by format_date, which has no Decisions to
+        # record on; record it here for the dates that went through it, and
+        # never for a literal, which is printed verbatim whatever it holds.
+        entry = planned.entry
+        for printed, date in ((planned.start, entry.start), (planned.end, entry.end)):
+            formatted = date is not None and date.literal is None
+            if formatted and printed is not None and _NBSP in printed:
+                self.decisions.injected(_NBSP)
         self.line(" - ".join(parts))
 
     def experience(self, planned: PlannedEntry[ExperienceEntry]) -> None:
@@ -237,21 +251,22 @@ class _Writer:
 
     # --- Text boxes
 
-    def text_box(self, *, shape_id: str, texts: list[str | None]) -> None:
+    def text_box(self, texts: list[str | None]) -> None:
         """A paragraph holding a text box whose content is one paragraph per
-        text, skipping absent values."""
-        content = etree.Element(f"{{{_W}}}txbxContent")
+        text, skipping absent values. Shapes are numbered from 1025 as Word
+        numbers them, and the preset shapetype is declared with the first."""
+        content = etree.Element(f"{_W}txbxContent")
         for text in texts:
             if text:
-                paragraph = etree.SubElement(content, f"{{{_W}}}p")
-                run = etree.SubElement(paragraph, f"{{{_W}}}r")
-                t = etree.SubElement(run, f"{{{_W}}}t")
+                paragraph = etree.SubElement(content, f"{_W}p")
+                run = etree.SubElement(paragraph, f"{_W}r")
+                t = etree.SubElement(run, f"{_W}t")
                 t.text = text
                 t.set(_XML_SPACE, "preserve")
         xml = _TEXT_BOX.format(
-            shape_type="" if self._shape_type_declared else _SHAPE_TYPE,
-            id=shape_id,
+            shape_type=_SHAPE_TYPE if self._shapes == 0 else "",
+            id=f"_x0000_s{1025 + self._shapes}",
             content=etree.tostring(content, encoding="unicode"),
         )
-        self._shape_type_declared = True
+        self._shapes += 1
         self.document.add_paragraph()._p.append(parse_xml(xml))
