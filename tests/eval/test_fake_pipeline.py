@@ -12,7 +12,7 @@ from fake_pipeline import fake_pipeline, metric_inputs
 
 from cvr.eval import placement_accuracy
 from cvr.golden import CANDIDATES_DIR, load_candidate
-from cvr.template import template_tokens
+from cvr.template import template_text, template_tokens
 
 # Parametrised over files rather than loaded Candidates so that one malformed
 # file fails its own cases, not the collection of the whole module.
@@ -54,6 +54,18 @@ def test_the_fake_pipeline_maps_a_candidate_to_every_metric_input():
     assert inputs.appendix_tokens == []
     # The placed content is what the structural metrics compare to the Candidate's.
     assert inputs.output_content == candidate.content
+    # Source blocks are the leaves themselves, since there is no document:
+    # content, PII and unplaceable fragments, everything a Layout would print.
+    assert candidate.content.experience[0].bullets[0] in inputs.source_blocks
+    assert candidate.pii.email in inputs.source_blocks
+    assert "Recruitment" not in " ".join(inputs.source_blocks)
+    # Template units are the template's fixed paragraphs, read from the file.
+    assert inputs.template_units == template_text()
+    # Every output unit is located in a source block, and the raw pair is
+    # what punctuation fidelity compares; the honest pipeline's pairs are equal.
+    assert len(inputs.pairs) == len(inputs.output_units)
+    assert all(span == unit for span, unit in inputs.pairs)
+    assert (candidate.content.name, candidate.content.name) in inputs.pairs
 
 
 @corruptions

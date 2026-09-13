@@ -14,14 +14,15 @@ from dataclasses import dataclass, field
 
 from cvr.golden import PII, Candidate
 from cvr.models import CVContent, EducationEntry, ExperienceEntry
-from cvr.template import template_tokens
-from cvr.text import tokenise
+from cvr.template import template_text, template_tokens
+from cvr.text import canonicalise, tokenise
 
 __all__ = [
     "MetricInputs",
     "PipelineResult",
     "fake_pipeline",
     "leaves",
+    "locate",
     "metric_inputs",
     "pii_values",
     "unplaceable_share",
@@ -78,32 +79,59 @@ class MetricInputs:
 
     source_tokens: list[str]
     source_content_tokens: list[str]  # source minus rule-removed
+    source_blocks: list[str]  # the leaves themselves, since there is no document
     output_content: CVContent  # the placed content; the Candidate's is expected
     output_units: list[str]
     output_tokens: list[str]
     template_tokens: list[str]
+    template_units: list[str]
     date_map: list[tuple[str, str]]
     removed_tokens: list[str]
     appendix_tokens: list[str]
+    pairs: list[tuple[str, str]]  # (raw located span, raw rendered unit)
 
 
 # The template's own fixed words (headings, wordmark, footer, banner), read
 # from the built template so the whitelist cannot drift from it. A real
 # renderer emits these alongside the content, so the honest pipeline does too.
 TEMPLATE_TOKENS: list[str] = template_tokens()
+TEMPLATE_UNITS: list[str] = template_text()
+
+
+def locate(unit: str, blocks: Iterable[str]) -> str | None:
+    """The raw source span a rendered unit came from, or ``None``.
+
+    Stands in for Phase 1's verifier: a unit is located by canonicalised
+    match, as provenance finds it, and the located text is returned raw so
+    punctuation fidelity can compare what the renderer was given with what
+    it produced. Every unit here is a whole leaf, so a span is a whole
+    block. A block equal to the unit as rendered wins over one that is only
+    canonically equal, so two leaves differing only in punctuation are each
+    paired with their own.
+    """
+    candidates = [
+        block for block in blocks if canonicalise(block) == canonicalise(unit)
+    ]
+    return next((block for block in candidates if block == unit), None) or (
+        candidates[0] if candidates else None
+    )
 
 
 def metric_inputs(candidate: Candidate, result: PipelineResult) -> MetricInputs:
     source_leaves = leaves(candidate.content)
     removed = pii_values(candidate.pii)
+    source_blocks = [*source_leaves, *removed, *candidate.unplaceable]
     output_units = leaves(result.content)
+    located = ((locate(unit, source_blocks), unit) for unit in output_units)
     return MetricInputs(
-        source_tokens=_tokens([*source_leaves, *removed, *candidate.unplaceable]),
+        source_tokens=_tokens(source_blocks),
         source_content_tokens=_tokens([*source_leaves, *candidate.unplaceable]),
+        source_blocks=source_blocks,
         output_content=result.content,
         output_units=output_units,
         output_tokens=[*_tokens(output_units), *TEMPLATE_TOKENS],
         template_tokens=list(TEMPLATE_TOKENS),
+        template_units=list(TEMPLATE_UNITS),
         date_map=[
             (date, date)
             for entry in [*candidate.content.education, *candidate.content.experience]
@@ -111,6 +139,9 @@ def metric_inputs(candidate: Candidate, result: PipelineResult) -> MetricInputs:
         ],
         removed_tokens=_tokens(removed),
         appendix_tokens=_tokens(result.unplaced),
+        # A unit provenance cannot locate has no span to compare; it is
+        # provenance's finding, not fidelity's.
+        pairs=[(span, unit) for span, unit in located if span is not None],
     )
 
 
