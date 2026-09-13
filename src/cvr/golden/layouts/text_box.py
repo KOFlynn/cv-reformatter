@@ -32,8 +32,8 @@ from cvr.models import EducationEntry, ExperienceEntry
 
 __all__ = ["TextBoxLayout"]
 
-_NBSP = " "
-_SOFT_HYPHEN = "­"
+_NBSP = "\u00a0"
+_SOFT_HYPHEN = "\u00ad"
 # A soft hyphen goes after the fifth letter of the first word of ten or more
 # letters: invisible in Word, and a trap for anything that compares raw text.
 _LONG_WORD = re.compile(r"[A-Za-z]{5}(?=[A-Za-z]{5,})")
@@ -59,9 +59,17 @@ _XML_SPACE = "{http://www.w3.org/XML/1998/namespace}space"
 # A VML text box: the form Word 2007 wrote and every later Word still opens.
 # Unlike the DrawingML form with its VML fallback it carries the text once,
 # so a document says each string exactly once.
+# Word declares the preset text-box shape once, before the first shape that
+# refers to it; the writer does the same.
+_SHAPE_TYPE = (
+    '<v:shapetype id="_x0000_t202" coordsize="21600,21600" o:spt="202" '
+    'path="m,l,21600r21600,l21600,xe"><v:stroke joinstyle="miter"/>'
+    '<v:path gradientshapeok="t" o:connecttype="rect"/></v:shapetype>'
+)
 _TEXT_BOX = (
-    f'<w:r xmlns:w="{_W}" xmlns:v="urn:schemas-microsoft-com:vml">'
-    '<w:pict><v:shape id="{id}" type="#_x0000_t202" '
+    f'<w:r xmlns:w="{_W}" xmlns:v="urn:schemas-microsoft-com:vml" '
+    'xmlns:o="urn:schemas-microsoft-com:office:office">'
+    '<w:pict>{shape_type}<v:shape id="{id}" type="#_x0000_t202" '
     'style="width:450pt;height:40pt;mso-position-horizontal:left" '
     'strokecolor="#7f7f7f"><v:textbox style="mso-fit-shape-to-text:t" '
     'inset="5pt,3pt,5pt,3pt">{content}</v:textbox></v:shape></w:pict></w:r>'
@@ -157,6 +165,7 @@ class _Writer:
     def __init__(self, document: DocumentType, decisions: Decisions) -> None:
         self.document = document
         self.decisions = decisions
+        self._shape_type_declared = False
 
     # --- Injections
 
@@ -240,6 +249,9 @@ class _Writer:
                 t.text = text
                 t.set(_XML_SPACE, "preserve")
         xml = _TEXT_BOX.format(
-            id=shape_id, content=etree.tostring(content, encoding="unicode")
+            shape_type="" if self._shape_type_declared else _SHAPE_TYPE,
+            id=shape_id,
+            content=etree.tostring(content, encoding="unicode"),
         )
+        self._shape_type_declared = True
         self.document.add_paragraph()._p.append(parse_xml(xml))

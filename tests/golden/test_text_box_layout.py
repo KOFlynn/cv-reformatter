@@ -113,13 +113,13 @@ def test_c01_dates_print_as_abbreviated_month_and_two_digit_year():
     ]
     # The non-breaking space between month and year is the Layout's NBSP
     # injection, and the manifest records what was really printed.
-    assert start.printed == "Mar '22"
-    assert "Mar '22 - Jul '26" in all_text(generated.document)
+    assert start.printed == "Mar\u00a0'22"
+    assert "Mar\u00a0'22 - Jul\u00a0'26" in all_text(generated.document)
 
 
 def test_a_year_only_date_prints_as_the_full_year():
     candidate = c01_with(start={"year": 2020, "expected": "2020"})
-    assert "2020 - Jul '26" in all_text(text_box().generate(candidate).document)
+    assert "2020 - Jul\u00a0'26" in all_text(text_box().generate(candidate).document)
 
 
 # --- Heading vocabulary, section order and bullets
