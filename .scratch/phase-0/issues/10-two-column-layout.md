@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 (Tracer bullet — c01 through the single-column Layout to source coverage)
 
-**Status:** in-review
+**Status:** done
 
 - [x] Layout implemented per the style matrix's second column and registered with the generator
 - [x] Placeholder photo is generated in code (no image file committed as a source), identical on every run
