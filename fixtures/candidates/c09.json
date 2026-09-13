@@ -1,0 +1,102 @@
+{
+  "id": "c09",
+  "content": {
+    "name": "Roisin Halloran",
+    "profile": [
+      "Registered general nurse with six years' experience in acute medical and emergency settings, currently working as a clinical nurse manager on a thirty-bed medical ward. Looking for a management post closer to home in the mid-west."
+    ],
+    "skills": [
+      "Acute medical nursing",
+      "Emergency triage (Manchester Triage System)",
+      "Ward management and rostering",
+      "Medication management",
+      "IV cannulation and phlebotomy",
+      "Preceptorship of student nurses",
+      "Clinical audit"
+    ],
+    "education": [
+      {
+        "institution": "University of Limerick",
+        "qualification": "Postgraduate Diploma in Nursing (Emergency)",
+        "start": { "month": 9, "year": 2021, "expected": "09/2021" },
+        "end": { "month": 8, "year": 2022, "expected": "08/2022" },
+        "details": []
+      },
+      {
+        "institution": "University of Galway",
+        "qualification": "BSc in General Nursing",
+        "start": { "month": 9, "year": 2015, "expected": "09/2015" },
+        "end": { "month": 9, "year": 2019, "expected": "09/2019" },
+        "details": [
+          "First Class Honours"
+        ]
+      }
+    ],
+    "experience": [
+      {
+        "title": "Clinical Nurse Manager 1",
+        "employer": "St Fiachra's Regional Hospital",
+        "location": "Galway",
+        "start": { "month": 11, "year": 2023, "expected": "11/2023" },
+        "end": { "month": 6, "year": 2026, "expected": "06/2026" },
+        "bullets": [
+          "Day-to-day management of a thirty-bed acute medical ward with a team of twenty-four nursing and healthcare assistant staff.",
+          "Produced the six-week roster and covered gaps through the agency and the internal bank.",
+          "Led a falls-prevention audit that reduced inpatient falls on the ward by a third in twelve months.",
+          "Preceptor and assessor for third- and fourth-year student nurses on placement."
+        ]
+      },
+      {
+        "title": "Staff Nurse, Emergency Department",
+        "employer": "Claddagh General Hospital",
+        "location": "Galway",
+        "start": { "month": 10, "year": 2020, "expected": "10/2020" },
+        "end": { "month": 10, "year": 2023, "expected": "10/2023" },
+        "bullets": [
+          "Triage, resuscitation bay and majors in a department seeing over two hundred patients a day.",
+          "Completed the postgraduate emergency diploma while working full-time shifts."
+        ]
+      },
+      {
+        "title": "Staff Nurse, Medical Ward",
+        "employer": "Corrib Private Clinic",
+        "location": "Galway",
+        "start": { "month": 10, "year": 2019, "expected": "10/2019" },
+        "end": { "month": 9, "year": 2020, "expected": "09/2020" },
+        "bullets": [
+          "First post after registration on a twenty-bed elective medical ward.",
+          "Completed the clinic's medication management and IV competencies within three months."
+        ]
+      }
+    ],
+    "certifications": [
+      "Registered with the Nursing and Midwifery Board of Ireland (RGN)",
+      "Advanced Cardiac Life Support (ACLS)",
+      "Manchester Triage System provider"
+    ],
+    "additional": [
+      "Garda vetted",
+      "Interests: sea kayaking, choir"
+    ]
+  },
+  "pii": {
+    "phone": "+353 89 555 0605",
+    "email": "roisin.halloran@example.org",
+    "address": [
+      "Kilcolgan",
+      "Co. Galway",
+      "H91 Y0Y0"
+    ],
+    "urls": [
+      "https://www.linkedin.com/in/roisin-halloran-fictional"
+    ],
+    "dob": null,
+    "personal": { "nationality": null, "marital_status": null },
+    "referees": []
+  },
+  "unplaceable": [
+    "Page 1 of 2",
+    "Fortune favours the prepared."
+  ],
+  "tags": ["unplaceable"]
+}

@@ -1,0 +1,98 @@
+{
+  "id": "c12",
+  "content": {
+    "name": "Grainne Dwyer",
+    "profile": [
+      "Experienced office manager and executive assistant with twelve years supporting directors in professional services and the not-for-profit sector. Highly organised, discreet and responsibile for everything from board packs to the office lease."
+    ],
+    "skills": [
+      "Diary and travel management",
+      "Board and committee minutes",
+      "Microsoft Office (Word, Excel, PowerPoint, Outlook)",
+      "SharePoint",
+      "Salesforce (basic reporting)",
+      "Event coordination",
+      "Supplier and facilities management",
+      "Bookkeeping to trial balance"
+    ],
+    "education": [
+      {
+        "institution": "Dublin Business School",
+        "qualification": "Diploma in Business Administration",
+        "start": { "month": 9, "year": 2012, "expected": "09/2012" },
+        "end": { "month": 6, "year": 2013, "expected": "06/2013" },
+        "details": []
+      },
+      {
+        "institution": "Loreto Secondary School, Bray",
+        "qualification": "Leaving Certificate",
+        "start": { "month": 9, "year": 2003, "expected": "09/2003" },
+        "end": { "month": 6, "year": 2009, "expected": "06/2009" },
+        "details": []
+      }
+    ],
+    "experience": [
+      {
+        "title": "Office Manager and Executive Assistant to the CEO",
+        "employer": "Wicklow Hospice Foundation",
+        "location": "Bray, Co. Wicklow",
+        "start": { "month": 5, "year": 2019, "expected": "05/2019" },
+        "end": { "month": 7, "year": 2026, "expected": "07/2026" },
+        "bullets": [
+          "Ran the charity's head office of fifteen staff, from the phone system and the lease to onboarding new starters.",
+          "Prepared board packs for six meetings a year and took the minutes for the board and its finance subcommittee.",
+          "Organised the annual fundraising gala for four hundred guests, coming in under budget three years running.",
+          "Maintained the donor database in Salesforce and produced the monthly income report for the finance manager."
+        ]
+      },
+      {
+        "title": "Executive Assistant",
+        "employer": "Hanlon Quirke Solicitors",
+        "location": "Dublin 2",
+        "start": { "month": 2, "year": 2015, "expected": "02/2015" },
+        "end": { "month": 4, "year": 2019, "expected": "04/2019" },
+        "bullets": [
+          "Supported two partners with diaries, travel, billing and client correspondence in a busy commercial practice.",
+          "Coordinated the move of forty staff to new offices with no lost working days."
+        ]
+      },
+      {
+        "title": "Receptionist and Administrator",
+        "employer": "Sugarloaf Dental Practice",
+        "location": "Bray, Co. Wicklow",
+        "start": { "month": 9, "year": 2013, "expected": "09/2013" },
+        "end": { "month": 1, "year": 2015, "expected": "01/2015" },
+        "bullets": [
+          "Front desk, appointment scheduling and patient records for a four-chair practice.",
+          "Took over the practice's bookkeeping when the part-time bookkeeper retired."
+        ]
+      }
+    ],
+    "certifications": [
+      "ECDL Advanced",
+      "Certificate in Bookkeeping and Payroll (Accounting Technicians Ireland)"
+    ],
+    "additional": [
+      "Languages: English (native), Spanish (intermediate)",
+      "Full clean driving licence",
+      "Interests: gardening, sea swimming, amateur dramatics"
+    ]
+  },
+  "pii": {
+    "phone": "+353 86 555 0533",
+    "email": "grainne.dwyer@example.com",
+    "address": [
+      "9 Seapoint Avenue",
+      "Killarney Road",
+      "A98 X0X0"
+    ],
+    "urls": [
+      "https://www.linkedin.com/in/grainne-dwyer-fictional"
+    ],
+    "dob": "14/03/1991",
+    "personal": { "nationality": "Irish", "marital_status": "Married" },
+    "referees": []
+  },
+  "unplaceable": [],
+  "tags": ["has-personal-details", "typo"]
+}
