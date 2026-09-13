@@ -2,6 +2,9 @@
 
 ## Review before merging
 
+- Ticket 11: "opens in Word" is evidenced with LibreOffice headless only (Word is not on the dev machine). Open `fixtures/generated/c01__text-box.docx` in Word once to confirm the two VML text boxes render.
+
+
 - Ticket 07: the "straighten a curly apostrophe" corruption row runs only in the *curling* direction (no Candidate carries a curly apostrophe in a leaf, since confusables are a Layout decision), and is skipped for 3 Candidates with no apostrophe at all. The specified straightening direction is unexercised by the fake pipeline until a Candidate has a curly apostrophe in its expected content, or the real Phase 1 pipeline runs on the two-column/header-footer documents.
 - Ticket 07 edited `.scratch/phase-0/spec.md` (one corruption-table row and a note, following ticket 05's precedent) — confirm that is acceptable.
 - Ticket 10: the two-column docx SHAs were produced on Windows; the branch CI run on Linux (push run on `562c39c`) passed, which is the confirmation that the committed bytes are platform-stable.
@@ -15,6 +18,10 @@
 
 
 ## Per-ticket summary
+
+### 11 text-box-layout — PR #14 (merged)
+`TextBoxLayout` (`text-box`): contact block, skills and unplaceable fragments each in a VML text box written as raw `w:txbxContent` via lxml; `Jan '20` dates, literal `-` bullets, education after experience, experience rotated by one and education reversed; NBSP and soft-hyphen injection recorded on `Decisions`; 26 Layout tests; twelve pairs committed. One follow-up round to merge release (07 + 10) and put `LAYOUTS` in matrix order. 851 passed, 3 skipped, ruff clean.
+
 
 ### 07 provenance-and-punctuation-fidelity — PR #12 (merged)
 `cvr.eval.provenance_violations` (canonicalised whole-unit substring of a source block, or whole-unit equality with a template unit or date-map rendered side) and `cvr.eval.punctuation_fidelity` (raw equality, findings name the differing code points); shared `findings` helper; fake pipeline gains `source_blocks`, `template_units`, `locate`, raw `pairs`; every corruption row now carries all eight metrics; two new rows. One follow-up round to merge release (08 + 09). 595 passed, 3 skipped, ruff clean.
@@ -36,6 +43,12 @@ Template built by `python -m cvr.template.build` into `templates/fictitious_recr
 
 
 ## Decisions
+
+- 11 · text-box form → VML `w:pict`/`v:shape`/`v:textbox` rather than DrawingML with a VML fallback → the fallback form carries every string twice, which would double-count in every token metric; VML holds it once (sub-agent). Orch verified: c01 text-box has 2 `txbxContent`, 0 `AlternateContent`, the email appears once, no media.
+- 11 · NBSP location → inside `format_date` so the manifest's `printed` string equals what the document carries (sub-agent).
+- 11 · year-only date in `Jan '20` style → printed `2020`, not `'20` (sub-agent).
+- 11 · fragments → a trailing text box, placement `text-box-end` (sub-agent).
+
 
 - 07 · template-unit match semantics → whole-unit equality with a template unit, not substring → spec's Further Notes: whole-unit is what closes the template-word hole (sub-agent).
 - 07 · empty/whitespace-only output unit → skipped by provenance (nothing rendered, nothing to prove), documented (sub-agent).
@@ -70,6 +83,8 @@ Template built by `python -m cvr.template.build` into `templates/fictitious_recr
 
 
 ## Merge conflicts resolved
+- 11 into release (after 10): `src/cvr/golden/layouts/__init__.py` (import, `__all__`, `LAYOUTS` set to matrix order). Delegated to the 11 sub-agent; all 36 committed pairs byte-identical after regeneration; 851 green.
+
 - 07 into release (after 08 + 09): `CLAUDE.md`, `tests/eval/corruptions.py` (6 hunks), `tests/eval/fake_pipeline.py` (3), `tests/eval/test_fake_pipeline.py` (1). Delegated to the 07 sub-agent (its context knew both sides); unions only, `Damage(candidate, result)` adopted for its rows; one lost `),` caught by ruff before commit.
 - 10 into release (after 07): `CLAUDE.md` status paragraph only. Resolved locally by orch (union); full suite 715 passed, 3 skipped; pushed; PR #13 shows as merged.
 
@@ -82,6 +97,8 @@ Template built by `python -m cvr.template.build` into `templates/fictitious_recr
 ## Skipped / incomplete
 
 ## Run log
+
+- 2026-09-13T10:24Z merged 11 (PR #14). 12 running.
 
 - 2026-09-13T10:16Z merged 07 (PR #12) and 10 (PR #13, local conflict resolution). 11 returned → follow-up round 1 (merge release with 10, reorder LAYOUTS). Dispatched 12.
 
