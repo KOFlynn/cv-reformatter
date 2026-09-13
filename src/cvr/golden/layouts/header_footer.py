@@ -66,7 +66,7 @@ class HeaderFooterLayout(Layout):
         _lines(section.footer, [*pii.address, *pii.urls], decisions)
 
         body = document
-        body.add_paragraph(_inject(content.name, decisions), style="Title")
+        body.add_paragraph(_curl(content.name, decisions), style="Title")
         _lines(
             body,
             [pii.dob, pii.personal.nationality, pii.personal.marital_status],
@@ -118,7 +118,7 @@ class HeaderFooterLayout(Layout):
         return document
 
 
-def _paragraph(container: _Container) -> Paragraph:
+def _next_paragraph(container: _Container) -> Paragraph:
     """The next paragraph to write into: a header or footer's one empty
     paragraph while it is still empty, otherwise a fresh one."""
     paragraphs = container.paragraphs
@@ -127,7 +127,7 @@ def _paragraph(container: _Container) -> Paragraph:
     return container.add_paragraph()
 
 
-def _inject(text: str, decisions: Decisions) -> str:
+def _curl(text: str, decisions: Decisions) -> str:
     """Word's smart apostrophe: every straight apostrophe becomes a right single
     quote from the shared confusable table, recorded as injected."""
     if "'" in text:
@@ -147,7 +147,7 @@ def _line(
     """One paragraph of content or PII text, apostrophes curled."""
     # Only set what is asked for: ``run.bold = False`` would write an explicit
     # off-toggle into the XML rather than nothing.
-    run = _paragraph(container).add_run(_inject(text, decisions))
+    run = _next_paragraph(container).add_run(_curl(text, decisions))
     if bold:
         run.bold = True
     if italic:
@@ -180,7 +180,7 @@ def _date_line(container: _Container, planned: PlannedEntry) -> None:
     literal dates included."""
     parts = [part for part in (planned.start, planned.end) if part is not None]
     if parts:
-        _paragraph(container).add_run(" to ".join(parts))
+        _next_paragraph(container).add_run(" to ".join(parts))
 
 
 def _experience(

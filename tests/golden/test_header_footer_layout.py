@@ -18,7 +18,7 @@ def c01() -> Candidate:
     return candidate
 
 
-def layout():
+def header_footer():
     (found,) = [layout for layout in LAYOUTS if layout.name == "header-footer"]
     return found
 
@@ -28,7 +28,7 @@ def test_header_footer_is_registered_last_in_matrix_order():
 
 
 def test_header_footer_uses_its_heading_vocabulary():
-    texts = all_text(layout().generate(c01()).document)
+    texts = all_text(header_footer().generate(c01()).document)
     for heading in (
         "Personal Statement",
         "Technical Skills",
@@ -41,7 +41,7 @@ def test_header_footer_uses_its_heading_vocabulary():
 # --- The contact block is split across the header and footer parts.
 
 
-def texts_in(parts: dict[str, list[str]], prefix: str) -> str:
+def part_text(parts: dict[str, list[str]], prefix: str) -> str:
     """The canonicalised text of every part whose name starts with ``prefix``."""
     return canonicalise(
         " ".join(
@@ -53,32 +53,30 @@ def texts_in(parts: dict[str, list[str]], prefix: str) -> str:
     )
 
 
-@pytest.mark.parametrize("candidate", CANDIDATES, ids=[c.id for c in CANDIDATES])
-def test_phone_and_email_are_in_the_header_and_nowhere_else(candidate):
-    parts = text_by_part(layout().generate(candidate).document)
-    header = texts_in(parts, "word/header")
-    body = texts_in(parts, "word/document.xml")
-    footer = texts_in(parts, "word/footer")
-    for value in map(canonicalise, (candidate.pii.phone, candidate.pii.email)):
-        assert value in header
-        assert value not in body
-        assert value not in footer
+PARTS = {"header": "word/header", "body": "word/document.xml", "footer": "word/footer"}
 
 
 @pytest.mark.parametrize("candidate", CANDIDATES, ids=[c.id for c in CANDIDATES])
-def test_address_and_urls_are_in_the_footer_and_nowhere_else(candidate):
-    parts = text_by_part(layout().generate(candidate).document)
-    header = texts_in(parts, "word/header")
-    body = texts_in(parts, "word/document.xml")
-    footer = texts_in(parts, "word/footer")
-    for value in map(canonicalise, (*candidate.pii.address, *candidate.pii.urls)):
-        assert value in footer
-        assert value not in body
-        assert value not in header
+@pytest.mark.parametrize(
+    ("home", "select"),
+    [
+        ("header", lambda pii: [pii.phone, pii.email]),
+        ("footer", lambda pii: [*pii.address, *pii.urls]),
+    ],
+    ids=["phone-and-email", "address-and-urls"],
+)
+def test_contact_values_are_in_their_part_and_nowhere_else(candidate, home, select):
+    parts = text_by_part(header_footer().generate(candidate).document)
+    for value in map(canonicalise, select(candidate.pii)):
+        for part, prefix in PARTS.items():
+            assert (value in part_text(parts, prefix)) is (part == home), (
+                f"{candidate.id}: {value!r} "
+                f"{'missing from' if part == home else 'found in'} {part}"
+            )
 
 
 def test_manifest_records_the_contact_block_as_header_footer():
-    assert layout().generate(c01()).manifest.contact_block == "header-footer"
+    assert header_footer().generate(c01()).manifest.contact_block == "header-footer"
 
 
 # --- Dates, bullets, order and confusables.
@@ -92,7 +90,7 @@ def c01_with(**first_experience_overrides) -> Candidate:
 
 
 def test_c01_dates_bullets_and_both_sections_reversed():
-    generated = layout().generate(c01())
+    generated = header_footer().generate(c01())
     texts = all_text(generated.document)
     assert "2022-03 to 2026-07" in texts
     # Raw text: the bullet is a literal en dash, which canonicalising would
@@ -111,12 +109,12 @@ def test_c01_dates_bullets_and_both_sections_reversed():
 
 def test_prints_a_year_only_date_as_the_year():
     candidate = c01_with(start={"year": 2020, "expected": "2020"})
-    texts = all_text(layout().generate(candidate).document)
+    texts = all_text(header_footer().generate(candidate).document)
     assert "2020 to 2026-07" in texts
 
 
 def test_education_is_the_very_bottom_of_the_body():
-    parts = text_by_part(layout().generate(c01()).document)
+    parts = text_by_part(header_footer().generate(c01()).document)
     body = [canonicalise(text) for text in parts["word/document.xml"]]
     qualifications = body.index("Qualifications")
     # Every other heading comes before it, and nothing but education after it.
@@ -131,7 +129,7 @@ def test_curls_apostrophes_and_lists_the_confusables_it_injected():
     data = c01().model_dump()
     data["content"]["skills"][0] = "Bob's Toolkit"
     candidate = Candidate.model_validate(data)
-    generated = layout().generate(candidate)
+    generated = header_footer().generate(candidate)
     texts = all_text(generated.document)
     assert "Sinéad O’Sampla" in texts
     assert "– " + chr(0x200B) + "Bob’s Toolkit" in texts
@@ -146,7 +144,7 @@ def test_manifest_lists_only_confusables_actually_injected():
     data = c01().model_dump()
     data["content"]["name"] = "Sinead Sampla"
     data["tags"] = []
-    manifest = layout().generate(Candidate.model_validate(data)).manifest
+    manifest = header_footer().generate(Candidate.model_validate(data)).manifest
     assert manifest.confusables == ["U+200B"]
 
 
@@ -154,5 +152,7 @@ def test_confusables_do_not_break_source_coverage_of_the_curled_text():
     data = c01().model_dump()
     data["content"]["skills"][0] = "Bob's Toolkit"
     candidate = Candidate.model_validate(data)
-    texts = [canonicalise(t) for t in all_text(layout().generate(candidate).document)]
+    texts = [
+        canonicalise(t) for t in all_text(header_footer().generate(candidate).document)
+    ]
     assert any("Bob's Toolkit" in text for text in texts)
