@@ -14,6 +14,7 @@ from cvr.golden.layouts.base import (
     PrintedDate,
     Section,
 )
+from cvr.golden.layouts.header_footer import HeaderFooterLayout
 from cvr.golden.layouts.single_column import SingleColumnLayout
 from cvr.golden.layouts.two_column import TwoColumnLayout
 
@@ -24,6 +25,7 @@ __all__ = [
     "Decisions",
     "FragmentPlacement",
     "Generated",
+    "HeaderFooterLayout",
     "Layout",
     "Manifest",
     "Plan",
@@ -36,4 +38,8 @@ __all__ = [
 
 # Every registered Layout, in the style matrix's column order. The generator
 # renders every Candidate through every one of these.
-LAYOUTS: tuple[Layout, ...] = (SingleColumnLayout(), TwoColumnLayout())
+LAYOUTS: tuple[Layout, ...] = (
+    SingleColumnLayout(),
+    TwoColumnLayout(),
+    HeaderFooterLayout(),
+)
