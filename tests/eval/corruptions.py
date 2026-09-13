@@ -22,7 +22,9 @@ from cvr.eval import (
     added_tokens,
     appendix_rate,
     dropped_tokens,
+    image_leak,
     ordering_report,
+    pii_leak,
     placement_accuracy,
 )
 from cvr.golden import Candidate
@@ -37,7 +39,9 @@ __all__ = [
 ]
 
 Check = Callable[[Candidate, MetricInputs], bool]
-Damage = Callable[[PipelineResult], PipelineResult]
+# A damage sees the Candidate as well as the result: re-emitting a PII value
+# needs the value, which the honest result no longer carries.
+Damage = Callable[[Candidate, PipelineResult], PipelineResult]
 
 CHECKS: dict[str, Check] = {
     "added": lambda _, i: (
@@ -60,6 +64,10 @@ CHECKS: dict[str, Check] = {
     # entry unaligned on either side.
     "placement": lambda c, i: _perfect(placement_accuracy(i.output_content, c.content)),
     "ordering": lambda c, i: ordering_report(i.output_content, c.content).correct,
+    "pii": lambda c, i: not pii_leak(i.output_text, c.pii),
+    "image": lambda _, i: (
+        not image_leak(i.output_image_hashes, i.template_image_hashes)
+    ),
 }
 
 
@@ -116,7 +124,7 @@ def _with_bullets(
     return replace(result, content=content)
 
 
-def insert_a_word(result: PipelineResult) -> PipelineResult:
+def insert_a_word(_: Candidate, result: PipelineResult) -> PipelineResult:
     index = _first_job_with_bullets(result)
     first, *rest = result.content.experience[index].bullets
     words = first.split(" ")
@@ -124,25 +132,40 @@ def insert_a_word(result: PipelineResult) -> PipelineResult:
     return _with_bullets(result, index, [" ".join(words), *rest])
 
 
-def drop_a_bullet(result: PipelineResult) -> PipelineResult:
+def drop_a_bullet(_: Candidate, result: PipelineResult) -> PipelineResult:
     index = _first_job_with_bullets(result)
     return _with_bullets(result, index, result.content.experience[index].bullets[1:])
 
 
-def bullets_to_appendix(result: PipelineResult) -> PipelineResult:
+def bullets_to_appendix(_: Candidate, result: PipelineResult) -> PipelineResult:
     index = _first_job_with_bullets(result)
     bullets = result.content.experience[index].bullets
     damaged = _with_bullets(result, index, [])
     return replace(damaged, unplaced=[*result.unplaced, *bullets])
 
 
-def reverse_experience(result: PipelineResult) -> PipelineResult:
+def reverse_experience(_: Candidate, result: PipelineResult) -> PipelineResult:
     if len(result.content.experience) < 2:
         raise NotApplicable("fewer than two experience entries")
     content = result.content.model_copy(
         update={"experience": list(reversed(result.content.experience))}
     )
     return replace(result, content=content)
+
+
+def reemit_the_email(candidate: Candidate, result: PipelineResult) -> PipelineResult:
+    if candidate.pii.email is None:
+        raise NotApplicable("no email to re-emit")
+    return replace(result, header=[*result.header, candidate.pii.email])
+
+
+# Any digest the template does not own; the two-column Layout's placeholder
+# photo would hash to something just as foreign.
+PHOTO_HASH = "sha256:photo-left-in"
+
+
+def leave_the_photo_in(_: Candidate, result: PipelineResult) -> PipelineResult:
+    return replace(result, image_hashes=[*result.image_hashes, PHOTO_HASH])
 
 
 def _row(
@@ -168,27 +191,41 @@ CORRUPTIONS: list[Corruption] = [
         "insert a word into a bullet",
         insert_a_word,
         "added placement",
-        "dropped appendix ordering",
+        "dropped appendix ordering pii image",
         Direction(precision="down", recall="down"),
     ),
     _row(
         "drop a bullet",
         drop_a_bullet,
         "dropped placement",
-        "added appendix ordering",
+        "added appendix ordering pii image",
         Direction(precision="unchanged", recall="down"),
     ),
     _row(
         "move one job's bullets into the appendix",
         bullets_to_appendix,
         "appendix placement",
-        "added dropped ordering",
+        "added dropped ordering pii image",
         Direction(precision="unchanged", recall="down"),
     ),
     _row(
         "reverse experience order",
         reverse_experience,
         "ordering",
-        "added dropped appendix placement",
+        "added dropped appendix placement pii image",
+    ),
+    # A leak is correctly copied source text: the multisets and placement
+    # see nothing, because the email is in the source and outside the body.
+    _row(
+        "re-emit the source email in the header",
+        reemit_the_email,
+        "pii",
+        "added dropped appendix placement ordering image",
+    ),
+    _row(
+        "leave the photo in",
+        leave_the_photo_in,
+        "image",
+        "added dropped appendix placement ordering pii",
     ),
 ]
