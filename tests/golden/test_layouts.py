@@ -272,3 +272,27 @@ def test_two_column_uses_its_heading_vocabulary():
     texts = all_text(two_column().generate(c01()).document)
     for heading in ("Summary", "Skills", "Academic Background", "Work History"):
         assert heading in texts
+
+
+def test_two_column_c01_dates_bullets_and_scramble():
+    generated = two_column().generate(c01())
+    texts = all_text(generated.document)
+    # ``MM/YYYY`` dates joined by an en dash, a literal bullet glyph in the text.
+    assert "03/2022 – 07/2026" in texts
+    assert "• Python" in texts
+    manifest = generated.manifest
+    assert manifest.contact_block == "left-column"
+    assert manifest.experience_order == [2, 1, 0]
+    assert manifest.education_order == [0, 1]
+    first_start = [
+        d
+        for d in manifest.dates
+        if d.section == "experience" and d.entry == 0 and d.which == "start"
+    ]
+    assert [d.printed for d in first_start] == ["03/2022"]
+
+
+def test_two_column_prints_a_year_only_date_as_the_year():
+    candidate = c01_with(start={"year": 2020, "expected": "2020"})
+    texts = all_text(two_column().generate(candidate).document)
+    assert "2020 – 07/2026" in texts

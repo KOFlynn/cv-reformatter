@@ -29,6 +29,7 @@ __all__ = ["TwoColumnLayout"]
 
 _LEFT_WIDTH = Cm(5.5)
 _RIGHT_WIDTH = Cm(11.5)
+_EN_DASH = "–"
 
 
 class TwoColumnLayout(Layout):
@@ -59,7 +60,7 @@ class TwoColumnLayout(Layout):
         if plan.education:
             _heading(left, "Academic Background")
             for planned in plan.education:
-                _education(left, planned)
+                _education(left, planned, decisions)
 
         if pii.referees:
             _heading(left, "Referees")
@@ -81,7 +82,7 @@ class TwoColumnLayout(Layout):
         if plan.experience:
             _heading(right, "Work History")
             for planned in plan.experience:
-                _experience(right, planned)
+                _experience(right, planned, decisions)
 
         if content.certifications:
             _heading(right, "Certifications")
@@ -128,13 +129,19 @@ def _bullets(cell: _Cell, items: list[str]) -> None:
         _line(cell, f"• {item}")
 
 
-def _date_line(cell: _Cell, planned: PlannedEntry) -> None:
+def _date_line(cell: _Cell, planned: PlannedEntry, decisions: Decisions) -> None:
+    """``start – end`` with an en dash from the shared table; a lone date has
+    no dash and injects nothing."""
     parts = [part for part in (planned.start, planned.end) if part is not None]
+    if len(parts) == 2:
+        decisions.injected(_EN_DASH)
     if parts:
-        _line(cell, " - ".join(parts))
+        _line(cell, f" {_EN_DASH} ".join(parts))
 
 
-def _experience(cell: _Cell, planned: PlannedEntry[ExperienceEntry]) -> None:
+def _experience(
+    cell: _Cell, planned: PlannedEntry[ExperienceEntry], decisions: Decisions
+) -> None:
     entry = planned.entry
     _line(cell, entry.title, bold=True)
     employer_line = (
@@ -143,13 +150,15 @@ def _experience(cell: _Cell, planned: PlannedEntry[ExperienceEntry]) -> None:
         else f"{entry.employer}, {entry.location}"
     )
     _line(cell, employer_line, italic=True)
-    _date_line(cell, planned)
+    _date_line(cell, planned, decisions)
     _bullets(cell, entry.bullets)
 
 
-def _education(cell: _Cell, planned: PlannedEntry[EducationEntry]) -> None:
+def _education(
+    cell: _Cell, planned: PlannedEntry[EducationEntry], decisions: Decisions
+) -> None:
     entry = planned.entry
     _line(cell, entry.qualification, bold=True)
     _line(cell, entry.institution, italic=True)
-    _date_line(cell, planned)
+    _date_line(cell, planned, decisions)
     _bullets(cell, entry.details)
