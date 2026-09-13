@@ -1,16 +1,50 @@
-"""Content model: ``CVContent`` and its entries.
+"""Content model (``CVContent`` and its entries), the PII model (``PII``) and
+the removal rule ids (``RemovalRule``).
 
 Every string here is a candidate's own text, held verbatim. Typos, odd
 capitalisation and punctuation are baked into the strings on purpose and
 must never be normalised out: the golden set treats this model as ground
 truth, and the pipeline must reproduce it word for word.
 
-Depends on pydantic only; never on ``cvr.golden`` or ``cvr.eval``.
+Depends on pydantic only; never on ``cvr.golden`` or ``cvr.eval``. ``PII``
+lives here rather than in the golden set because ``eval`` consumes it too
+and the two never import each other.
 """
+
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
-__all__ = ["CVContent", "DateValue", "EducationEntry", "ExperienceEntry", "StrictModel"]
+__all__ = [
+    "PII",
+    "CVContent",
+    "DateValue",
+    "EducationEntry",
+    "ExperienceEntry",
+    "Personal",
+    "Referee",
+    "RemovalRule",
+    "StrictModel",
+]
+
+
+class RemovalRule(StrEnum):
+    """The named rules under which source text is deleted, never rewritten.
+
+    Every removal is logged under its rule; the PII leak metric reports a hit
+    under the rule that should have removed it. ``PHOTO`` and ``HEADING``
+    remove things that are not fixture strings.
+    """
+
+    PHONE = "RM_PHONE"
+    EMAIL = "RM_EMAIL"
+    ADDRESS = "RM_ADDRESS"
+    URL = "RM_URL"
+    PHOTO = "RM_PHOTO"
+    DOB = "RM_DOB"
+    PERSONAL = "RM_PERSONAL"
+    REFEREE = "RM_REFEREE"
+    HEADING = "RM_HEADING"
 
 
 class StrictModel(BaseModel):
@@ -81,3 +115,36 @@ class CVContent(StrictModel):
     experience: list[ExperienceEntry] = Field(default_factory=list)
     certifications: list[str] = Field(default_factory=list)
     additional: list[str] = Field(default_factory=list)
+
+
+class Referee(StrictModel):
+    """Removed under RM_REFEREE: the name, role and every contact line."""
+
+    name: str
+    role: str | None = None
+    contact: list[str] = Field(default_factory=list)
+
+
+class Personal(StrictModel):
+    """Removed under RM_PERSONAL."""
+
+    nationality: str | None = None
+    marital_status: str | None = None
+
+
+class PII(StrictModel):
+    """Values that must be removed, grouped so each key maps to exactly one removal rule.
+
+    ``phone`` RM_PHONE, ``email`` RM_EMAIL, ``address`` RM_ADDRESS (one line per
+    item), ``urls`` RM_URL, ``dob`` RM_DOB, ``personal`` RM_PERSONAL, ``referees``
+    RM_REFEREE. There is no ``photo`` key: the photo is a Layout decision and
+    RM_PHOTO has no Candidate value, as RM_HEADING has none.
+    """
+
+    phone: str | None = None
+    email: str | None = None
+    address: list[str] = Field(default_factory=list)
+    urls: list[str] = Field(default_factory=list)
+    dob: str | None = None
+    personal: Personal = Field(default_factory=Personal)
+    referees: list[Referee] = Field(default_factory=list)

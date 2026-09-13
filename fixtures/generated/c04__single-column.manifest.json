@@ -1,0 +1,83 @@
+{
+  "candidate_id": "c04",
+  "layout": "single-column",
+  "seed": 0,
+  "generator_version": "0.1.0",
+  "manifest_version": 1,
+  "dates": [
+    {
+      "section": "experience",
+      "entry": 0,
+      "which": "start",
+      "printed": "September 2020"
+    },
+    {
+      "section": "experience",
+      "entry": 0,
+      "which": "end",
+      "printed": "April 2026"
+    },
+    {
+      "section": "experience",
+      "entry": 1,
+      "which": "start",
+      "printed": "January 2018"
+    },
+    {
+      "section": "experience",
+      "entry": 1,
+      "which": "end",
+      "printed": "Summer 2020"
+    },
+    {
+      "section": "experience",
+      "entry": 2,
+      "which": "start",
+      "printed": "September 2013"
+    },
+    {
+      "section": "experience",
+      "entry": 2,
+      "which": "end",
+      "printed": "December 2017"
+    },
+    {
+      "section": "education",
+      "entry": 0,
+      "which": "start",
+      "printed": "January 2016"
+    },
+    {
+      "section": "education",
+      "entry": 0,
+      "which": "end",
+      "printed": "December 2016"
+    },
+    {
+      "section": "education",
+      "entry": 1,
+      "which": "start",
+      "printed": "September 2010"
+    },
+    {
+      "section": "education",
+      "entry": 1,
+      "which": "end",
+      "printed": "July 2013"
+    }
+  ],
+  "experience_order": [
+    0,
+    1,
+    2
+  ],
+  "education_order": [
+    0,
+    1
+  ],
+  "contact_block": "body-top",
+  "confusables": [],
+  "photo": false,
+  "fragments": [],
+  "document_sha256": "f40bdf58e6b72951ff454d65f0dd338b8957efd517fb5bc710f79e3d1150cbda"
+}
