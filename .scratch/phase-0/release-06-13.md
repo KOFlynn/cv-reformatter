@@ -138,3 +138,4 @@ Template built by `python -m cvr.template.build` into `templates/fictitious_recr
 
 - 2026-09-13T09:38Z merged 06 (PR #9); dispatched 07.
 - 2026-09-13T09:26Z release branch created from main; dispatched 06, 09, 08 in parallel (cap 3).
+- 2026-09-13T10:58Z release PR opened: https://github.com/KOFlynn/cv-reformatter/pull/17 (not merged).
