@@ -4,12 +4,23 @@
 
 **Blocked by:** 03 (Tracer bullet — c01 through the single-column Layout to source coverage)
 
-**Status:** ready-for-agent
+**Status:** in-review
 
-- [ ] Layout implemented per the style matrix's second column and registered with the generator
-- [ ] Placeholder photo is generated in code (no image file committed as a source), identical on every run
-- [ ] Confusables come from the shared table; the manifest lists which were injected
-- [ ] Manifest records experience order as emitted and the photo as present
-- [ ] Source coverage and regeneration tests pass for all generated two-column documents
-- [ ] Image count test: two-column documents have exactly one image; other Layouts have none
-- [ ] Documents and manifests committed
+- [x] Layout implemented per the style matrix's second column and registered with the generator
+- [x] Placeholder photo is generated in code (no image file committed as a source), identical on every run
+- [x] Confusables come from the shared table; the manifest lists which were injected
+- [x] Manifest records experience order as emitted and the photo as present
+- [x] Source coverage and regeneration tests pass for all generated two-column documents
+- [x] Image count test: two-column documents have exactly one image; other Layouts have none
+- [x] Documents and manifests committed
+
+## Comments
+
+Decisions made while implementing (maintainer AFK):
+
+- Layout name `two-column` (stem `c01__two-column`), contact-block location `left-column`, fragment location `left-column-end`.
+- "Curly quotes" read as both the apostrophe (U+2019) and alternating double quotes (U+201C/U+201D); only characters actually injected are listed. Date lines are never curled so the document prints exactly what the manifest recorded, literal dates included.
+- Headings outside the matrix: Contact, Certifications, Other Information, Referees.
+- The placeholder PNG is written with the standard library and a hand-rolled stored deflate stream, so its bytes and the document SHA do not depend on the host's zlib build.
+- `GENERATOR_VERSION` left at 0.1.0: adding a Layout changes no existing Layout's output, and a bump would invalidate ticket 09's single-column manifests generated in parallel.
+- Only c01's pair is generated; the other Candidates land with ticket 09 and need `python -m cvr.golden.generate` after merge.
