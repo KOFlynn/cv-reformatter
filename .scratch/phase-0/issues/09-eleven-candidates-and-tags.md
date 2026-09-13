@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 (Content model, Candidate model, loader, and c01)
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 - [ ] Eleven new Candidate files, ids and tags matching the spec's allocation table
 - [ ] Names obviously fictional; no real contact details; nothing resembling the maintainer's employer
