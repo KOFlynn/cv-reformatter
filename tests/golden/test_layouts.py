@@ -258,3 +258,17 @@ def test_single_column_is_clean_and_unscrambled():
     assert manifest.contact_block == "body-top"
     assert manifest.experience_order == [0, 1, 2]
     assert manifest.education_order == [0, 1]
+
+
+# --- The two-column table Layout: the style matrix's second column.
+
+
+def two_column():
+    (layout,) = [layout for layout in LAYOUTS if layout.name == "two-column"]
+    return layout
+
+
+def test_two_column_uses_its_heading_vocabulary():
+    texts = all_text(two_column().generate(c01()).document)
+    for heading in ("Summary", "Skills", "Academic Background", "Work History"):
+        assert heading in texts

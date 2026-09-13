@@ -15,6 +15,7 @@ from cvr.golden.layouts.base import (
     Section,
 )
 from cvr.golden.layouts.single_column import SingleColumnLayout
+from cvr.golden.layouts.two_column import TwoColumnLayout
 
 __all__ = [
     "GENERATOR_VERSION",
@@ -30,8 +31,9 @@ __all__ = [
     "PrintedDate",
     "Section",
     "SingleColumnLayout",
+    "TwoColumnLayout",
 ]
 
 # Every registered Layout, in the style matrix's column order. The generator
 # renders every Candidate through every one of these.
-LAYOUTS: tuple[Layout, ...] = (SingleColumnLayout(),)
+LAYOUTS: tuple[Layout, ...] = (SingleColumnLayout(), TwoColumnLayout())
