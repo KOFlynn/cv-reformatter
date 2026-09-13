@@ -59,7 +59,9 @@ class TwoColumnLayout(Layout):
         left, right = table.rows[0].cells
         left.width, right.width = _LEFT_WIDTH, _RIGHT_WIDTH
         # Left column: photo, contact block, then education.
-        left.add_paragraph().add_run().add_picture(
+        # A fresh cell already holds one empty paragraph; each column's first
+        # item goes into it rather than leaving a blank line above.
+        left.paragraphs[0].add_run().add_picture(
             io.BytesIO(placeholder_photo()), width=_PHOTO_WIDTH
         )
         decisions.photo = True
@@ -81,7 +83,9 @@ class TwoColumnLayout(Layout):
                 _lines(left, [referee.role, *referee.contact], decisions)
 
         # Right column: name, then the rest.
-        right.add_paragraph(_curl(content.name, decisions), style="Title")
+        name = right.paragraphs[0]
+        name.style = "Title"
+        name.add_run(_curl(content.name, decisions))
 
         if content.profile:
             _heading(right, "Summary")
