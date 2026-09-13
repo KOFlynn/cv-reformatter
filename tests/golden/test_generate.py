@@ -24,6 +24,24 @@ def read_manifest(directory: Path, name: str) -> Manifest:
     )
 
 
+# One generation of the whole set per fixture, shared by every case in the
+# module: the per-stem cases stay so that a failure names the file that
+# drifted, but generating the set once per stem made the module quadratic in
+# the size of the golden set.
+@pytest.fixture(scope="module")
+def fresh(tmp_path_factory) -> Path:
+    out_dir = tmp_path_factory.mktemp("fresh")
+    generate_all(out_dir=out_dir)
+    return out_dir
+
+
+@pytest.fixture(scope="module")
+def fresh_again(tmp_path_factory) -> Path:
+    out_dir = tmp_path_factory.mktemp("fresh-again")
+    generate_all(out_dir=out_dir)
+    return out_dir
+
+
 def test_generate_all_writes_a_document_and_manifest_pair_per_stem(tmp_path):
     written = generate_all(out_dir=tmp_path)
     names = sorted(path.name for path in written)
@@ -34,41 +52,36 @@ def test_generate_all_writes_a_document_and_manifest_pair_per_stem(tmp_path):
     assert "c01__single-column" in STEMS
 
 
-def test_manifest_file_is_json_with_the_document_sha(tmp_path):
-    generate_all(out_dir=tmp_path)
+def test_manifest_file_is_json_with_the_document_sha(fresh):
     for name in STEMS:
-        manifest = read_manifest(tmp_path, name)
-        raw = json.loads((tmp_path / f"{name}.manifest.json").read_text("utf-8"))
+        manifest = read_manifest(fresh, name)
+        raw = json.loads((fresh / f"{name}.manifest.json").read_text("utf-8"))
         assert manifest.candidate_id, name
         assert raw["document_sha256"] == manifest.document_sha256
 
 
 @pytest.mark.parametrize("name", STEMS)
-def test_regenerating_gives_identical_text_and_manifest_sha(tmp_path, name):
-    first, second = tmp_path / "first", tmp_path / "second"
-    generate_all(out_dir=first)
-    generate_all(out_dir=second)
-    assert all_text(first / f"{name}.docx") == all_text(second / f"{name}.docx"), (
+def test_regenerating_gives_identical_text_and_manifest_sha(fresh, fresh_again, name):
+    assert all_text(fresh / f"{name}.docx") == all_text(fresh_again / f"{name}.docx"), (
         f"{name}.docx: text differs between two generations"
     )
     assert (
-        read_manifest(first, name).document_sha256
-        == read_manifest(second, name).document_sha256
+        read_manifest(fresh, name).document_sha256
+        == read_manifest(fresh_again, name).document_sha256
     ), f"{name}.manifest.json: document SHA differs between two generations"
 
 
 @pytest.mark.parametrize("name", STEMS)
-def test_committed_pair_matches_a_fresh_generation(tmp_path, name):
+def test_committed_pair_matches_a_fresh_generation(fresh, name):
     """The committed golden set must be what the current code produces, or eval
     runs would measure against documents no Layout would write."""
-    generate_all(out_dir=tmp_path)
     committed_doc = GENERATED_DIR / f"{name}.docx"
     assert committed_doc.exists(), f"{committed_doc.name} is not committed"
-    assert all_text(committed_doc) == all_text(tmp_path / f"{name}.docx"), (
+    assert all_text(committed_doc) == all_text(fresh / f"{name}.docx"), (
         f"{name}.docx: committed text differs from a fresh generation; "
         "run `uv run python -m cvr.golden.generate`"
     )
-    assert read_manifest(GENERATED_DIR, name) == read_manifest(tmp_path, name), (
+    assert read_manifest(GENERATED_DIR, name) == read_manifest(fresh, name), (
         f"{name}.manifest.json: committed manifest differs from a fresh generation; "
         "run `uv run python -m cvr.golden.generate`"
     )
@@ -77,6 +90,24 @@ def test_committed_pair_matches_a_fresh_generation(tmp_path, name):
 def test_generated_directory_holds_exactly_the_registered_pairs():
     stems = {path.name.split(".", 1)[0] for path in GENERATED_DIR.glob("*.*")}
     assert stems == set(STEMS)
+
+
+def test_the_set_is_every_candidate_through_every_style_matrix_layout():
+    """Coverage is the product, not a sample: each of the twelve Candidates
+    through each of the spec's four Layouts, so the per-layout eval breakdown
+    has every cell."""
+    layouts = ["single-column", "two-column", "text-box", "header-footer"]
+    candidate_ids = [f"c{n:02d}" for n in range(1, 13)]
+    assert [layout.name for layout in LAYOUTS] == layouts
+    assert [candidate.id for candidate in CANDIDATES] == candidate_ids
+    assert STEMS == [f"{c}__{layout}" for c in candidate_ids for layout in layouts]
+    assert len(STEMS) == 48
+    assert sorted(GENERATED_DIR.glob("*.docx")) == sorted(
+        GENERATED_DIR / f"{stem}.docx" for stem in STEMS
+    )
+    assert sorted(GENERATED_DIR.glob("*.manifest.json")) == sorted(
+        GENERATED_DIR / f"{stem}.manifest.json" for stem in STEMS
+    )
 
 
 def test_module_runs_as_a_command(tmp_path):
