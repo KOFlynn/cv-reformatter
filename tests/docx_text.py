@@ -22,15 +22,7 @@ def all_text(document: Path | bytes) -> list[str]:
     Parts are visited in name order and elements in document order, so the
     result is deterministic; it is not the document's reading order.
     """
-    data = document if isinstance(document, bytes) else document.read_bytes()
-    texts: list[str] = []
-    with zipfile.ZipFile(io.BytesIO(data)) as package:
-        for name in sorted(package.namelist()):
-            if not (name.startswith("word/") and name.endswith(".xml")):
-                continue
-            root = etree.fromstring(package.read(name))
-            texts.extend(element.text or "" for element in root.iter(W_T))
-    return texts
+    return [text for texts in text_by_part(document).values() for text in texts]
 
 
 def image_count(document: Path | bytes) -> int:
@@ -38,3 +30,19 @@ def image_count(document: Path | bytes) -> int:
     data = document if isinstance(document, bytes) else document.read_bytes()
     with zipfile.ZipFile(io.BytesIO(data)) as package:
         return sum(1 for name in package.namelist() if name.startswith("word/media/"))
+
+
+def text_by_part(document: Path | bytes) -> dict[str, list[str]]:
+    """``all_text`` split by part: package part name (``word/document.xml``,
+    ``word/header1.xml``, ...) to the text of every ``w:t`` in it, in element
+    order. As dumb as ``all_text``; it only remembers which part a text came from.
+    """
+    data = document if isinstance(document, bytes) else document.read_bytes()
+    parts: dict[str, list[str]] = {}
+    with zipfile.ZipFile(io.BytesIO(data)) as package:
+        for name in sorted(package.namelist()):
+            if not (name.startswith("word/") and name.endswith(".xml")):
+                continue
+            root = etree.fromstring(package.read(name))
+            parts[name] = [element.text or "" for element in root.iter(W_T)]
+    return parts

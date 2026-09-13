@@ -1,0 +1,85 @@
+{
+  "candidate_id": "c02",
+  "layout": "header-footer",
+  "seed": 0,
+  "generator_version": "0.1.0",
+  "manifest_version": 1,
+  "dates": [
+    {
+      "section": "experience",
+      "entry": 0,
+      "which": "start",
+      "printed": "2021-02"
+    },
+    {
+      "section": "experience",
+      "entry": 0,
+      "which": "end",
+      "printed": "2026-06"
+    },
+    {
+      "section": "experience",
+      "entry": 1,
+      "which": "start",
+      "printed": "2018-07"
+    },
+    {
+      "section": "experience",
+      "entry": 1,
+      "which": "end",
+      "printed": "2021-01"
+    },
+    {
+      "section": "experience",
+      "entry": 2,
+      "which": "start",
+      "printed": "2016-06"
+    },
+    {
+      "section": "experience",
+      "entry": 2,
+      "which": "end",
+      "printed": "2016-08"
+    },
+    {
+      "section": "education",
+      "entry": 0,
+      "which": "start",
+      "printed": "2016-09"
+    },
+    {
+      "section": "education",
+      "entry": 0,
+      "which": "end",
+      "printed": "2018-05"
+    },
+    {
+      "section": "education",
+      "entry": 1,
+      "which": "start",
+      "printed": "2010-09"
+    },
+    {
+      "section": "education",
+      "entry": 1,
+      "which": "end",
+      "printed": "2016-06"
+    }
+  ],
+  "experience_order": [
+    2,
+    1,
+    0
+  ],
+  "education_order": [
+    1,
+    0
+  ],
+  "contact_block": "header-footer",
+  "confusables": [
+    "U+200B"
+  ],
+  "photo": false,
+  "fragments": [],
+  "document_sha256": "4da6a1486b91f0e1ab1a01d1ad1b926f200156186a0e3501809e811606085184"
+}
