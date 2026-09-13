@@ -9,6 +9,7 @@ from docx_text import all_text
 from lxml import etree
 
 from cvr.golden import CANDIDATES_DIR, LAYOUTS, Candidate, load_candidates
+from cvr.text import canonicalise
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 TXBX_CONTENT = f"{{{W}}}txbxContent"
@@ -48,6 +49,12 @@ def text_box_texts(document: bytes) -> list[list[str]]:
     ]
 
 
+def appears(value: str, texts: list[str]) -> bool:
+    """Substring match with both sides canonicalised, so the Layout's own
+    confusable injections do not hide the string they were injected into."""
+    return any(canonicalise(value) in canonicalise(text) for text in texts)
+
+
 def contact_strings(candidate: Candidate) -> list[str]:
     pii = candidate.pii
     values = [pii.phone, pii.email, *pii.address, *pii.urls, pii.dob]
@@ -64,8 +71,8 @@ def test_contact_block_lives_in_a_text_box_not_the_body(candidate):
     body = body_texts(document)
     everywhere = all_text(document)
     for value in contact_strings(candidate):
-        assert not any(value in text for text in body), value
-        assert any(value in text for text in everywhere), value
+        assert not appears(value, body), value
+        assert appears(value, everywhere), value
 
 
 def test_contact_block_and_skills_are_real_txbx_content_elements():
@@ -74,9 +81,9 @@ def test_contact_block_and_skills_are_real_txbx_content_elements():
     assert len(boxes) == 2
     contact, skills = boxes
     for value in contact_strings(candidate):
-        assert any(value in text for text in contact), value
+        assert appears(value, contact), value
     for skill in candidate.content.skills:
-        assert any(skill in text for text in skills), skill
+        assert appears(skill, skills), skill
 
 
 def test_document_xml_is_well_formed_and_reloads():
@@ -104,13 +111,15 @@ def test_c01_dates_print_as_abbreviated_month_and_two_digit_year():
         for d in generated.manifest.dates
         if d.section == "experience" and d.entry == 0 and d.which == "start"
     ]
-    assert start.printed == "Mar '22"
-    assert "Mar '22 - Jul '26" in all_text(generated.document)
+    # The non-breaking space between month and year is the Layout's NBSP
+    # injection, and the manifest records what was really printed.
+    assert start.printed == "Mar '22"
+    assert "Mar '22 - Jul '26" in all_text(generated.document)
 
 
 def test_a_year_only_date_prints_as_the_full_year():
     candidate = c01_with(start={"year": 2020, "expected": "2020"})
-    assert "2020 - Jul '26" in all_text(text_box().generate(candidate).document)
+    assert "2020 - Jul '26" in all_text(text_box().generate(candidate).document)
 
 
 # --- Heading vocabulary, section order and bullets
@@ -132,7 +141,10 @@ def test_bullets_are_literal_hyphens_in_the_text():
     candidate = c01()
     texts = all_text(text_box().generate(candidate).document)
     first_bullet = candidate.content.experience[0].bullets[0]
-    assert any(text.startswith("- ") and first_bullet in text for text in texts)
+    assert any(
+        text.startswith("- ") and canonicalise(first_bullet) in canonicalise(text)
+        for text in texts
+    )
     assert not any(text.startswith("•") for text in texts)
 
 
@@ -164,3 +176,54 @@ def test_rotation_covers_only_dated_entries_and_undated_still_come_last():
     generated = text_box().generate(candidate)
     assert generated.manifest.experience_order == [2, 0, 1]
     assert titles_in_document_order(candidate, generated.document) == [2, 0, 1]
+
+
+# --- Confusables: NBSP and soft hyphens, from the shared table
+
+NBSP = "\u00a0"
+SOFT_HYPHEN = "\u00ad"
+
+
+def test_manifest_records_nbsp_and_soft_hyphen_and_the_text_carries_them():
+    generated = text_box().generate(c01())
+    assert generated.manifest.confusables == ["U+00A0", "U+00AD"]
+    joined = "".join(all_text(generated.document))
+    assert NBSP in joined
+    assert SOFT_HYPHEN in joined
+    assert NBSP not in canonicalise(joined)
+    assert SOFT_HYPHEN not in canonicalise(joined)
+
+
+def test_phone_number_spaces_are_non_breaking():
+    candidate = c01()
+    texts = all_text(text_box().generate(candidate).document)
+    assert candidate.pii.phone == "+353 87 555 0123"
+    assert "+353\u00a087\u00a0555\u00a00123" in texts
+    assert candidate.pii.phone not in texts
+
+
+def test_first_long_word_of_a_profile_paragraph_carries_a_soft_hyphen():
+    texts = all_text(text_box().generate(c01()).document)
+    # "experience" is the first word of ten or more letters; the hyphen goes
+    # after its fifth letter.
+    assert any(
+        text.startswith("Software engineer with eight years of exper\u00adience ")
+        for text in texts
+    )
+
+
+def test_manifest_is_clean_of_confusables_when_nothing_is_injected():
+    data = c01().model_dump()
+    data["content"]["profile"] = ["Short words only."]
+    for entry in data["content"]["experience"]:
+        entry["bullets"] = ["Did things."]
+        entry["start"] = entry["end"] = None
+    for entry in data["content"]["education"]:
+        entry["details"] = []
+        entry["start"] = entry["end"] = None
+    data["content"]["certifications"] = []
+    data["content"]["additional"] = []
+    data["pii"]["phone"] = "0870000000"
+    data["tags"] = []
+    candidate = Candidate.model_validate(data)
+    assert text_box().generate(candidate).manifest.confusables == []
