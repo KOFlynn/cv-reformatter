@@ -12,6 +12,7 @@ from fake_pipeline import fake_pipeline, metric_inputs
 
 from cvr.eval import placement_accuracy
 from cvr.golden import CANDIDATES_DIR, load_candidate
+from cvr.template import template_tokens
 
 # Parametrised over files rather than loaded Candidates so that one malformed
 # file fails its own cases, not the collection of the whole module.
@@ -36,9 +37,12 @@ def test_the_fake_pipeline_maps_a_candidate_to_every_metric_input():
     assert inputs.output_units[0] == candidate.content.name
     assert candidate.content.experience[0].bullets[0] in inputs.output_units
     assert candidate.content.experience[0].start.expected in inputs.output_units
-    # Output tokens are the tokenised leaves plus template tokens (none yet).
-    assert inputs.template_tokens == []
+    # Output tokens are the tokenised leaves plus the template's own fixed
+    # text, extracted from the built template rather than typed in.
+    assert inputs.template_tokens == template_tokens()
     assert "Airflow" in inputs.output_tokens
+    assert "Recruitment" in inputs.output_tokens
+    assert "Recruitment" not in inputs.source_tokens
     # Each expected date maps to itself.
     assert ("03/2022", "03/2022") in inputs.date_map
     # Removed tokens are the PII values; they are in the source, not the output.
@@ -50,6 +54,14 @@ def test_the_fake_pipeline_maps_a_candidate_to_every_metric_input():
     assert inputs.appendix_tokens == []
     # The placed content is what the structural metrics compare to the Candidate's.
     assert inputs.output_content == candidate.content
+    # Output text is what pii_leak reads: every placed leaf and the appendix
+    # in the body, the template's own header text; no PII value in either.
+    assert candidate.content.experience[0].bullets[0] in inputs.output_text["body"]
+    assert "sinead.osampla@example.com" not in inputs.output_text["body"]
+    assert "sinead.osampla@example.com" not in inputs.output_text["header"]
+    # No images on either side until ticket 06's template says otherwise.
+    assert inputs.output_image_hashes == []
+    assert inputs.template_image_hashes == []
 
 
 @corruptions
@@ -67,7 +79,7 @@ def test_a_corruption_fails_every_metric_inside_its_blast_radius_and_no_other(
 ):
     candidate = load_candidate(path)
     try:
-        damaged = corruption.damage(fake_pipeline(candidate))
+        damaged = corruption.damage(candidate, fake_pipeline(candidate))
     except NotApplicable as why:
         pytest.skip(str(why))
     inputs = metric_inputs(candidate, damaged)
@@ -91,7 +103,7 @@ def test_a_corruption_moves_precision_and_recall_in_its_declared_direction(
     # falling when only precision should) is caught here, not by the blast radius.
     candidate = load_candidate(path)
     try:
-        damaged = corruption.damage(fake_pipeline(candidate))
+        damaged = corruption.damage(candidate, fake_pipeline(candidate))
     except NotApplicable as why:
         pytest.skip(str(why))
     inputs = metric_inputs(candidate, damaged)

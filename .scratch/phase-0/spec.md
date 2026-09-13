@@ -112,6 +112,7 @@ Actors: the *maintainer* (Kieran, building the demo), the *reviewer* (an intervi
 - `cvr.models`: `CVContent`, `ExperienceEntry`, `EducationEntry`, `DateValue`.
 - `cvr.eval`: metric functions and their result types (`Finding`, `PiiHit`, `PlacementReport`). The runner and report assembly are Phase 1.
 - `cvr.golden`: `Candidate`, `PII`, `Tag`, the loader, the four Layouts, the generate command.
+- `cvr.template`: the builder, `fill`, and the template-text extractor. (Added during ticket 06; it depends on `models` and `text` only.)
 
 ### Canonicalisation
 

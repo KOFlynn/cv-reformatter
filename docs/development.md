@@ -30,7 +30,7 @@ uv run pytest -x                 # stop at the first failure
 
 No test calls an LLM or opens a `.docx` in a metric; see `CLAUDE.md` for the working rules.
 
-`tests/golden/docx_text.py` is a test-side helper, not a package: `tests/golden/test_*.py` import it as `from docx_text import all_text`, which works because pytest's default import mode puts each test file's directory on `sys.path`.
+`tests/docx_text.py` is a test-side helper, not a package: the golden and template tests import it as `from docx_text import all_text`, which works because the root `tests/conftest.py` makes pytest put `tests/` on `sys.path`.
 
 ## Golden set
 
@@ -40,6 +40,14 @@ uv run python -m cvr.golden.generate --out DIR   # somewhere else, for a look wi
 ```
 
 Each pair is `<candidate-id>__<layout-name>.docx` plus `.manifest.json`. Output is byte-stable, so rerunning over unchanged code rewrites identical files and `git status` stays clean. After any change to a Layout or a Candidate, regenerate and commit the result: `tests/golden/test_generate.py` fails if the committed pairs differ from a fresh generation.
+
+## Template
+
+```
+uv run python -m cvr.template.build              # rebuild templates/fictitious_recruitment.docx from the script
+```
+
+The template is built by script and never hand-edited (ADR-0006): Word splits docxtpl tags across runs as you type them. After any change to `src/cvr/template/build.py`, rebuild and commit the result; `tests/template/test_build.py` fails if the committed file's text and tags differ from a fresh build. `cvr.template.fill(content, unplaced)` renders it, and `cvr.template.template_tokens()` reads its fixed words back out for the eval whitelist.
 
 ## Lint and format
 
@@ -74,9 +82,10 @@ uv run ruff format . && uv run ruff check . && uv run pytest
 
 | | |
 |---|---|
-| Package | `src/cvr/` (`text`, `models`, `eval`, `golden`) |
+| Package | `src/cvr/` (`text`, `models`, `eval`, `golden`, `template`) |
 | Tests | `tests/`, mirroring the package (`tests/text/`, `tests/eval/`, ...) |
 | Golden set | `fixtures/candidates/*.json` (ground truth), `fixtures/generated/` (documents and manifests, committed) |
+| Template | `templates/fictitious_recruitment.docx`, built by `src/cvr/template/build.py` and committed |
 | Specs and tickets | `.scratch/<feature>/spec.md`, `.scratch/<feature>/issues/NN-*.md` |
 | Glossary | `CONTEXT.md` |
 | Decisions | `docs/adr/` |

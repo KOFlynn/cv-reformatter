@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**Phase 0 — spec, template, golden set, eval metrics.** The scaffold exists: a `uv` project, the `cvr` package with `text`, `models`, `eval` and `golden` homes, pytest, ruff and a GitHub Actions workflow. `cvr.text` (`CONFUSABLES`, `canonicalise`, `tokenise`), `cvr.models` (`CVContent`, `ExperienceEntry`, `EducationEntry`, `DateValue`), `cvr.golden` (`Candidate`, `PII`, `Tag`, `load_candidates` over `fixtures/candidates/`, c01 committed; the `Layout` base with its manifest, the single-column Layout, and `python -m cvr.golden.generate` writing `fixtures/generated/<id>__<layout>.docx` + `.manifest.json`, c01's pair committed) and the multiset and structural metrics of `cvr.eval` (`Finding`, `added_tokens`, `dropped_tokens`, `appendix_rate`; `placement_accuracy` and `ordering_report` over the shared two-pass entry alignment in `cvr.eval.alignment`, with leaves by field type in `cvr.eval.leaves`; the fake pipeline and corruption table with blast radii and direction under `tests/eval/`) are built; the other three Layouts, the template, the remaining metrics (provenance, punctuation fidelity, PII leak, image leak) and the remaining Candidates are in progress. The Phase 0 spec and its tickets are under `.scratch/phase-0/`. The pipeline (parse, label, verify, transform, render, api) is Phase 1 and does not exist yet.
+**Phase 0 — spec, template, golden set, eval metrics.** The scaffold exists: a `uv` project, the `cvr` package with `text`, `models`, `eval`, `golden` and `template` homes, pytest, ruff and a GitHub Actions workflow. `cvr.text` (`CONFUSABLES`, `canonicalise`, `tokenise`), `cvr.models` (`CVContent`, `ExperienceEntry`, `EducationEntry`, `DateValue`; `PII`, `Referee`, `Personal` and the `RemovalRule` ids, re-exported by `cvr.golden`), `cvr.golden` (`Candidate`, `Tag`, `load_candidates` over `fixtures/candidates/`, c01 committed; the `Layout` base with its manifest, the single-column Layout, and `python -m cvr.golden.generate` writing `fixtures/generated/<id>__<layout>.docx` + `.manifest.json`, c01's pair committed), the multiset and structural metrics of `cvr.eval` (`Finding`, `added_tokens`, `dropped_tokens`, `appendix_rate`; `placement_accuracy` and `ordering_report` over the shared two-pass entry alignment in `cvr.eval.alignment`, with leaves by field type in `cvr.eval.leaves`; `pii_leak` returning `PiiHit`s and `image_leak`; the fake pipeline and corruption table with blast radii and direction under `tests/eval/`) and `cvr.template` (`python -m cvr.template.build` writing `templates/fictitious_recruitment.docx`, committed and never hand-edited; `fill(content, unplaced)` through docxtpl; `template_text`/`template_tokens` extracted from the built file for the eval whitelist) are built; the other three Layouts, the remaining metrics (provenance, punctuation fidelity) and the remaining Candidates are in progress. The Phase 0 spec and its tickets are under `.scratch/phase-0/`. The pipeline (parse, label, verify, transform, render, api) is Phase 1 and does not exist yet.
 
 ## Commands
 
@@ -22,7 +22,7 @@ uv run ruff format .          # format (CI runs --check)
 
 CI (`.github/workflows/ci.yml`) runs sync, lint, format check and tests on every push and pull request. The fuller command reference (dependency management, venv activation, useful pytest flags) is `docs/development.md`.
 
-Package layout under `src/cvr/`: `text` and `models` sit at the bottom; `eval` and `golden` depend on them and never on each other. `cvr.text` is standard library only.
+Package layout under `src/cvr/`: `text` and `models` sit at the bottom; `eval`, `golden` and `template` depend on them and never on each other. `cvr.text` is standard library only.
 
 ## What this is
 
@@ -55,9 +55,9 @@ A portfolio demo (not a real product, no real users, no real CVs) that reformats
 Layout (brief §13, adjusted by the Phase 0 spec so that `cvr` is the one import root and data/config directories hold only data and config):
 
 ```
-src/cvr/{text,models,eval,golden}/                              # Phase 0 (exists)
+src/cvr/{text,models,eval,golden,template}/                     # Phase 0 (exists)
 src/cvr/{parse,label,verify,transform,render,graph,api,mcp}/    # Phase 1+
-templates/fictitious_recruitment.docx
+templates/fictitious_recruitment.docx                           # exists, built by src/cvr/template/build.py
 fixtures/candidates/*.json
 fixtures/generated/*.docx + manifests
 eval/{thresholds.yaml,report.json}                              # config and the gitignored generated report

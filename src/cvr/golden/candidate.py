@@ -9,48 +9,20 @@ from enum import StrEnum
 from pydantic import Field
 
 from cvr.models import (
+    PII,
     CVContent,
     DateValue,
     EducationEntry,
     ExperienceEntry,
+    Personal,
+    Referee,
     StrictModel,
 )
 from cvr.text import canonicalise
 
+# PII, Personal and Referee are defined in cvr.models (eval needs them too) and
+# re-exported here so the golden set remains the one place to import them from.
 __all__ = ["PII", "Candidate", "Personal", "Referee", "Tag"]
-
-
-class Referee(StrictModel):
-    """Removed under RM_REFEREE: the name, role and every contact line."""
-
-    name: str
-    role: str | None = None
-    contact: list[str] = Field(default_factory=list)
-
-
-class Personal(StrictModel):
-    """Removed under RM_PERSONAL."""
-
-    nationality: str | None = None
-    marital_status: str | None = None
-
-
-class PII(StrictModel):
-    """Values that must be removed, grouped so each key maps to exactly one removal rule.
-
-    ``phone`` RM_PHONE, ``email`` RM_EMAIL, ``address`` RM_ADDRESS (one line per
-    item), ``urls`` RM_URL, ``dob`` RM_DOB, ``personal`` RM_PERSONAL, ``referees``
-    RM_REFEREE. There is no ``photo`` key: the photo is a Layout decision and
-    RM_PHOTO has no Candidate value, as RM_HEADING has none.
-    """
-
-    phone: str | None = None
-    email: str | None = None
-    address: list[str] = Field(default_factory=list)
-    urls: list[str] = Field(default_factory=list)
-    dob: str | None = None
-    personal: Personal = Field(default_factory=Personal)
-    referees: list[Referee] = Field(default_factory=list)
 
 
 class Tag(StrEnum):

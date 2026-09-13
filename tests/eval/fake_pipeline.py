@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 
 from cvr.golden import PII, Candidate
 from cvr.models import CVContent, EducationEntry, ExperienceEntry
+from cvr.template import template_tokens
 from cvr.text import tokenise
 
 __all__ = [
@@ -29,14 +30,19 @@ __all__ = [
 
 @dataclass(frozen=True)
 class PipelineResult:
-    """What a real pipeline hands the renderer: placed content plus unplaced text."""
+    """What a real pipeline hands the renderer: placed content plus unplaced
+    text, and what the rendered document then carries outside the body: the
+    header lines and the content hashes of every embedded image."""
 
     content: CVContent
     unplaced: list[str] = field(default_factory=list)
+    header: list[str] = field(default_factory=list)
+    image_hashes: list[str] = field(default_factory=list)
 
 
 def fake_pipeline(candidate: Candidate) -> PipelineResult:
-    """The honest pipeline: the Candidate's content and its unplaceable fragments."""
+    """The honest pipeline: the Candidate's content and its unplaceable
+    fragments, nothing of its own in the header, and no images."""
     return PipelineResult(candidate.content, list(candidate.unplaceable))
 
 
@@ -84,10 +90,18 @@ class MetricInputs:
     date_map: list[tuple[str, str]]
     removed_tokens: list[str]
     appendix_tokens: list[str]
+    output_text: dict[str, str]  # part name (body, header) to its text
+    output_image_hashes: list[str]
+    template_image_hashes: list[str]
 
 
-# Extracted from the template at run time once ticket 06 builds it.
-TEMPLATE_TOKENS: list[str] = []
+# The template's own fixed words (headings, wordmark, footer, banner), read
+# from the built template so the whitelist cannot drift from it. A real
+# renderer emits these alongside the content, so the honest pipeline does too.
+TEMPLATE_TOKENS: list[str] = template_tokens()
+# The template carries no images (tests/template asserts this), so any
+# image hash in the output is a leak.
+TEMPLATE_IMAGE_HASHES: list[str] = []
 
 
 def metric_inputs(candidate: Candidate, result: PipelineResult) -> MetricInputs:
@@ -99,7 +113,13 @@ def metric_inputs(candidate: Candidate, result: PipelineResult) -> MetricInputs:
         source_content_tokens=_tokens([*source_leaves, *candidate.unplaceable]),
         output_content=result.content,
         output_units=output_units,
-        output_tokens=[*_tokens(output_units), *TEMPLATE_TOKENS],
+        # Everything printed: the body, whatever reached the header, and the
+        # template's own text.
+        output_tokens=[
+            *_tokens(output_units),
+            *_tokens(result.header),
+            *TEMPLATE_TOKENS,
+        ],
         template_tokens=list(TEMPLATE_TOKENS),
         date_map=[
             (date, date)
@@ -108,6 +128,12 @@ def metric_inputs(candidate: Candidate, result: PipelineResult) -> MetricInputs:
         ],
         removed_tokens=_tokens(removed),
         appendix_tokens=_tokens(result.unplaced),
+        output_text={
+            "body": "\n".join([*output_units, *result.unplaced]),
+            "header": "\n".join(result.header),
+        },
+        output_image_hashes=list(result.image_hashes),
+        template_image_hashes=list(TEMPLATE_IMAGE_HASHES),
     )
 
 
