@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 (Tracer bullet — c01 through the single-column Layout to source coverage)
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 - [ ] Text boxes are real `w:txbxContent` elements that open in Word and hold the contact block and skills
 - [ ] Layout implemented per the style matrix's third column and registered with the generator
