@@ -2,29 +2,17 @@
 
 ## Review before merging
 
-- Ticket 13 changed test semantics: an inapplicable corruption is now a **failure, not a skip**, and the apostrophe row falls back to a hyphen→en-dash swap from the confusable table on Candidates without an apostrophe (989 passed, 0 skipped). This constrains future Candidates (documented in the spec); confirm you agree with fail-over-skip.
-- Ticket 13 edited `docs/project-brief.md` (status line and §10 Phase 0 checkboxes) and `.scratch/phase-0/spec.md` (appendix-row direction wording, future-Candidate constraint). The brief is the source of truth — check those edits.
-- Ticket 13 rewrote `tests/golden/test_generate.py` to module-scoped generation fixtures (tests/golden ~4.5 min → ~12 s). Behaviourally equivalent per its report; worth a glance since it is the regression net for all 48 pairs.
-
-
-- Ticket 12: the header-footer date range is joined with ` to ` (`2022-03 to 2026-07`) rather than a dash, because a dash between dash-separated dates is ambiguous and an en dash is an off-column confusable. Confirm you are happy with that reading of the `2020-01` style.
-- Ticket 12: the golden regeneration test is O(n²) (two full `generate_all` per stem); `tests/golden` now takes ~4.5 min locally. Worth a follow-up to generate once per session.
-
-
-- Ticket 11: "opens in Word" is evidenced with LibreOffice headless only (Word is not on the dev machine). Open `fixtures/generated/c01__text-box.docx` in Word once to confirm the two VML text boxes render.
-
-
-- Ticket 07: the "straighten a curly apostrophe" corruption row runs only in the *curling* direction (no Candidate carries a curly apostrophe in a leaf, since confusables are a Layout decision), and is skipped for 3 Candidates with no apostrophe at all. The specified straightening direction is unexercised by the fake pipeline until a Candidate has a curly apostrophe in its expected content, or the real Phase 1 pipeline runs on the two-column/header-footer documents.
-- Ticket 07 edited `.scratch/phase-0/spec.md` (one corruption-table row and a note, following ticket 05's precedent) — confirm that is acceptable.
-- Ticket 10: the two-column docx SHAs were produced on Windows; the branch CI run on Linux (push run on `562c39c`) passed, which is the confirmation that the committed bytes are platform-stable.
-
-
 - **Ticket 09: maintainer must review all eleven candidate fixtures (`fixtures/candidates/c02.json`–`c12.json`) before merging release.** The "Maintainer sign-off recorded in the PR" checkbox is deliberately unticked on PR #11. Orch spot-checked names/phones/emails/URLs/addresses: all synthetic (555 numbers, `example.*` domains, `-fictional` handles).
 - Ticket 09 ⇄ 08: seven candidates' address lines had to be reworked (street / non-content road or suburb / postcode, no bare town or county line) because `pii_leak`'s address rule flags any address line that also appears as a work or education location. Design question for Phase 1: real CVs routinely say "Cork" in both places, so the zero PII gate may need a narrower address rule (e.g. only lines with a digit/postcode, or the full address in sequence) — the maintainer should decide before the Phase 1 baseline.
-
-
 - Ticket 08: `pii_leak` blind spot — a one-word address line that is also a job location (e.g. `Cork`) will flag the location; the fixtures from ticket 09 should avoid plain place names as address lines (orch checks this on 09; see Decisions).
-
+- Ticket 13 changed test semantics: an inapplicable corruption is now a **failure, not a skip**, and the apostrophe row falls back to a hyphen→en-dash swap from the confusable table on Candidates without an apostrophe (989 passed, 0 skipped). This constrains future Candidates (documented in the spec); confirm you agree with fail-over-skip.
+- Ticket 13 edited `docs/project-brief.md` (status line and §10 Phase 0 checkboxes) and `.scratch/phase-0/spec.md` (appendix-row direction wording, future-Candidate constraint). The brief is the source of truth — check those edits.
+- Ticket 07: the "straighten a curly apostrophe" corruption row runs only in the *curling* direction (no Candidate carries a curly apostrophe in a leaf, since confusables are a Layout decision), and is skipped for 3 Candidates with no apostrophe at all. The specified straightening direction is unexercised by the fake pipeline until a Candidate has a curly apostrophe in its expected content, or the real Phase 1 pipeline runs on the two-column/header-footer documents.
+- Ticket 12: the header-footer date range is joined with ` to ` (`2022-03 to 2026-07`) rather than a dash, because a dash between dash-separated dates is ambiguous and an en dash is an off-column confusable. Confirm you are happy with that reading of the `2020-01` style.
+- Ticket 13 rewrote `tests/golden/test_generate.py` to module-scoped generation fixtures (tests/golden ~4.5 min → ~12 s). Behaviourally equivalent per its report; worth a glance since it is the regression net for all 48 pairs. This resolves the O(n²) regeneration concern raised under ticket 12.
+- Ticket 07 edited `.scratch/phase-0/spec.md` (one corruption-table row and a note, following ticket 05's precedent) — confirm that is acceptable.
+- Ticket 11: "opens in Word" is evidenced with LibreOffice headless only (Word is not on the dev machine). Open `fixtures/generated/c01__text-box.docx` in Word once to confirm the two VML text boxes render.
+- Ticket 10: the two-column docx SHAs were produced on Windows; the branch CI run on Linux (push run on `562c39c`) passed, which is the confirmation that the committed bytes are platform-stable.
 
 ## Per-ticket summary
 
