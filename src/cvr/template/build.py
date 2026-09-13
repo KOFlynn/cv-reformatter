@@ -17,10 +17,15 @@ font, no images. The red review-appendix banner is the one visual element
 that matters for the demo.
 """
 
+import argparse
+from pathlib import Path
+
 from docx import Document
 from docx.document import Document as DocumentType
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.shared import Pt, RGBColor
+from docx.shared import Length, Pt, RGBColor
+from docx.text.paragraph import Paragraph
+from docx.text.run import Run
 
 from cvr.template.paths import TEMPLATE_PATH
 
@@ -47,69 +52,47 @@ def build_template() -> DocumentType:
     _run(section.footer.paragraphs[0], FOOTER, italic=True)
     section.footer.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
 
-    _tagged(document, "{{ name }}", style="Title")
+    _content(document, "{{ name }}", style="Title")
 
-    _tag(document, "{%p if profile %}")
-    _heading(document, "Profile")
-    _tag(document, "{%p for line in profile %}")
-    _tagged(document, "{{ line }}")
-    _tag(document, "{%p endfor %}")
-    _tag(document, "{%p endif %}")
-
-    _tag(document, "{%p if skills %}")
-    _heading(document, "Key Skills")
-    _tag(document, "{%p for skill in skills %}")
-    _tagged(document, "{{ skill }}", style="List Bullet")
-    _tag(document, "{%p endfor %}")
-    _tag(document, "{%p endif %}")
+    _list_section(document, "Profile", "profile")
+    _list_section(document, "Key Skills", "skills", style="List Bullet")
 
     _tag(document, "{%p if education %}")
-    _heading(document, "Education")
+    document.add_heading("Education", level=1)
     _tag(document, "{%p for entry in education %}")
-    _tagged(document, "{{ entry.qualification }}", bold=True)
-    _tagged(document, "{{ entry.institution }}")
+    _content(document, "{{ entry.qualification }}", bold=True)
+    _content(document, "{{ entry.institution }}")
     _date_line(document)
     _tag(document, "{%p for line in entry.details %}")
-    _tagged(document, "{{ line }}")
+    _content(document, "{{ line }}")
     _tag(document, "{%p endfor %}")
     _tag(document, "{%p endfor %}")
     _tag(document, "{%p endif %}")
 
     _tag(document, "{%p if experience %}")
-    _heading(document, "Experience")
+    document.add_heading("Experience", level=1)
     _tag(document, "{%p for entry in experience %}")
-    _tagged(document, "{{ entry.title }}", bold=True)
-    _tagged(
+    _content(document, "{{ entry.title }}", bold=True)
+    _content(
         document,
         "{{ entry.employer }}{% if entry.location %}, {{ entry.location }}{% endif %}",
     )
     _date_line(document)
     _tag(document, "{%p for bullet in entry.bullets %}")
-    _tagged(document, "{{ bullet }}", style="List Bullet")
+    _content(document, "{{ bullet }}", style="List Bullet")
     _tag(document, "{%p endfor %}")
     _tag(document, "{%p endfor %}")
     _tag(document, "{%p endif %}")
 
-    _tag(document, "{%p if certifications %}")
-    _heading(document, "Certifications")
-    _tag(document, "{%p for line in certifications %}")
-    _tagged(document, "{{ line }}", style="List Bullet")
-    _tag(document, "{%p endfor %}")
-    _tag(document, "{%p endif %}")
-
-    _tag(document, "{%p if additional %}")
-    _heading(document, "Additional Information")
-    _tag(document, "{%p for line in additional %}")
-    _tagged(document, "{{ line }}")
-    _tag(document, "{%p endfor %}")
-    _tag(document, "{%p endif %}")
+    _list_section(document, "Certifications", "certifications", style="List Bullet")
+    _list_section(document, "Additional Information", "additional")
 
     # The review appendix: present only when something was not placed, and
     # unmissable when it is (ADR-0004, review by exception).
     _tag(document, "{%p if unplaced %}")
     _run(document.add_paragraph(), BANNER, bold=True, colour=RED, size=Pt(20))
     _tag(document, "{%p for fragment in unplaced %}")
-    _tagged(document, "{{ fragment }}")
+    _content(document, "{{ fragment }}")
     _tag(document, "{%p endfor %}")
     _tag(document, "{%p endif %}")
 
@@ -125,7 +108,15 @@ def _style(document: DocumentType) -> None:
         document.styles[name].font.color.rgb = ACCENT
 
 
-def _run(paragraph, text: str, *, bold=False, italic=False, colour=None, size=None):
+def _run(
+    paragraph: Paragraph,
+    text: str,
+    *,
+    bold: bool = False,
+    italic: bool = False,
+    colour: RGBColor | None = None,
+    size: Length | None = None,
+) -> Run:
     # Only set what is asked for: ``run.bold = False`` writes an explicit
     # off-toggle into the XML rather than nothing.
     run = paragraph.add_run(text)
@@ -145,15 +136,24 @@ def _tag(document: DocumentType, tag: str) -> None:
     document.add_paragraph().add_run(tag)
 
 
-def _tagged(
+def _content(
     document: DocumentType, text: str, *, style: str | None = None, bold: bool = False
 ) -> None:
-    """A content paragraph whose text is (or contains) inline Jinja tags."""
+    """A content paragraph whose text is (or contains) inline Jinja expressions."""
     _run(document.add_paragraph(style=style), text, bold=bold)
 
 
-def _heading(document: DocumentType, text: str) -> None:
-    document.add_heading(text, level=1)
+def _list_section(
+    document: DocumentType, heading: str, field: str, *, style: str | None = None
+) -> None:
+    """A heading over one paragraph per item of a list field, all of it
+    absent when the list is empty."""
+    _tag(document, f"{{%p if {field} %}}")
+    document.add_heading(heading, level=1)
+    _tag(document, f"{{%p for line in {field} %}}")
+    _content(document, "{{ line }}", style=style)
+    _tag(document, "{%p endfor %}")
+    _tag(document, "{%p endif %}")
 
 
 def _date_line(document: DocumentType) -> None:
@@ -161,7 +161,7 @@ def _date_line(document: DocumentType) -> None:
     # is its DateValue.expected. Omitted when neither date exists; one date
     # alone prints without the dash, mirroring the Layouts.
     _tag(document, "{%p if entry.start or entry.end %}")
-    _tagged(
+    _content(
         document,
         "{% if entry.start %}{{ entry.start.expected }}{% endif %}"
         "{% if entry.start and entry.end %} – {% endif %}"
@@ -170,11 +170,15 @@ def _date_line(document: DocumentType) -> None:
     _tag(document, "{%p endif %}")
 
 
-def main() -> None:
-    TEMPLATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    build_template().save(TEMPLATE_PATH)
-    print(f"wrote {TEMPLATE_PATH}")
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--out", type=Path, default=TEMPLATE_PATH)
+    args = parser.parse_args(argv)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    build_template().save(args.out)
+    print(args.out)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -1,9 +1,10 @@
-"""Deliberately dumb text extraction for generator tests.
+"""Deliberately dumb text extraction for document tests: generated sources and
+the rendered template alike.
 
 Walks every ``w:t`` element in every ``word/*.xml`` part of a ``.docx``: body,
 tables, headers, footers and text boxes alike, with no structure and no
-reading order. Being this dumb is the point: a Layout can put text anywhere
-python-docx can or cannot reach and the coverage test still sees it.
+reading order. Being this dumb is the point: a Layout or the template can put
+text anywhere python-docx can or cannot reach and the test still sees it.
 """
 
 import io

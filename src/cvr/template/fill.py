@@ -7,7 +7,6 @@ construction: this module has no text of its own.
 """
 
 from io import BytesIO
-from pathlib import Path
 
 from docxtpl import DocxTemplate
 
@@ -17,15 +16,13 @@ from cvr.template.paths import TEMPLATE_PATH
 __all__ = ["fill"]
 
 
-def fill(
-    content: CVContent, unplaced: list[str], template: Path = TEMPLATE_PATH
-) -> bytes:
+def fill(content: CVContent, unplaced: list[str]) -> bytes:
     """The template rendered with ``content`` and the review appendix, as ``.docx`` bytes.
 
     Autoescape is on so that ``&`` and ``<`` in a candidate's text land in the
     document as themselves rather than corrupting the XML.
     """
-    document = DocxTemplate(template)
+    document = DocxTemplate(TEMPLATE_PATH)
     document.render(
         {**content.model_dump(), "unplaced": list(unplaced)}, autoescape=True
     )
