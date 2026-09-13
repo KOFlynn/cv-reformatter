@@ -4,12 +4,12 @@
 
 **Blocked by:** 06 (Fictitious Recruitment template, built by script)
 
-**Status:** ready-for-agent
+**Status:** in-review
 
-- [ ] `provenance_violations` implemented as specified; template units extracted from the template, never hardcoded
-- [ ] `punctuation_fidelity` implemented on raw text; findings name the unit and the differing character
-- [ ] Hand-made cases: unit spanning two blocks is a violation; template heading as a unit is not; mapped date is not; a unit that is a template word used as filler in a bullet is a violation
-- [ ] Fake pipeline supplies output units, source blocks (the leaves themselves, since there is no document) and raw pairs
-- [ ] Corruption: swap two words in a bullet fails provenance and placement; added and dropped pass
-- [ ] Corruption: straighten a curly apostrophe fails punctuation fidelity only; provenance passes
-- [ ] Both rows are documented in the test as the evidence for ADR-0007
+- [x] `provenance_violations` implemented as specified; template units extracted from the template, never hardcoded
+- [x] `punctuation_fidelity` implemented on raw text; findings name the unit and the differing character
+- [x] Hand-made cases: unit spanning two blocks is a violation; template heading as a unit is not; mapped date is not; a unit that is a template word used as filler in a bullet is a violation
+- [x] Fake pipeline supplies output units, source blocks (the leaves themselves, since there is no document) and raw pairs
+- [x] Corruption: swap two words in a bullet fails provenance and placement; added and dropped pass
+- [x] Corruption: straighten a curly apostrophe fails punctuation fidelity only; provenance passes
+- [x] Both rows are documented in the test as the evidence for ADR-0007

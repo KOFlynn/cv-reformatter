@@ -14,14 +14,15 @@ from dataclasses import dataclass, field
 
 from cvr.golden import PII, Candidate
 from cvr.models import CVContent, EducationEntry, ExperienceEntry
-from cvr.template import template_tokens
-from cvr.text import tokenise
+from cvr.template import template_text, template_tokens
+from cvr.text import canonicalise, tokenise
 
 __all__ = [
     "MetricInputs",
     "PipelineResult",
     "fake_pipeline",
     "leaves",
+    "locate",
     "metric_inputs",
     "pii_values",
     "unplaceable_share",
@@ -83,16 +84,19 @@ class MetricInputs:
 
     source_tokens: list[str]
     source_content_tokens: list[str]  # source minus rule-removed
+    source_blocks: list[str]  # the leaves themselves, since there is no document
     output_content: CVContent  # the placed content; the Candidate's is expected
     output_units: list[str]
     output_tokens: list[str]
     template_tokens: list[str]
+    template_units: list[str]
     date_map: list[tuple[str, str]]
     removed_tokens: list[str]
     appendix_tokens: list[str]
     output_text: dict[str, str]  # part name (body, header) to its text
     output_image_hashes: list[str]
     template_image_hashes: list[str]
+    pairs: list[tuple[str, str]]  # (raw located span, raw rendered unit)
 
 
 # The template's own fixed words (headings, wordmark, footer, banner), read
@@ -104,13 +108,39 @@ TEMPLATE_TOKENS: list[str] = template_tokens()
 TEMPLATE_IMAGE_HASHES: list[str] = []
 
 
+TEMPLATE_UNITS: list[str] = template_text()
+
+
+def locate(unit: str, blocks: Iterable[str]) -> str | None:
+    """The raw source span a rendered unit came from, or ``None``.
+
+    Stands in for Phase 1's verifier: a unit is located by canonicalised
+    match, as provenance finds it, and the located text is returned raw so
+    punctuation fidelity can compare what the renderer was given with what
+    it produced. Every unit here is a whole leaf, so the match is whole-block
+    equality, narrower than provenance's substring rule; a unit that is only
+    part of a block has no span here. A block equal to the unit as rendered
+    wins over one that is only canonically equal, so two leaves differing
+    only in punctuation are each paired with their own.
+    """
+    text = canonicalise(unit)
+    matches = [block for block in blocks if canonicalise(block) == text]
+    for block in matches:
+        if block == unit:
+            return block
+    return matches[0] if matches else None
+
+
 def metric_inputs(candidate: Candidate, result: PipelineResult) -> MetricInputs:
     source_leaves = leaves(candidate.content)
     removed = pii_values(candidate.pii)
+    source_blocks = [*source_leaves, *removed, *candidate.unplaceable]
     output_units = leaves(result.content)
+    located = ((locate(unit, source_blocks), unit) for unit in output_units)
     return MetricInputs(
-        source_tokens=_tokens([*source_leaves, *removed, *candidate.unplaceable]),
+        source_tokens=_tokens(source_blocks),
         source_content_tokens=_tokens([*source_leaves, *candidate.unplaceable]),
+        source_blocks=source_blocks,
         output_content=result.content,
         output_units=output_units,
         # Everything printed: the body, whatever reached the header, and the
@@ -121,6 +151,7 @@ def metric_inputs(candidate: Candidate, result: PipelineResult) -> MetricInputs:
             *TEMPLATE_TOKENS,
         ],
         template_tokens=list(TEMPLATE_TOKENS),
+        template_units=list(TEMPLATE_UNITS),
         date_map=[
             (date, date)
             for entry in [*candidate.content.education, *candidate.content.experience]
@@ -134,6 +165,9 @@ def metric_inputs(candidate: Candidate, result: PipelineResult) -> MetricInputs:
         },
         output_image_hashes=list(result.image_hashes),
         template_image_hashes=list(TEMPLATE_IMAGE_HASHES),
+        # A unit provenance cannot locate has no span to compare; it is
+        # provenance's finding, not fidelity's.
+        pairs=[(span, unit) for span, unit in located if span is not None],
     )
 
 
