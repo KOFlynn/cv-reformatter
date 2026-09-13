@@ -4,11 +4,15 @@
 
 **Blocked by:** 04 (Multiset metrics and the fake pipeline)
 
-**Status:** in-progress
+**Status:** in-review
 
-- [ ] Builder script and built template both committed; a note in the builder says never hand-edit the output
-- [ ] Rebuilding produces identical text and tags
-- [ ] Smoke test renders with c01's content: opens; contains the name and one bullet; no `{{` or `{%` survives; profile heading absent when profile is empty; banner present iff `unplaced` non-empty; footer text present
-- [ ] A template-text extractor returns the template's fixed words minus Jinja tags, never a hardcoded list
-- [ ] Fake pipeline uses the extracted template tokens; row 0 and all existing corruptions still pass
-- [ ] The smoke test is written so Phase 1's render tests can reuse it unchanged
+- [x] Builder script and built template both committed; a note in the builder says never hand-edit the output
+- [x] Rebuilding produces identical text and tags
+- [x] Smoke test renders with c01's content: opens; contains the name and one bullet; no `{{` or `{%` survives; profile heading absent when profile is empty; banner present iff `unplaced` non-empty; footer text present
+- [x] A template-text extractor returns the template's fixed words minus Jinja tags, never a hardcoded list
+- [x] Fake pipeline uses the extracted template tokens; row 0 and all existing corruptions still pass
+- [x] The smoke test is written so Phase 1's render tests can reuse it unchanged
+
+## Comments
+
+**Implementation notes (ticket 06):** the builder lives at `src/cvr/template/build.py` (`python -m cvr.template.build`) rather than ADR-0006's `templates/build_template.py`, per the spec's one-import-root rule; ADR-0006 carries an amendment. The wordmark sits in the Word page header and the name is the body's Title paragraph. A single date (start or end alone) prints without the dash, mirroring the Layouts. The build is text-deterministic but not byte-stable (zip timestamps), so rebuild only when the script changes; `tests/template/test_build.py` fails when the committed file drifts.
