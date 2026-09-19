@@ -1,0 +1,26 @@
+{
+    "statusLine": {
+        "type": "command",
+        "command": "npx ccstatusline@latest"
+    },
+    "permissions": {
+        "deny": [
+            "AskUserQuestion",
+            "CronCreate",
+            "CronDelete",
+            "CronList",
+            "DesignSync",
+            "EnterPlanMode",
+            "ExitPlanMode",
+            "PushNotification",
+            "RemoteTrigger",
+            "ReportFindings",
+            "ScheduleWakeup",
+            "SendFeedback"
+        ]
+    },
+    "disableClaudeAiConnectors": true,
+    "disableBundledSkills": true,
+    "disableWorkflows": true,
+    "disableArtifact": true
+}
