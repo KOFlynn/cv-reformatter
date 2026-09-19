@@ -2,12 +2,16 @@
 
 import string
 import unicodedata
+from collections.abc import Iterator
+from dataclasses import dataclass
 from types import MappingProxyType
 
 __all__ = [
     "CONFUSABLES",
     "SEPARATORS",
+    "Canonical",
     "canonicalise",
+    "canonicalise_with_offsets",
     "is_separator_residue",
     "tokenise",
 ]
@@ -86,6 +90,78 @@ def canonicalise(text: str) -> str:
     composed = unicodedata.normalize("NFC", text)
     mapped = composed.translate(_CONFUSABLE_TRANSLATION)
     return " ".join(mapped.split())
+
+
+@dataclass(frozen=True, slots=True)
+class Canonical:
+    """`canonicalise(raw)` together with the canonical-to-raw offset map.
+
+    `offsets[i]` is the raw index where the source of canonical character
+    `i` begins and `ends[i]` the raw index just past it. Both are needed:
+    a composed letter, an ellipsis or a collapsed run of whitespace is one
+    canonical character from several raw ones, so the end of a slice cannot
+    be found from a start alone.
+    """
+
+    raw: str
+    text: str
+    offsets: tuple[int, ...]
+    ends: tuple[int, ...]
+
+    def raw_slice(self, start: int, end: int) -> str:
+        """The raw text behind canonical `[start, end)`: a contiguous raw
+        range, so deleted invisibles and collapsed whitespace inside it come
+        back too."""
+        if start >= end:
+            return ""
+        return self.raw[self.offsets[start] : self.ends[end - 1]]
+
+
+def canonicalise_with_offsets(text: str) -> Canonical:
+    """`canonicalise`, keeping the map from canonical to raw index as it goes.
+
+    The map is built during canonicalisation, never reconstructed after it:
+    NFC composes each base-plus-marks sequence onto the base's raw index,
+    the table substitutes one-to-one, one-to-many (ellipsis) or one-to-zero
+    (invisibles), and a run of whitespace collapses onto its first raw
+    character. Same string as `canonicalise`, asserted over the golden set.
+    """
+    chars: list[str] = []
+    offsets: list[int] = []
+    ends: list[int] = []
+    space: tuple[int, int] | None = None  # the raw range of pending whitespace
+    for start, end, composed in _composed_sequences(text):
+        for char in composed.translate(_CONFUSABLE_TRANSLATION):
+            if char.isspace():
+                space = (space[0], end) if space else (start, end)
+            else:
+                if space and chars:
+                    chars.append(" ")
+                    offsets.append(space[0])
+                    ends.append(space[1])
+                space = None
+                chars.append(char)
+                offsets.append(start)
+                ends.append(end)
+    return Canonical(
+        raw=text, text="".join(chars), offsets=tuple(offsets), ends=tuple(ends)
+    )
+
+
+def _composed_sequences(text: str) -> Iterator[tuple[int, int, str]]:
+    """Split `text` at every starter (a character with combining class zero)
+    and NFC each piece: `(raw start, raw end, composed)`.
+
+    NFC only composes a base with the combining marks that follow it, so
+    composing the pieces one at a time gives the string `canonicalise`
+    gives. (Hangul jamo, whose syllable parts are all starters, are the
+    exception; no CV in the golden set carries them.)
+    """
+    start = 0
+    for index in range(1, len(text) + 1):
+        if index == len(text) or unicodedata.combining(text[index]) == 0:
+            yield start, index, unicodedata.normalize("NFC", text[start:index])
+            start = index
 
 
 def is_separator_residue(text: str) -> bool:
