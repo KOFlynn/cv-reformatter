@@ -1,0 +1,20 @@
+# 03: Verify through the claim ledger
+
+**What to build:** The `verify` node and the types that bind labeller and verifier together. Input: the blocks from ticket 02 and a *labelling result*: either a reference-shaped content tree (every leaf a `{block_id, quote}` reference, `quote` mandatory, entries carrying one `dates` reference for the whole range block) plus a `removals` list of `{rule, block_id, quote}` with `rule` a closed enumeration of the eight text rules, or a *labelling failure*. Output: `VerifiedContent` (the tree in `CVContent` shape with `Span`s and multi-span units in place of strings), a flat list of `(path, Span)` claims, per-block residue. Matching is on canonicalised text through ticket 01's offset map; slices are raw; no case-folding. One claim ledger per block of `(start, end, claimant)`, filled in this order and no other: LLM removals in schema order → regex backstop (email, phone, URL) over every block → content in tree-walk order (name, profile, skills, education, experience, certifications, additional; list order within). A repeated quote takes the next unclaimed occurrence. Content overlapping a removal is clipped (one piece at an edge, two mid-range → a multi-span unit). Content overlapping content is a conflict: the later claimant is rejected, the range stays unclaimed. A quote that cannot be located rejects that one leaf. Coverage runs last over the finished ledger, over the flat claim list, never the tree, and emits residue runs; a run made only of `SEPARATORS` is separator residue (logged, not unplaced); anything else is unplaced text. A vocabulary-only `RM_HEADING` backstop (the four Layouts' headings, common synonyms, "Curriculum Vitae"; case-folded; trailing colon stripped) applies only to blocks holding no placed content. A labelling failure yields an empty tree, every block residue, and the run flagged. ADR-0008 is written in this ticket: removals before content, conflicts loud, residue versus unplaced text, the separator set and the ampersand, the vocabulary-only backstop and why (a false removal is silent, a false appendix entry is loud), text-box order as an approximation.
+
+**Blocked by:** 01 (Text foundations), 02 (Parse)
+
+**Status:** ready-for-agent
+
+- [ ] Labelling-result types (reference tree mirroring `CVContent`, `Reference`, `RemovalLabel` with the closed `RemovalRule` enum, `LabellingFailure`) defined once and shared with ticket 07; the JSON schema they generate is strict-compatible (every property required, no additional properties, nullable not optional) and a test asserts that
+- [ ] Exact-match case places and slices raw; curly-versus-straight case matches on canonical text and the raw slice keeps the curly character
+- [ ] c06's duplicated skill: two identical quotes place at two occurrences; a third identical quote against a block with two occurrences is rejected
+- [ ] Unlocatable quote rejects exactly that leaf; the rest of the entry survives
+- [ ] Removal clipping: phone at the end of a bullet (c08's trap) yields a one-piece Span that is a prefix; a removal mid-range yields a two-piece multi-span unit, ascending and non-overlapping
+- [ ] Content conflict: the later claimant is rejected and the range is residue
+- [ ] The fill order verify-removals → backstop → verify-content → coverage is asserted by a test (a content claim over an email is clipped even when the LLM labelled no removal)
+- [ ] Regex backstop catches an email, a phone and a URL the labelling result did not mention; each is logged under its rule
+- [ ] `RM_HEADING` backstop removes "Work History:" from an unplaced block and leaves a bold job title alone; a block with placed content is never touched by it
+- [ ] Residue: `, ` between two placed skills is separator residue; a leftover `&` is unplaced text; all residue is in the log
+- [ ] Labelling failure: every block is residue, nothing is placed, the result carries `label_failed`
+- [ ] ADR-0008 written under `docs/adr/` in the ADR format; glossary terms in `CONTEXT.md` checked against the implementation (Claim, Residue, Separator, Backstop, Multi-span unit)
