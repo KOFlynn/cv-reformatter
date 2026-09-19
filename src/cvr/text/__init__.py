@@ -1,9 +1,16 @@
 """Text canonicalisation shared by every metric and Layout. Standard library only."""
 
+import string
 import unicodedata
 from types import MappingProxyType
 
-__all__ = ["CONFUSABLES", "canonicalise", "tokenise"]
+__all__ = [
+    "CONFUSABLES",
+    "SEPARATORS",
+    "canonicalise",
+    "is_separator_residue",
+    "tokenise",
+]
 
 # Character -> replacement. Layouts inject traps from this same table so the
 # traps and the canonicaliser cannot disagree.
@@ -49,6 +56,26 @@ CONFUSABLES = MappingProxyType(
 
 _CONFUSABLE_TRANSLATION = str.maketrans(dict(CONFUSABLES))
 
+# The replacement classes of the table whose members are separators: the
+# invisibles (mapped to nothing) are not, they are deleted before residue
+# is ever looked at.
+_SEPARATOR_MAPS = frozenset({"'", '"', "-", " "})
+
+# Characters that carry no content on their own. A run of residue made only
+# of these is separator residue, not unplaced text. The quote marks, dashes
+# and exotic spaces are the table's own, read from it so the two cannot
+# disagree. `&` is deliberately absent: it is a word in "M&S" and in
+# "Research & Development", so `&` standing alone is unplaced text.
+SEPARATORS = frozenset(
+    string.whitespace
+    + ",;:|/\\()[]."
+    + "-"
+    + "\u2022\u00b7\u25e6\u25aa\u2023\u25cb\u25a0"  # bullet glyphs
+    + "\uf0b7\uf0a7\uf0d8\uf0fc\uf076"  # Symbol-font Private-Use-Area bullets
+    + "'\""
+    + "".join(char for char, mapped in CONFUSABLES.items() if mapped in _SEPARATOR_MAPS)
+)
+
 
 def canonicalise(text: str) -> str:
     """NFC, then the confusable table, then whitespace collapse and trim.
@@ -59,6 +86,12 @@ def canonicalise(text: str) -> str:
     composed = unicodedata.normalize("NFC", text)
     mapped = composed.translate(_CONFUSABLE_TRANSLATION)
     return " ".join(mapped.split())
+
+
+def is_separator_residue(text: str) -> bool:
+    """Every character of `text` is a separator, so it is residue but not
+    unplaced text. Empty text is trivially so."""
+    return all(char in SEPARATORS for char in text)
 
 
 def _is_punctuation(char: str) -> bool:
