@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] `SEPARATORS` exported from `cvr.text`, standard library only, with a predicate "every character of this string is a separator"
 - [ ] Separator tests: a run of `, ` is separator residue; `&` alone is not; each PUA bullet is; `2:1` and `Languages:` are not (they contain non-separators)
