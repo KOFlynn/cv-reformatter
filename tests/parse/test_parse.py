@@ -5,20 +5,26 @@ for what the golden set does not exercise."""
 
 import io
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 from docx import Document
+from docx.document import Document as DocumentType
+from docx.enum.section import WD_SECTION
 from docx_text import all_text, image_count
 
+from cvr.golden import LAYOUTS as REGISTERED_LAYOUTS
+from cvr.golden.generate import GENERATED_DIR
+from cvr.golden.layouts.photo import placeholder_photo
 from cvr.models import Image, NormalisationRule, Removal, RemovalRule, SourceBlock
 from cvr.parse import ParsedDocument, parse
 from cvr.text import CONFUSABLES, canonicalise
 
-GENERATED_DIR = Path(__file__).resolve().parents[2] / "fixtures" / "generated"
 DOCUMENTS = sorted(GENERATED_DIR.glob("*.docx"))
 STEMS = [path.stem for path in DOCUMENTS]
-LAYOUTS = ["single-column", "two-column", "text-box", "header-footer"]
+LAYOUTS = [layout.name for layout in REGISTERED_LAYOUTS]
 CANDIDATE_IDS = sorted({stem.split("__")[0] for stem in STEMS})
 
 # The confusable table's deletion rows: what NORM_INVISIBLE strips.
@@ -39,7 +45,7 @@ def parsed(stem: str) -> ParsedDocument:
     return parse(document(stem).read_bytes())
 
 
-def to_bytes(built) -> bytes:
+def to_bytes(built: DocumentType) -> bytes:
     raw = io.BytesIO()
     built.save(raw)
     return raw.getvalue()
@@ -237,8 +243,6 @@ def test_a_first_page_header_yields_first_and_an_even_header_even():
 
 
 def test_a_second_section_numbers_its_own_header():
-    from docx.enum.section import WD_SECTION
-
     built = Document()
     built.add_paragraph("One")
     built.sections[0].header.paragraphs[0].text = "Header one"
@@ -254,8 +258,6 @@ def test_a_second_section_numbers_its_own_header():
 
 
 def test_a_linked_header_is_not_read_twice():
-    from docx.enum.section import WD_SECTION
-
     built = Document()
     built.add_paragraph("One")
     built.sections[0].header.paragraphs[0].text = "Shared header"
@@ -334,7 +336,7 @@ def test_a_block_that_is_only_invisibles_is_a_gap_and_logs_nothing():
 
 
 @pytest.mark.parametrize("stem", STEMS)
-def test_two_column_documents_yield_one_image_and_one_photo_removal(stem):
+def test_only_two_column_documents_carry_an_image_and_it_is_removed(stem):
     result = parsed(stem)
     expected = 1 if stem.endswith("__two-column") else 0
     assert len(result.images) == expected == image_count(document(stem))
@@ -356,8 +358,6 @@ def test_the_placeholder_photo_hashes_the_same_in_every_two_column_document():
 
 
 def test_an_image_in_a_header_is_collected_too():
-    from cvr.golden.layouts.photo import placeholder_photo
-
     built = Document()
     built.add_paragraph("Body")
     header = built.sections[0].header
@@ -368,9 +368,6 @@ def test_an_image_in_a_header_is_collected_too():
 
 
 def test_the_parse_package_depends_on_text_and_models_only():
-    import subprocess
-    import sys
-
     code = (
         "import sys, cvr.parse; "
         "sys.exit(any(m in sys.modules for m in ('cvr.golden', 'cvr.eval')))"

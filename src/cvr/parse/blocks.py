@@ -30,21 +30,24 @@ from cvr.text import CONFUSABLES
 
 __all__ = ["walk"]
 
+# One block's address: its kind, its id and the paragraph element behind it.
+type _Address = tuple[BlockKind, str, etree._Element]
+
 _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 _MC = "{http://schemas.openxmlformats.org/markup-compatibility/2006}"
-W_P, W_TBL, W_TR, W_TC, W_TCPR = (
+_W_P, _W_TBL, _W_TR, _W_TC, _W_TCPR = (
     f"{_W}p",
     f"{_W}tbl",
     f"{_W}tr",
     f"{_W}tc",
     f"{_W}tcPr",
 )
-W_T, W_TAB, W_BR, W_CR = f"{_W}t", f"{_W}tab", f"{_W}br", f"{_W}cr"
-W_TXBX_CONTENT = f"{_W}txbxContent"
+_W_T, _W_TAB, _W_BR, _W_CR = f"{_W}t", f"{_W}tab", f"{_W}br", f"{_W}cr"
+_W_TXBX_CONTENT = f"{_W}txbxContent"
 # Subtrees a paragraph's text never descends into: its properties (a tab stop
 # is a ``w:tab`` too), a text box (read separately, at the anchor), and the
 # fallback half of an alternate-content pair (the same text again, for old Word).
-_NOT_TEXT = frozenset({f"{_W}pPr", f"{_W}rPr", W_TXBX_CONTENT, f"{_MC}Fallback"})
+_NOT_TEXT = frozenset({f"{_W}pPr", f"{_W}rPr", _W_TXBX_CONTENT, f"{_MC}Fallback"})
 
 # The confusable table's deletion rows: what NORM_INVISIBLE strips.
 _INVISIBLE = frozenset(char for char, out in CONFUSABLES.items() if out == "")
@@ -84,18 +87,16 @@ def walk(document: DocumentType) -> tuple[list[SourceBlock], list[Normalisation]
     return blocks, events
 
 
-def _addresses(
-    document: DocumentType,
-) -> Iterator[tuple[BlockKind, str, etree._Element]]:
+def _addresses(document: DocumentType) -> Iterator[_Address]:
     """Each paragraph element with its kind and id, in reading order."""
     for n, child in enumerate(document.element.body):
-        if child.tag == W_P:
+        if child.tag == _W_P:
             yield "body", f"body:{n}", child
-        elif child.tag == W_TBL:
+        elif child.tag == _W_TBL:
             yield from _table(n, child)
         for b, box in enumerate(_text_boxes(child)):
             for p, paragraph in enumerate(box):
-                if paragraph.tag == W_P:
+                if paragraph.tag == _W_P:
                     yield "textbox", f"textbox:{n}:{b}:{p}", paragraph
     for s, section in enumerate(document.sections):
         for kind, types in (("header", _HEADER_TYPES), ("footer", _FOOTER_TYPES)):
@@ -105,24 +106,20 @@ def _addresses(
                 )
 
 
-def _table(
-    n: int, table: etree._Element
-) -> Iterator[tuple[BlockKind, str, etree._Element]]:
-    rows = [row for row in table if row.tag == W_TR]
+def _table(n: int, table: etree._Element) -> Iterator[_Address]:
+    rows = [row for row in table if row.tag == _W_TR]
     for r, row in enumerate(rows):
-        cells = [cell for cell in row if cell.tag == W_TC]
+        cells = [cell for cell in row if cell.tag == _W_TC]
         for c, cell in enumerate(cells):
             # A cell's first child is its properties, not content; P counts
             # from the first paragraph as it does in the body and a header.
-            content = [child for child in cell if child.tag != W_TCPR]
+            content = [child for child in cell if child.tag != _W_TCPR]
             for p, child in enumerate(content):
-                if child.tag == W_P:
+                if child.tag == _W_P:
                     yield "table", f"table:{n}:r{r}:c{c}:{p}", child
 
 
-def _header_footer(
-    kind: BlockKind, s: int, type_name: str, part
-) -> Iterator[tuple[BlockKind, str, etree._Element]]:
+def _header_footer(kind: BlockKind, s: int, type_name: str, part) -> Iterator[_Address]:
     """``part`` is python-docx's header or footer proxy for one section."""
     # A linked header has no part of its own: its content is the previous
     # section's, already read, or nothing. Reaching for its element through
@@ -130,7 +127,7 @@ def _header_footer(
     if part.is_linked_to_previous:
         return
     for p, child in enumerate(part._element):
-        if child.tag == W_P:
+        if child.tag == _W_P:
             yield kind, f"{kind}:{s}:{type_name}:{p}", child
 
 
@@ -138,7 +135,7 @@ def _text_boxes(element: etree._Element) -> Iterator[etree._Element]:
     """Every ``w:txbxContent`` under ``element`` in document order, skipping the
     fallback copy of an alternate-content pair."""
     for child in element:
-        if child.tag == W_TXBX_CONTENT:
+        if child.tag == _W_TXBX_CONTENT:
             yield child
         elif child.tag != f"{_MC}Fallback":
             yield from _text_boxes(child)
@@ -152,11 +149,11 @@ def _text(element: etree._Element) -> str:
     for child in element:
         if child.tag in _NOT_TEXT:
             continue
-        if child.tag == W_T:
+        if child.tag == _W_T:
             parts.append(child.text or "")
-        elif child.tag == W_TAB:
+        elif child.tag == _W_TAB:
             parts.append("\t")
-        elif child.tag in (W_BR, W_CR):
+        elif child.tag in (_W_BR, _W_CR):
             parts.append("\n")
         else:
             parts.append(_text(child))
