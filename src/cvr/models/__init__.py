@@ -1,5 +1,7 @@
-"""Content model (``CVContent`` and its entries), the PII model (``PII``) and
-the removal rule ids (``RemovalRule``).
+"""Content model (``CVContent`` and its entries), the PII model (``PII``),
+the removal rule ids (``RemovalRule``), and the source-side models the
+pipeline passes between its nodes: ``SourceBlock``, ``Span``, ``Image``,
+``Removal`` and ``Normalisation``.
 
 Every string here is a candidate's own text, held verbatim. Typos, odd
 capitalisation and punctuation are baked into the strings on purpose and
@@ -12,18 +14,26 @@ and the two never import each other.
 """
 
 from enum import StrEnum
+from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 __all__ = [
     "PII",
+    "BlockKind",
     "CVContent",
     "DateValue",
     "EducationEntry",
     "ExperienceEntry",
+    "Image",
+    "Normalisation",
+    "NormalisationRule",
     "Personal",
     "Referee",
+    "Removal",
     "RemovalRule",
+    "SourceBlock",
+    "Span",
     "StrictModel",
 ]
 
@@ -47,11 +57,86 @@ class RemovalRule(StrEnum):
     HEADING = "RM_HEADING"
 
 
+class NormalisationRule(StrEnum):
+    """The named rules under which the pipeline may modify candidate text.
+    There is one: stripping invisible characters, at parse."""
+
+    INVISIBLE = "NORM_INVISIBLE"
+
+
 class StrictModel(BaseModel):
     """Base for every model loaded from JSON: unknown keys are rejected, so a
     typo in a key fails fast rather than silently dropping a field."""
 
     model_config = ConfigDict(extra="forbid")
+
+
+# --- Source side: what the parser emits and every later node reads.
+
+BlockKind = Literal["body", "table", "textbox", "header", "footer"]
+
+
+class SourceBlock(StrictModel):
+    """One unit of source text in reading order, with a stable identity.
+
+    ``id`` is a real address in the file (``body:12``, ``table:12:r1:c0:3``,
+    ``header:0:default:2``, ``textbox:12:0:3``), so the same file parsed twice
+    gives the same ids and a block can be found again. ``text`` is raw: the
+    parser strips invisible characters and touches nothing else.
+    """
+
+    id: str
+    text: str
+    kind: BlockKind
+
+
+class Span(StrictModel):
+    """A verified slice of a block: the only thing that ever reaches the
+    rendered output. ``text`` is the raw slice ``block.text[start:end]``, so
+    the renderer never has to find the block again."""
+
+    block_id: str
+    start: int = Field(ge=0)
+    end: int
+    text: str
+
+    @model_validator(mode="after")
+    def _text_is_the_slice(self) -> Self:
+        if self.end <= self.start:
+            raise ValueError(f"span {self.start}:{self.end} is empty or backwards")
+        if len(self.text) != self.end - self.start:
+            raise ValueError(
+                f"span text has {len(self.text)} characters but the slice "
+                f"{self.start}:{self.end} has {self.end - self.start}"
+            )
+        return self
+
+
+class Image(StrictModel):
+    """An embedded image, recorded by content hash: ``part`` is the package
+    part name (``word/media/image1.png``), ``sha256`` the hex digest of its
+    bytes, ``size`` their count. Every one is removed under RM_PHOTO at parse."""
+
+    part: str
+    sha256: str
+    size: int = Field(ge=0)
+
+
+class Removal(StrictModel):
+    """One logged deletion: a slice of text or an image, under a named rule."""
+
+    rule: RemovalRule
+    subject: Span | Image
+
+
+class Normalisation(StrictModel):
+    """One logged modification of a block's text under a named rule: for
+    NORM_INVISIBLE, the invisible characters stripped, in source order. The
+    pre-strip text is discarded, so there are no positions to record."""
+
+    rule: NormalisationRule
+    block_id: str
+    characters: list[str]
 
 
 class DateValue(StrictModel):
