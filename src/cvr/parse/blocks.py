@@ -68,14 +68,16 @@ _FOOTER_TYPES = (
 
 def walk(document: DocumentType) -> tuple[list[SourceBlock], list[Normalisation]]:
     """Every block of the document in reading order, and one NORM_INVISIBLE
-    event for each block that had invisible characters stripped."""
+    event per address that had invisible characters stripped.
+
+    The event is logged whether or not a block follows: a paragraph that was
+    nothing but invisibles is a gap, and the log still says what was taken
+    out of it, so the one modification the pipeline makes is always on record.
+    """
     blocks: list[SourceBlock] = []
     events: list[Normalisation] = []
     for kind, block_id, element in _addresses(document):
         text, stripped = _strip_invisible(_text(element))
-        if not text.strip():
-            continue  # a gap: an empty or image-only paragraph keeps its index
-        blocks.append(SourceBlock(id=block_id, text=text, kind=kind))
         if stripped:
             events.append(
                 Normalisation(
@@ -84,6 +86,9 @@ def walk(document: DocumentType) -> tuple[list[SourceBlock], list[Normalisation]
                     characters=stripped,
                 )
             )
+        if not text.strip():
+            continue  # a gap: an empty or image-only paragraph keeps its index
+        blocks.append(SourceBlock(id=block_id, text=text, kind=kind))
     return blocks, events
 
 

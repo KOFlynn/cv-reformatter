@@ -281,7 +281,7 @@ def test_invisible_characters_are_stripped_and_every_one_is_logged(stem):
     ids = {block.id for block in result.blocks}
     for event in result.normalisations:
         assert event.rule is NormalisationRule.INVISIBLE
-        assert event.block_id in ids
+        assert event.block_id in ids  # the golden set has no invisible-only line
         assert event.characters, "an event with nothing stripped"
     assert len({event.block_id for event in result.normalisations}) == len(
         result.normalisations
@@ -311,6 +311,12 @@ def test_visible_confusables_survive(layout):
     assert CURLY_APOSTROPHE in joined
     assert blocks.count(CURLY_APOSTROPHE) == joined.count(CURLY_APOSTROPHE)
     assert "'" not in blocks
+    # Every substitution row the Layout injected is still there, uncounted by
+    # the coverage tests because they canonicalise both sides.
+    for code in manifest(stem)["confusables"]:
+        char = chr(int(code.removeprefix("U+"), 16))
+        if char not in INVISIBLE:
+            assert blocks.count(char) == joined.count(char) > 0, code
 
 
 def test_non_breaking_spaces_are_a_substitution_row_and_survive():
@@ -321,14 +327,17 @@ def test_non_breaking_spaces_are_a_substitution_row_and_survive():
     assert blocks.count(NBSP) == joined.count(NBSP)
 
 
-def test_a_block_that_is_only_invisibles_is_a_gap_and_logs_nothing():
+def test_a_paragraph_that_is_only_invisibles_is_a_gap_and_is_still_logged():
+    # No block: there is nothing to label. Still an event: the characters were
+    # taken out of the file, and the log is the only place that says so.
     built = Document()
     built.add_paragraph("\u200b\u00ad")
     built.add_paragraph("Kept\u200b")
     result = parse(to_bytes(built))
     assert [(b.id, b.text) for b in result.blocks] == [("body:1", "Kept")]
     assert [(e.block_id, e.characters) for e in result.normalisations] == [
-        ("body:1", ["\u200b"])
+        ("body:0", ["\u200b", "\u00ad"]),
+        ("body:1", ["\u200b"]),
     ]
 
 
