@@ -41,7 +41,7 @@ The property that every rendered unit of text is an exact slice of a block, temp
 _Avoid_: faithfulness, fidelity, grounding
 
 **Claim**:
-The verifier's record that a slice of a block is taken, by a field or by a removal rule. Removals claim first, content second; a content claim that overlaps a removal is clipped to what remains, and a content claim that overlaps another content claim is rejected, leaving the slice unclaimed. Losing a claim is loud (the text surfaces as residue), never silent.
+The verifier's record that a slice of a block is taken, by a field or by a removal rule, held per block in a claim ledger. Removals claim first, content second in tree-walk order; a content claim that overlaps a removal is clipped to what remains, and a content claim that overlaps another content claim is a conflict: the later claimant is rejected and gets no claim, the earlier keeps what it holds, and whatever the loser's slice the winner does not hold stays unclaimed. A repeated quote takes the next occurrence free of content. Losing a claim is loud (the rejection is logged and any text left over surfaces as residue), never silent.
 _Avoid_: match, hit, allocation
 
 **Multi-span unit**:
@@ -68,7 +68,7 @@ The deletion of source text under a named removal rule (RM_PHONE, RM_EMAIL, RM_A
 _Avoid_: redaction, scrubbing, stripping
 
 **Backstop**:
-A deterministic check that runs after the LLM and catches what it missed, never replacing it: regex patterns for PII values, and a vocabulary of known section headings for RM_HEADING. A backstop only ever removes; it never places. Its vocabulary is deliberately narrow, because a false removal is silent while a false appendix entry is loud.
+A deterministic check that runs after the LLM and catches what it missed, never replacing it: regex patterns for PII values (emails, phones, URLs) over every block, and a vocabulary of known section headings for RM_HEADING over blocks holding no placed content. A backstop only ever removes; it never places. Its vocabulary is deliberately narrow, because a false removal is silent while a false appendix entry is loud.
 _Avoid_: fallback, safety net, second pass
 
 **PII value**:
