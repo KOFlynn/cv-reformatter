@@ -28,3 +28,5 @@
 - `SEPARATORS` and the tests write non-ASCII characters as `\uXXXX` escapes, as the confusable table does.
 
 Code review (`/code-review` since `main`, standards and spec axes) acted on: the NFC cross-starter gap above (was a documented exception, now handled and pinned); Unicode whitespace beyond ASCII in the predicate; known-answer rows for a double quote and a dash so every row class has one; `ends` asserted in the known-answer table, not only through `raw_slice`; renames (`_SEPARATOR_REPLACEMENTS`, `pending`) and docstring shape to match `main`. Not acted on: making `canonicalise` delegate to the companion (it is the hot path of every metric and the golden-set test already pins the two equal); moving the 48-document property test out of `tests/text` (a test-only coupling, disclosed above); narrowing the separator dashes to the spec's three (reading the class from the table is the point).
+
+PR: #20 (release/phase-1-01-02 → main)
