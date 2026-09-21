@@ -64,9 +64,9 @@ def test_removal_takes_a_span_or_an_image():
 
 def test_normalisation_names_the_rule_the_block_and_the_characters_stripped():
     event = Normalisation(
-        rule=NormalisationRule.INVISIBLE, block_id="body:4", characters=["­"]
+        rule=NormalisationRule.INVISIBLE, block_id="body:4", characters=["\u00ad"]
     )
     assert event.rule == "NORM_INVISIBLE"
-    assert event.characters == ["­"]
+    assert event.characters == ["\u00ad"]
     with pytest.raises(ValidationError):
         Normalisation(rule="NORM_CASE", block_id="body:4", characters=[])
