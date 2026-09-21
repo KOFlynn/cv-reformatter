@@ -5,36 +5,51 @@ from cvr.golden.generate import GENERATED_DIR
 from cvr.text import Canonical, canonicalise, canonicalise_with_offsets
 
 # One case per row class of the confusable table, plus NFC composition and
-# whitespace collapse: (name, raw, expected canonical, expected offsets).
-# Offsets are written out by hand so the test cannot pass by construction.
+# whitespace collapse: (name, raw, expected canonical, expected offsets,
+# expected ends). Written out by hand so the test cannot pass by construction.
 OFFSET_CASES = [
     # one-to-one substitution: the canonical quote sits where the curly one was
-    ("curly quote", "O\u2019Flynn", "O'Flynn", [0, 1, 2, 3, 4, 5, 6]),
+    (
+        "curly quote",
+        "O\u2019Flynn",
+        "O'Flynn",
+        [0, 1, 2, 3, 4, 5, 6],
+        [1, 2, 3, 4, 5, 6, 7],
+    ),
+    ("curly double quote", "a\u201cb", 'a"b', [0, 1, 2], [1, 2, 3]),
+    ("en dash", "1\u20132", "1-2", [0, 1, 2], [1, 2, 3]),
     # one-to-zero deletion: the invisible leaves no canonical character
-    ("zero width space", "a\u200bb", "ab", [0, 2]),
+    ("zero width space", "a\u200bb", "ab", [0, 2], [1, 3]),
     # exotic space to space: a substitution, then treated as whitespace
-    ("no-break space", "a\u00a0b", "a b", [0, 1, 2]),
-    # many-to-one: a run of whitespace collapses onto its first character
-    ("run of spaces", "a \t\n b", "a b", [0, 1, 5]),
+    ("no-break space", "a\u00a0b", "a b", [0, 1, 2], [1, 2, 3]),
+    # many-to-one: a run of whitespace collapses onto its first character and
+    # its end covers the whole run
+    ("run of spaces", "a \t\n b", "a b", [0, 1, 5], [1, 5, 6]),
+    # an invisible inside a run of whitespace does not split the run
+    ("invisible in a run", "a \u200b b", "a b", [0, 1, 4], [1, 4, 5]),
     # leading and trailing whitespace is trimmed, so the map starts inside
-    ("trim", "  ab ", "ab", [2, 3]),
-    # one-to-many: the ellipsis expands to three dots at one raw index
-    ("ellipsis", "a\u2026b", "a...b", [0, 1, 1, 1, 2]),
-    # NFC: a base letter and its combining mark compose onto the base's index
-    ("decomposed fada", "Sea\u0301n", "Se\u00e1n", [0, 1, 2, 4]),
+    ("trim", "  ab ", "ab", [2, 3], [3, 4]),
+    # one-to-many: the ellipsis expands to three dots sharing one raw range
+    ("ellipsis", "a\u2026b", "a...b", [0, 1, 1, 1, 2], [1, 2, 2, 2, 3]),
+    # NFC: a base letter and its combining mark compose onto the base's range
+    ("decomposed fada", "Sea\u0301n", "Se\u00e1n", [0, 1, 2, 4], [1, 2, 4, 5]),
+    # NFC across starters: Hangul jamo are all combining class zero yet
+    # compose into one syllable, so the cut between them must not be made
+    ("hangul jamo", "\u1100\u1161\u11a8", "\uac01", [0], [3]),
 ]
 
 
 @pytest.mark.parametrize(
-    ("raw", "expected_text", "expected_offsets"),
-    [(raw, text, offsets) for _, raw, text, offsets in OFFSET_CASES],
-    ids=[name for name, _, _, _ in OFFSET_CASES],
+    ("raw", "expected_text", "expected_offsets", "expected_ends"),
+    [case[1:] for case in OFFSET_CASES],
+    ids=[case[0] for case in OFFSET_CASES],
 )
-def test_known_answer(raw, expected_text, expected_offsets):
+def test_known_answer(raw, expected_text, expected_offsets, expected_ends):
     canonical = canonicalise_with_offsets(raw)
     assert canonical.raw == raw
     assert canonical.text == expected_text
     assert list(canonical.offsets) == expected_offsets
+    assert list(canonical.ends) == expected_ends
 
 
 def test_raw_slice_round_trips_a_mixed_string_byte_for_byte():
@@ -71,11 +86,11 @@ def test_raw_slice_ending_inside_an_ellipsis_takes_the_whole_glyph():
     assert canonical.raw_slice(0, 7) == "wait\u2026"
 
 
-def test_empty_and_whitespace_only_text():
-    for raw in ["", "  \u200b\t"]:
-        canonical = canonicalise_with_offsets(raw)
-        assert canonical == Canonical(raw=raw, text="", offsets=(), ends=())
-        assert canonical.raw_slice(0, 0) == ""
+@pytest.mark.parametrize("raw", ["", "  \u200b\t"], ids=["empty", "whitespace only"])
+def test_text_with_nothing_to_keep_gives_an_empty_map(raw):
+    canonical = canonicalise_with_offsets(raw)
+    assert canonical == Canonical(raw=raw, text="", offsets=(), ends=())
+    assert canonical.raw_slice(0, 0) == ""
 
 
 @pytest.mark.parametrize("document", sorted(GENERATED_DIR.glob("*.docx")))
@@ -91,5 +106,9 @@ def test_agrees_with_canonicalise_over_the_golden_set(document):
 
 
 def _trimmed(raw: str) -> str:
-    # Leading and trailing whitespace and invisibles never reach the map.
-    return raw.strip("".join(char for char in raw if canonicalise(char) == ""))
+    # What the whole-string slice should give back: `raw` less the leading
+    # and trailing characters that canonicalise to nothing (whitespace and
+    # invisibles), which the map never covers. `str.strip` takes the set of
+    # characters to remove from both ends, so it is handed exactly those.
+    dropped = "".join(char for char in raw if canonicalise(char) == "")
+    return raw.strip(dropped)

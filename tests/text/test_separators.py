@@ -9,6 +9,15 @@ def test_run_of_list_punctuation_and_whitespace_is_separator_residue():
     assert is_separator_residue(" ; / ")
 
 
+@pytest.mark.parametrize(
+    "space", ["\u00a0", "\u2003", "\u2028"], ids=["no-break", "em space", "line sep"]
+)
+def test_any_unicode_whitespace_is_separator_residue(space):
+    # Whitespace is whatever `str.isspace` says, as it is for `canonicalise`,
+    # so the set need not enumerate every space Unicode has.
+    assert is_separator_residue(f",{space}")
+
+
 def test_ampersand_alone_is_not_separator_residue():
     # `&` is a content token, not decoration: it is a word in "M&S" and in
     # "Research & Development", so a stray `&` is unplaced text that must
