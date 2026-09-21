@@ -22,19 +22,28 @@ __all__ = [
     "PII",
     "BlockKind",
     "CVContent",
+    "ContentReferences",
     "DateValue",
     "EducationEntry",
+    "EducationReference",
     "ExperienceEntry",
+    "ExperienceReference",
     "Image",
+    "Labelling",
+    "LabellingFailure",
+    "LabellingResult",
     "Normalisation",
     "NormalisationRule",
     "Personal",
     "Referee",
+    "Reference",
     "Removal",
+    "RemovalLabel",
     "RemovalRule",
     "SourceBlock",
     "Span",
     "StrictModel",
+    "TextRemovalRule",
 ]
 
 
@@ -233,3 +242,85 @@ class PII(StrictModel):
     dob: str | None = None
     personal: Personal = Field(default_factory=Personal)
     referees: list[Referee] = Field(default_factory=list)
+
+
+# --- Labelling: what the labeller hands the verifier. The JSON schema of
+# ``Labelling`` is what the LLM is asked to fill, so every property is
+# required and nullable rather than optional (strict-compatible, ADR-0009).
+
+# The eight rules the LLM may label text under. RM_PHOTO is never the LLM's:
+# the parser removes every image deterministically.
+TextRemovalRule = Literal[
+    RemovalRule.PHONE,
+    RemovalRule.EMAIL,
+    RemovalRule.ADDRESS,
+    RemovalRule.URL,
+    RemovalRule.DOB,
+    RemovalRule.PERSONAL,
+    RemovalRule.REFEREE,
+    RemovalRule.HEADING,
+]
+
+
+class Reference(StrictModel):
+    """The LLM's claim that a verbatim quote from a block belongs somewhere.
+    The quote is never optional: a reference without one cannot be verified."""
+
+    block_id: str
+    quote: str
+
+
+class ExperienceReference(StrictModel):
+    """One experience entry as references. ``dates`` is one reference to the
+    whole range as printed; code splits it (transform)."""
+
+    title: Reference | None
+    employer: Reference | None
+    location: Reference | None
+    dates: Reference | None
+    bullets: list[Reference]
+
+
+class EducationReference(StrictModel):
+    institution: Reference | None
+    qualification: Reference | None
+    dates: Reference | None
+    details: list[Reference]
+
+
+class ContentReferences(StrictModel):
+    """``CVContent`` with a reference in place of every string."""
+
+    name: Reference | None
+    profile: list[Reference]
+    skills: list[Reference]
+    education: list[EducationReference]
+    experience: list[ExperienceReference]
+    certifications: list[Reference]
+    additional: list[Reference]
+
+
+class RemovalLabel(StrictModel):
+    """The LLM's claim that a quote should be removed under one of the eight
+    text rules."""
+
+    rule: TextRemovalRule
+    block_id: str
+    quote: str
+
+
+class Labelling(StrictModel):
+    """A usable answer from the labeller: the content tree and the removals."""
+
+    content: ContentReferences
+    removals: list[RemovalLabel]
+
+
+class LabellingFailure(StrictModel):
+    """The labeller's answer for the whole document was unusable (malformed
+    or schema-invalid). The job still completes: every block is residue."""
+
+    reason: str
+
+
+LabellingResult = Labelling | LabellingFailure
