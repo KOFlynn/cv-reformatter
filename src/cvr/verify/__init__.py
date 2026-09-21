@@ -17,7 +17,6 @@ no occurrence rejects its one leaf. A repeated quote takes the next occurrence
 free of content. Coverage reads the ledgers, never the tree. ADR-0008.
 """
 
-from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -39,7 +38,7 @@ from cvr.text import is_separator_residue
 from cvr.verify.backstops import HEADING_VOCABULARY, heading_key, pii_matches
 from cvr.verify.ledger import Kind, Ledger, LedgerEntry
 
-__all__ = ["Claim", "LedgerEntry", "Rejection", "Residue", "Verified", "verify"]
+__all__ = ["Claim", "LedgerEntry", "Rejection", "Residue", "VerifiedDocument", "verify"]
 
 RejectionReason = Literal["unlocatable", "conflict", "removed"]
 
@@ -57,8 +56,8 @@ class Claim:
 class Rejection:
     """A reference that placed nothing: ``unlocatable`` (no occurrence in the
     block, or no such block), ``conflict`` (every occurrence is held by
-    content already) or ``removed`` (the occurrence lies wholly inside
-    removals). The path of an LLM removal is ``removals[i]``."""
+    content already) or ``removed`` (every free occurrence lies wholly
+    inside removals). The path of an LLM removal is ``removals[i]``."""
 
     path: str
     block_id: str
@@ -76,7 +75,7 @@ class Residue:
 
 
 @dataclass(frozen=True)
-class Verified:
+class VerifiedDocument:
     """What the verify node hands on. ``ledgers`` is per block, entries
     ascending by position; ``residue`` is in block then source order."""
 
@@ -95,7 +94,7 @@ class Verified:
         return [residue.span for residue in self.residue if not residue.separator]
 
 
-def verify(blocks: list[SourceBlock], labelling: LabellingResult) -> Verified:
+def verify(blocks: list[SourceBlock], labelling: LabellingResult) -> VerifiedDocument:
     """Verify every reference of ``labelling`` against ``blocks``.
 
     A ``LabellingFailure`` places nothing and flags the run; the backstops
@@ -117,7 +116,7 @@ def verify(blocks: list[SourceBlock], labelling: LabellingResult) -> Verified:
     )
     _heading_backstop(ledgers, removals)
     residue = _coverage(ledgers)
-    return Verified(
+    return VerifiedDocument(
         content=content,
         claims=claims,
         removals=removals,
@@ -142,8 +141,7 @@ def _verify_removals(
     """The LLM's removals, in schema order. An occurrence already wholly
     removed is not reported again: the earlier, more specific rule keeps it."""
     for i, label in enumerate(labelling.removals):
-        ledger = ledgers.get(label.block_id)
-        occurrences = ledger.occurrences(label.quote) if ledger else []
+        ledger, occurrences = _locate(ledgers, label.block_id, label.quote)
         if not occurrences:
             rejections.append(
                 Rejection(f"removals[{i}]", label.block_id, label.quote, "unlocatable")
@@ -232,22 +230,33 @@ def _heading_backstop(ledgers: dict[str, Ledger], removals: list[Removal]) -> No
         if ledger.has_content():
             continue
         if heading_key(ledger.canonical.text) in HEADING_VOCABULARY:
-            pieces = ledger.free(0, len(ledger.block.text), Kind.REMOVAL)
-            _remove(ledger, pieces, RemovalRule.HEADING, removals)
+            _remove(
+                ledger,
+                ledger.free(*ledger.whole(), Kind.REMOVAL),
+                RemovalRule.HEADING,
+                removals,
+            )
 
 
 def _coverage(ledgers: dict[str, Ledger]) -> list[Residue]:
     """Every unclaimed run of every block, from the ledgers alone."""
-    residue: list[Residue] = []
-    for ledger in ledgers.values():
-        for start, end in ledger.residue():
-            text = ledger.block.text[start:end]
-            span = Span(block_id=ledger.block.id, start=start, end=end, text=text)
-            residue.append(Residue(span=span, separator=is_separator_residue(text)))
-    return residue
+    return [
+        Residue(span=span, separator=is_separator_residue(span.text))
+        for ledger in ledgers.values()
+        for span in (ledger.span(start, end) for start, end in ledger.residue())
+    ]
 
 
 # --- Placing one reference
+
+
+def _locate(
+    ledgers: dict[str, Ledger], block_id: str, quote: str
+) -> tuple[Ledger | None, list[tuple[int, int]]]:
+    """The block's ledger and every occurrence of the quote in it; no
+    occurrences when there is no such block."""
+    ledger = ledgers.get(block_id)
+    return ledger, ledger.occurrences(quote) if ledger else []
 
 
 def _place(
@@ -257,38 +266,29 @@ def _place(
     claims: list[Claim],
     rejections: list[Rejection],
 ) -> Unit | None:
-    """Claim the first occurrence of the quote that no content holds, clipped
-    around removals; or reject the leaf and say why."""
+    """Claim the first unclaimed occurrence of the quote, clipped around
+    removals; or reject the leaf and say why.
 
-    def reject(reason: RejectionReason) -> None:
-        rejections.append(Rejection(path, reference.block_id, reference.quote, reason))
-
-    ledger = ledgers.get(reference.block_id)
-    occurrences = ledger.occurrences(reference.quote) if ledger else []
-    if not occurrences:
-        reject("unlocatable")
-        return None
+    An occurrence held by content is passed over (the next one may be
+    free); so is one wholly inside removals, since a removed range is
+    claimed too. When every occurrence is one or the other, the reason is
+    ``removed`` if any lay inside removals, else ``conflict``.
+    """
+    ledger, occurrences = _locate(ledgers, reference.block_id, reference.quote)
+    reason: RejectionReason = "unlocatable"
     for start, end in occurrences:
         if ledger.overlaps(start, end, Kind.CONTENT):
+            reason = "conflict" if reason != "removed" else reason
             continue
-        pieces = list(_trimmed(ledger, ledger.free(start, end, Kind.REMOVAL)))
+        pieces = ledger.clipped(start, end)
         if not pieces:
-            reject("removed")
-            return None
+            reason = "removed"
+            continue
         spans = [ledger.claim(s, e, path, Kind.CONTENT) for s, e in pieces]
         claims.extend(Claim(path, span) for span in spans)
         return Unit(spans=spans)
-    reject("conflict")
+    rejections.append(Rejection(path, reference.block_id, reference.quote, reason))
     return None
-
-
-def _trimmed(
-    ledger: Ledger, pieces: list[tuple[int, int]]
-) -> Iterator[tuple[int, int]]:
-    for start, end in pieces:
-        trimmed = ledger.trimmed(start, end)
-        if trimmed:
-            yield trimmed
 
 
 def _remove(

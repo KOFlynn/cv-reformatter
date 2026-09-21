@@ -3,35 +3,13 @@ and the heading vocabulary over blocks holding no placed content. Both only
 remove; neither places."""
 
 import pytest
+from support import block as _block
+from support import labelling as _labelling
+from support import ref as _ref
 
-from cvr.models import (
-    ContentReferences,
-    Labelling,
-    Reference,
-    RemovalRule,
-    SourceBlock,
-)
+from cvr.models import RemovalLabel, RemovalRule
 from cvr.verify import verify
 from cvr.verify.backstops import HEADING_VOCABULARY, heading_key, pii_matches
-
-
-def _block(block_id: str, text: str) -> SourceBlock:
-    return SourceBlock(id=block_id, text=text, kind="body")
-
-
-def _labelling(**fields) -> Labelling:
-    content = {
-        "name": None,
-        "profile": [],
-        "skills": [],
-        "education": [],
-        "experience": [],
-        "certifications": [],
-        "additional": [],
-    }
-    content.update(fields)
-    return Labelling(content=ContentReferences(**content), removals=[])
-
 
 # --- Regex backstop
 
@@ -115,20 +93,19 @@ def test_url_pattern_stops_before_trailing_punctuation(text, url):
 
 
 def test_email_inside_an_llm_removal_is_reported_once():
-    from cvr.models import RemovalLabel
-
     blocks = [_block("body:0", "Dr A Body, a.body@example.org")]
-    labelling = Labelling(
-        content=_labelling().content,
-        removals=[
-            RemovalLabel(
-                rule="RM_REFEREE",
-                block_id="body:0",
-                quote="Dr A Body, a.body@example.org",
-            )
-        ],
+    result = verify(
+        blocks,
+        _labelling(
+            removals=[
+                RemovalLabel(
+                    rule="RM_REFEREE",
+                    block_id="body:0",
+                    quote="Dr A Body, a.body@example.org",
+                )
+            ]
+        ),
     )
-    result = verify(blocks, labelling)
     assert [r.rule for r in result.removals] == [RemovalRule.REFEREE]
 
 
@@ -153,9 +130,7 @@ def test_heading_backstop_leaves_a_bold_job_title_alone():
 
 def test_heading_backstop_never_touches_a_block_with_placed_content():
     blocks = [_block("body:0", "Skills")]
-    result = verify(
-        blocks, _labelling(additional=[Reference(block_id="body:0", quote="Skills")])
-    )
+    result = verify(blocks, _labelling(additional=[_ref("body:0", "Skills")]))
     assert result.removals == []
     assert result.content.additional[0].spans[0].text == "Skills"
 
@@ -202,7 +177,7 @@ def test_heading_vocabulary_covers_the_four_layouts_and_common_synonyms(text):
 
 
 @pytest.mark.parametrize(
-    "text", ["Languages", "Interests", "Senior Engineer", "Padraig"]
+    "text", ["Languages", "Interests", "Training", "Senior Engineer", "Padraig"]
 )
 def test_heading_vocabulary_is_narrow(text):
     # Sub-headings inside Additional Information are content, and a false

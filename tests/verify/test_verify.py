@@ -3,54 +3,13 @@ flat claim list, removals, rejections and residue out. Hand-written cases,
 one per rule of the claim ledger."""
 
 import pytest
+from support import block as _block
+from support import experience as _experience
+from support import labelling as _labelling
+from support import ref as _ref
 
-from cvr.models import (
-    ContentReferences,
-    ExperienceReference,
-    Labelling,
-    LabellingFailure,
-    Reference,
-    RemovalLabel,
-    RemovalRule,
-    SourceBlock,
-    Span,
-)
-from cvr.verify import Claim, Rejection, Residue, Verified, verify
-
-
-def _block(block_id: str, text: str) -> SourceBlock:
-    return SourceBlock(id=block_id, text=text, kind="body")
-
-
-def _ref(block_id: str, quote: str) -> Reference:
-    return Reference(block_id=block_id, quote=quote)
-
-
-def _labelling(removals: list[RemovalLabel] | None = None, **fields) -> Labelling:
-    """A labelling with the given content fields set and the rest empty."""
-    content = {
-        "name": None,
-        "profile": [],
-        "skills": [],
-        "education": [],
-        "experience": [],
-        "certifications": [],
-        "additional": [],
-    }
-    content.update(fields)
-    return Labelling(content=ContentReferences(**content), removals=removals or [])
-
-
-def _experience(**fields) -> ExperienceReference:
-    entry = {
-        "title": None,
-        "employer": None,
-        "location": None,
-        "dates": None,
-        "bullets": [],
-    }
-    entry.update(fields)
-    return ExperienceReference(**entry)
+from cvr.models import LabellingFailure, RemovalLabel, RemovalRule, Span
+from cvr.verify import Claim, Rejection, Residue, VerifiedDocument, verify
 
 
 def _texts(units) -> list[list[str]]:
@@ -226,6 +185,26 @@ def test_content_wholly_inside_a_removal_is_rejected_as_removed():
     assert result.rejections[0].reason == "removed"
 
 
+def test_an_occurrence_inside_a_removal_is_claimed_so_the_next_one_is_tried():
+    # A removed range is claimed: "the first unclaimed occurrence" is the
+    # one after it.
+    blocks = [_block("body:0", "Referee: Dr Excel, a@example.org. Skills: Excel")]
+    labelling = _labelling(
+        removals=[
+            RemovalLabel(
+                rule="RM_REFEREE",
+                block_id="body:0",
+                quote="Referee: Dr Excel, a@example.org.",
+            )
+        ],
+        skills=[_ref("body:0", "Excel")],
+    )
+    result = verify(blocks, labelling)
+    [unit] = result.content.skills
+    assert unit.spans[0].start == blocks[0].text.rindex("Excel")
+    assert result.rejections == []
+
+
 def test_llm_removal_is_logged_under_its_rule_and_leaves_the_block_placed_around_it():
     blocks = [_block("body:0", "Referee: Dr A Body, a.body@example.org")]
     labelling = _labelling(
@@ -388,7 +367,7 @@ def test_ledger_records_every_claim_per_block():
 def test_labelling_failure_leaves_every_block_as_residue_and_flags_the_run():
     blocks = [_block("body:0", "Padraig Lonergan"), _block("body:1", "QGIS")]
     result = verify(blocks, LabellingFailure(reason="schema-invalid"))
-    assert isinstance(result, Verified)
+    assert isinstance(result, VerifiedDocument)
     assert result.label_failed is True
     assert result.content.name is None and result.claims == []
     assert [r.span.text for r in result.residue] == ["Padraig Lonergan", "QGIS"]

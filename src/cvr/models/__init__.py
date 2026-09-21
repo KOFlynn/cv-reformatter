@@ -252,7 +252,7 @@ class PII(StrictModel):
 
 # --- Labelling: what the labeller hands the verifier. The JSON schema of
 # ``Labelling`` is what the LLM is asked to fill, so every property is
-# required and nullable rather than optional (strict-compatible, ADR-0009).
+# required and nullable rather than optional (strict-compatible; ADR-0009, written by ticket 07).
 
 # The eight rules the LLM may label text under. RM_PHOTO is never the LLM's:
 # the parser removes every image deterministically.

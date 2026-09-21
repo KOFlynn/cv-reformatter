@@ -88,19 +88,27 @@ class Ledger:
             pieces.append((at, end))
         return pieces
 
-    def trimmed(self, start: int, end: int) -> Range | None:
-        """``[start, end)`` without the whitespace at its edges, or ``None``
-        if nothing else is there. Clipping leaves the space that separated a
-        removed phone from its bullet; that space is residue, not content."""
+    def clipped(self, start: int, end: int) -> list[Range]:
+        """``[start, end)`` clipped around the removals, each piece without
+        the whitespace at its edges and pieces of nothing else dropped.
+        Clipping leaves the space that separated a removed phone from its
+        bullet; that space is residue, not content."""
         text = self.block.text
-        while start < end and text[start].isspace():
-            start += 1
-        while end > start and text[end - 1].isspace():
-            end -= 1
-        return (start, end) if start < end else None
+        pieces: list[Range] = []
+        for piece_start, piece_end in self.free(start, end, Kind.REMOVAL):
+            while piece_start < piece_end and text[piece_start].isspace():
+                piece_start += 1
+            while piece_end > piece_start and text[piece_end - 1].isspace():
+                piece_end -= 1
+            if piece_start < piece_end:
+                pieces.append((piece_start, piece_end))
+        return pieces
 
-    def claim(self, start: int, end: int, claimant: str, kind: Kind) -> Span:
-        self.entries.append(LedgerEntry(start, end, claimant, kind))
+    def whole(self) -> Range:
+        return 0, len(self.block.text)
+
+    def span(self, start: int, end: int) -> Span:
+        """The Span for raw ``[start, end)`` of this block."""
         return Span(
             block_id=self.block.id,
             start=start,
@@ -108,12 +116,16 @@ class Ledger:
             text=self.block.text[start:end],
         )
 
+    def claim(self, start: int, end: int, claimant: str, kind: Kind) -> Span:
+        self.entries.append(LedgerEntry(start, end, claimant, kind))
+        return self.span(start, end)
+
     def has_content(self) -> bool:
         return any(entry.kind is Kind.CONTENT for entry in self.entries)
 
     def residue(self) -> list[Range]:
         """Every unclaimed raw range of the block, ascending."""
-        return self.free(0, len(self.block.text))
+        return self.free(*self.whole())
 
     def sorted_entries(self) -> list[LedgerEntry]:
         return sorted(self.entries, key=lambda entry: (entry.start, entry.end))
