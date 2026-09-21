@@ -4,12 +4,24 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** claimed
+**Status:** in-review
 
-- [ ] `SEPARATORS` exported from `cvr.text`, standard library only, with a predicate "every character of this string is a separator"
-- [ ] Separator tests: a run of `, ` is separator residue; `&` alone is not; each PUA bullet is; `2:1` and `Languages:` are not (they contain non-separators)
-- [ ] Offset-mapped canonicalisation: same output string as `canonicalise`, plus a map from every canonical index to its raw index; a helper slices raw text from a canonical `(start, end)`
-- [ ] Known-answer cases, one per row class of the confusable table (curly quote → one-to-one; zero-width space → deletion; NBSP → space; run of spaces → collapse) and a mixed case asserting the raw slice round-trips byte for byte
-- [ ] `tokenise` pin: `C#` → `C`, `.NET` → `NET`, `C++` survives, documented in the test as a known limitation the eval tolerates because both sides tokenise alike
-- [ ] c07 gains `C#` and `.NET` in skills; `python -m cvr.golden.generate` rerun; the 48 pairs and the regeneration test are green and committed
-- [ ] `ruff check`, `ruff format --check`, full `pytest` green
+- [x] `SEPARATORS` exported from `cvr.text`, standard library only, with a predicate "every character of this string is a separator"
+- [x] Separator tests: a run of `, ` is separator residue; `&` alone is not; each PUA bullet is; `2:1` and `Languages:` are not (they contain non-separators)
+- [x] Offset-mapped canonicalisation: same output string as `canonicalise`, plus a map from every canonical index to its raw index; a helper slices raw text from a canonical `(start, end)`
+- [x] Known-answer cases, one per row class of the confusable table (curly quote → one-to-one; zero-width space → deletion; NBSP → space; run of spaces → collapse) and a mixed case asserting the raw slice round-trips byte for byte
+- [x] `tokenise` pin: `C#` → `C`, `.NET` → `NET`, `C++` survives, documented in the test as a known limitation the eval tolerates because both sides tokenise alike
+- [x] c07 gains `C#` and `.NET` in skills; `python -m cvr.golden.generate` rerun; the 48 pairs and the regeneration test are green and committed
+- [x] `ruff check`, `ruff format --check`, full `pytest` green
+
+## Comments
+
+**2026-09-19** (agent, branch `phase-1/01-text-foundations-and-c07-fixture`): built as ticketed. Public names added to `cvr.text`: `SEPARATORS`, `is_separator_residue`, `Canonical`, `canonicalise_with_offsets`. Decisions beyond the ticket text:
+
+- The predicate is `is_separator_residue(text) -> bool`: every character of `text` is in `SEPARATORS`; empty text is trivially separator residue.
+- `SEPARATORS` is a `frozenset[str]` of single characters. Its whitespace is `string.whitespace`; its curly quotes, guillemets, dashes (all five of the table's, not only `- – —`) and exotic spaces are read from `CONFUSABLES` by replacement class (`'`, `"`, `-`, space) so the two tables cannot disagree. The invisibles are not separators: they are deleted before residue is ever looked at.
+- The offset map's return type is a frozen dataclass `Canonical(raw, text, offsets, ends)`. `offsets[i]` is the raw index where canonical character `i`'s source begins; `ends[i]` is the raw index just past it. Both are held because a composed letter, an ellipsis or a collapsed whitespace run is one canonical character from several raw ones, so a slice end cannot be recovered from a start alone. A collapsed run maps onto its first raw character with `ends` covering the whole run.
+- The slicing helper is the method `Canonical.raw_slice(start, end) -> str` over canonical `[start, end)`: a contiguous raw range, so deleted invisibles and collapsed whitespace inside the range come back, and a slice ending inside the ellipsis's three dots takes the whole glyph (a test states this).
+- NFC is handled by splitting raw text at every starter (combining class zero) and composing each base-plus-marks piece on its own; the composed characters map to the piece's raw range. Hangul jamo (all starters, yet composable) would differ from `canonicalise`; noted in the docstring, not handled, no CV in the golden set carries them.
+- Beyond the known-answer cases, `tests/text/test_offsets.py` has a property-style case over every text run of the 48 committed documents asserting the companion's string equals `canonicalise` and slices back byte for byte. It reads `GENERATED_DIR` and the `docx_text` helper, a test-only coupling; `cvr.text` itself stays standard library only.
+- `SEPARATORS` and the tests write non-ASCII characters as `\uXXXX` escapes, as the confusable table does.
