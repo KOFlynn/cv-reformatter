@@ -1,5 +1,9 @@
-"""Content model (``CVContent`` and its entries), the PII model (``PII``) and
-the removal rule ids (``RemovalRule``).
+"""Content model (``CVContent`` and its entries), the PII model (``PII``),
+the removal rule ids (``RemovalRule``), and the models the pipeline passes
+between its nodes: the source side (``SourceBlock``, ``Span``, ``Image``,
+``Removal``, ``Normalisation``), the labelling result (``Labelling`` of
+``Reference``s and ``RemovalLabel``s, or ``LabellingFailure``) and the
+verified tree (``VerifiedContent`` of ``Unit``s).
 
 Every string here is a candidate's own text, held verbatim. Typos, odd
 capitalisation and punctuation are baked into the strings on purpose and
@@ -12,19 +16,40 @@ and the two never import each other.
 """
 
 from enum import StrEnum
+from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 __all__ = [
     "PII",
+    "BlockKind",
     "CVContent",
+    "ContentReferences",
     "DateValue",
     "EducationEntry",
+    "EducationReference",
     "ExperienceEntry",
+    "ExperienceReference",
+    "Image",
+    "Labelling",
+    "LabellingFailure",
+    "LabellingResult",
+    "Normalisation",
+    "NormalisationRule",
     "Personal",
     "Referee",
+    "Reference",
+    "Removal",
+    "RemovalLabel",
     "RemovalRule",
+    "SourceBlock",
+    "Span",
     "StrictModel",
+    "TextRemovalRule",
+    "Unit",
+    "VerifiedContent",
+    "VerifiedEducation",
+    "VerifiedExperience",
 ]
 
 
@@ -47,11 +72,86 @@ class RemovalRule(StrEnum):
     HEADING = "RM_HEADING"
 
 
+class NormalisationRule(StrEnum):
+    """The named rules under which the pipeline may modify candidate text.
+    There is one: stripping invisible characters, at parse."""
+
+    INVISIBLE = "NORM_INVISIBLE"
+
+
 class StrictModel(BaseModel):
     """Base for every model loaded from JSON: unknown keys are rejected, so a
     typo in a key fails fast rather than silently dropping a field."""
 
     model_config = ConfigDict(extra="forbid")
+
+
+# --- Source side: what the parser emits and every later node reads.
+
+BlockKind = Literal["body", "table", "textbox", "header", "footer"]
+
+
+class SourceBlock(StrictModel):
+    """One unit of source text in reading order, with a stable identity.
+
+    ``id`` is a real address in the file (``body:12``, ``table:12:r1:c0:3``,
+    ``header:0:default:2``, ``textbox:12:0:3``), so the same file parsed twice
+    gives the same ids and a block can be found again. ``text`` is raw: the
+    parser strips invisible characters and touches nothing else.
+    """
+
+    id: str
+    text: str
+    kind: BlockKind
+
+
+class Span(StrictModel):
+    """A verified slice of a block: the only thing that ever reaches the
+    rendered output. ``text`` is the raw slice ``block.text[start:end]``, so
+    the renderer never has to find the block again."""
+
+    block_id: str
+    start: int = Field(ge=0)
+    end: int
+    text: str
+
+    @model_validator(mode="after")
+    def _text_is_the_slice(self) -> Self:
+        if self.end <= self.start:
+            raise ValueError(f"span {self.start}:{self.end} is empty or backwards")
+        if len(self.text) != self.end - self.start:
+            raise ValueError(
+                f"span text has {len(self.text)} characters but the slice "
+                f"{self.start}:{self.end} has {self.end - self.start}"
+            )
+        return self
+
+
+class Image(StrictModel):
+    """An embedded image, recorded by content hash: ``part`` is the package
+    part name (``word/media/image1.png``), ``sha256`` the hex digest of its
+    bytes, ``size`` their count. Every one is removed under RM_PHOTO at parse."""
+
+    part: str
+    sha256: str
+    size: int = Field(ge=0)
+
+
+class Removal(StrictModel):
+    """One logged deletion: a slice of text or an image, under a named rule."""
+
+    rule: RemovalRule
+    subject: Span | Image
+
+
+class Normalisation(StrictModel):
+    """One logged modification of a block's text under a named rule: for
+    NORM_INVISIBLE, the invisible characters stripped, in source order. The
+    pre-strip text is discarded, so there are no positions to record."""
+
+    rule: NormalisationRule
+    block_id: str
+    characters: list[str]
 
 
 class DateValue(StrictModel):
@@ -148,3 +248,145 @@ class PII(StrictModel):
     dob: str | None = None
     personal: Personal = Field(default_factory=Personal)
     referees: list[Referee] = Field(default_factory=list)
+
+
+# --- Labelling: what the labeller hands the verifier. The JSON schema of
+# ``Labelling`` is what the LLM is asked to fill, so every property is
+# required and nullable rather than optional (strict-compatible; ADR-0009, written by ticket 07).
+
+# The eight rules the LLM may label text under. RM_PHOTO is never the LLM's:
+# the parser removes every image deterministically.
+TextRemovalRule = Literal[
+    RemovalRule.PHONE,
+    RemovalRule.EMAIL,
+    RemovalRule.ADDRESS,
+    RemovalRule.URL,
+    RemovalRule.DOB,
+    RemovalRule.PERSONAL,
+    RemovalRule.REFEREE,
+    RemovalRule.HEADING,
+]
+
+
+class Reference(StrictModel):
+    """The LLM's claim that a verbatim quote from a block belongs somewhere.
+    The quote is never optional: a reference without one cannot be verified."""
+
+    block_id: str
+    quote: str
+
+
+class ExperienceReference(StrictModel):
+    """One experience entry as references. ``dates`` is one reference to the
+    whole range as printed; code splits it (transform)."""
+
+    title: Reference | None
+    employer: Reference | None
+    location: Reference | None
+    dates: Reference | None
+    bullets: list[Reference]
+
+
+class EducationReference(StrictModel):
+    institution: Reference | None
+    qualification: Reference | None
+    dates: Reference | None
+    details: list[Reference]
+
+
+class ContentReferences(StrictModel):
+    """``CVContent`` with a reference in place of every string."""
+
+    name: Reference | None
+    profile: list[Reference]
+    skills: list[Reference]
+    education: list[EducationReference]
+    experience: list[ExperienceReference]
+    certifications: list[Reference]
+    additional: list[Reference]
+
+
+class RemovalLabel(StrictModel):
+    """The LLM's claim that a quote should be removed under one of the eight
+    text rules."""
+
+    rule: TextRemovalRule
+    block_id: str
+    quote: str
+
+
+class Labelling(StrictModel):
+    """A usable answer from the labeller: the content tree and the removals."""
+
+    content: ContentReferences
+    removals: list[RemovalLabel]
+
+
+class LabellingFailure(StrictModel):
+    """The labeller's answer for the whole document was unusable (malformed
+    or schema-invalid). The job still completes: every block is residue."""
+
+    reason: str
+
+
+LabellingResult = Labelling | LabellingFailure
+
+
+# --- Verified: what the verifier hands transform. ``CVContent`` again, with a
+# ``Unit`` of Spans in place of every string and ``None`` where a leaf was
+# rejected, so an entry survives with a hole rather than disappearing.
+
+
+class Unit(StrictModel):
+    """One rendered unit: one or more Spans of the same block, ascending and
+    non-overlapping. More than one is a multi-span unit, produced only by
+    clipping a content claim around a removal; transform joins the pieces
+    with a single space of template text."""
+
+    spans: list[Span] = Field(min_length=1)
+
+    @property
+    def block_id(self) -> str:
+        return self.spans[0].block_id
+
+    @model_validator(mode="after")
+    def _one_block_ascending(self) -> Self:
+        blocks = {span.block_id for span in self.spans}
+        if len(blocks) > 1:
+            raise ValueError(f"unit spans more than one block: {sorted(blocks)}")
+        for before, after in zip(self.spans, self.spans[1:]):
+            if after.start < before.end:
+                raise ValueError(
+                    f"unit spans are not ascending and non-overlapping: "
+                    f"{before.start}:{before.end} then {after.start}:{after.end}"
+                )
+        return self
+
+
+class VerifiedExperience(StrictModel):
+    """``dates`` is the whole range as printed, one unit; transform splits it."""
+
+    title: Unit | None = None
+    employer: Unit | None = None
+    location: Unit | None = None
+    dates: Unit | None = None
+    bullets: list[Unit] = Field(default_factory=list)
+
+
+class VerifiedEducation(StrictModel):
+    institution: Unit | None = None
+    qualification: Unit | None = None
+    dates: Unit | None = None
+    details: list[Unit] = Field(default_factory=list)
+
+
+class VerifiedContent(StrictModel):
+    """``CVContent`` in Spans. Empty by default: the labelling-failure tree."""
+
+    name: Unit | None = None
+    profile: list[Unit] = Field(default_factory=list)
+    skills: list[Unit] = Field(default_factory=list)
+    education: list[VerifiedEducation] = Field(default_factory=list)
+    experience: list[VerifiedExperience] = Field(default_factory=list)
+    certifications: list[Unit] = Field(default_factory=list)
+    additional: list[Unit] = Field(default_factory=list)

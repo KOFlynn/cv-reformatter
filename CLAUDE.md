@@ -8,18 +8,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**Phase 0 (spec, template, golden set, eval metrics) is complete. Phase 1 (the pipeline) has not started.** The pipeline packages (parse, label, verify, transform, render, api) do not exist yet; nothing here calls an LLM or opens a `.docx` inside a metric.
+**Phase 0 (spec, template, golden set, eval metrics) is complete. Phase 1 (the pipeline) is in progress: `parse` and `verify` exist.** The other pipeline packages (label, transform, render, api) do not exist yet; nothing here calls an LLM or opens a `.docx` inside a metric.
 
 What exists, by package under `src/cvr/`:
 
 - `text`: `CONFUSABLES`, `canonicalise`, `tokenise`. Standard library only; the one normalisation every metric and every Layout shares.
-- `models`: `CVContent`, `ExperienceEntry`, `EducationEntry`, `DateValue`; `PII`, `Referee`, `Personal` and the `RemovalRule` ids.
+- `models`: `CVContent`, `ExperienceEntry`, `EducationEntry`, `DateValue`; `PII`, `Referee`, `Personal` and the `RemovalRule` ids; the source side, `SourceBlock`, `Span`, `Image`, `Removal` and `Normalisation` (the `NORM_INVISIBLE` event); the labelling result, `Labelling` (a `ContentReferences` tree of `Reference`s plus `RemovalLabel`s under the closed `TextRemovalRule`) or `LabellingFailure`, whose JSON schema is strict-compatible; the verified side, `VerifiedContent` of `Unit`s (one or more `Span`s of one block).
 - `golden`: `Candidate`, `Tag` (closed vocabulary, one predicate each), `load_candidates` over `fixtures/candidates/` (twelve Candidates, the spec's allocation table); the `Layout` base and its `Manifest`; the four Layouts of the style matrix (`single-column`, `two-column`, `text-box`, `header-footer`); `python -m cvr.golden.generate` writing the 48 committed `fixtures/generated/<id>__<layout>.docx` + `.manifest.json` pairs.
 - `eval`: the nine metrics as pure functions with sorted `Finding`s: `added_tokens`, `dropped_tokens`, `provenance_violations`, `punctuation_fidelity`, `pii_leak`, `image_leak`, `placement_accuracy`, `ordering_report`, `appendix_rate`; entry alignment in `eval.alignment`, leaves by field type in `eval.leaves`. The runner, thresholds and report are Phase 1.
+- `parse`: `parse(bytes) -> ParsedDocument`, the pipeline's first node: ordered `SourceBlock`s with address ids (body, table cells, headers and footers by type, text boxes at their anchor), invisibles stripped under `NORM_INVISIBLE`, every image collected by content hash and removed under `RM_PHOTO`. Proven over all 48 generated documents against `tests/docx_text.py`.
+- `verify`: `verify(blocks, labelling) -> VerifiedDocument`, the pipeline's third node: one claim ledger per block filled removals → regex backstop → content in tree-walk order → heading backstop → coverage (asserted by a test); matching on canonical text through the offset map, slicing raw. Out: the `VerifiedContent` tree, the flat `(path, Span)` claims, `Removal`s under their rules, `Rejection`s with reasons, `Residue` split into separator and unplaced, the ledgers, `label_failed`. The backstops in `verify.backstops`, the ledger in `verify.ledger`. ADR-0008.
 - `template`: `python -m cvr.template.build` writing `templates/fictitious_recruitment.docx` (committed, never hand-edited, ADR-0006); `fill(content, unplaced)` through docxtpl; `template_text`/`template_tokens` read from the built file for the eval whitelist.
 - `tests/eval/fake_pipeline.py` and `tests/eval/corruptions.py`: the "test the test" harness, an honest pipeline over every Candidate plus the eight-row corruption table with declared blast radii and directions, asserted equal to the spec's table over every committed Candidate (so a new Candidate must carry what every row damages: a job with bullets, two jobs, an email, an apostrophe or a hyphen).
 
-Where the detail is: the Phase 0 spec and its tickets under `.scratch/phase-0/` (`spec.md`, `issues/NN-*.md`), the vocabulary in `CONTEXT.md`, the decisions in `docs/adr/0001`–`0007`, and the exit criteria in the brief §10.
+Where the detail is: the Phase 0 spec and its tickets under `.scratch/phase-0/` (`spec.md`, `issues/NN-*.md`), the vocabulary in `CONTEXT.md`, the decisions in `docs/adr/0001`–`0008`, and the exit criteria in the brief §10.
 
 ## Commands
 
@@ -35,7 +37,7 @@ uv run python -m cvr.template.build     # rebuild templates/fictitious_recruitme
 
 CI (`.github/workflows/ci.yml`) runs sync, lint, format check and tests on every push and pull request. Both generators are byte-stable, and `tests/golden/test_generate.py` and `tests/template/test_build.py` fail if a committed artefact differs from a fresh generation. The fuller command reference (dependency management, venv activation, useful pytest flags) is `docs/development.md`.
 
-Package layout under `src/cvr/`: `text` and `models` sit at the bottom; `eval`, `golden` and `template` depend on them and never on each other. `cvr.text` is standard library only. `golden` and `eval` are excluded from the runtime image later; nothing production-facing imports either.
+Package layout under `src/cvr/`: `text` and `models` sit at the bottom; `eval`, `golden`, `template`, `parse` and `verify` depend on them and never on each other. `cvr.text` is standard library only. `golden` and `eval` are excluded from the runtime image later; nothing production-facing imports either.
 
 ## What this is
 
@@ -69,12 +71,14 @@ Layout (brief §13, adjusted by the Phase 0 spec so that `cvr` is the one import
 
 ```
 src/cvr/{text,models,eval,golden,template}/                     # exists (Phase 0)
-src/cvr/{parse,label,verify,transform,render,graph,api,mcp}/    # Phase 1+
+src/cvr/parse/                                                  # exists (Phase 1, ticket 02)
+src/cvr/verify/                                                 # exists (Phase 1, ticket 03)
+src/cvr/{label,transform,render,graph,api,mcp}/                 # Phase 1+
 templates/fictitious_recruitment.docx                           # exists; built by src/cvr/template/build.py, committed
 fixtures/candidates/c01.json … c12.json                         # exists; ground truth, reviewed by hand
 fixtures/generated/<id>__<layout>.docx + .manifest.json         # exists; 48 pairs written by cvr.golden.generate, committed
 eval/{thresholds.yaml,report.json}                              # Phase 1: config, and the gitignored generated report
-tests/{text,models,eval,golden,template}/                       # exists; mirrors the package
+tests/{text,models,eval,golden,template,parse,verify}/          # exists; mirrors the package
 tests/docx_text.py                                              # exists; the dumb all_text/image_count helper the golden and template tests observe through
 Dockerfile                                                      # Phase 1
 .github/workflows/ci.yml                                        # exists

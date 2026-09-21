@@ -44,3 +44,21 @@ def test_case_and_typos_are_untouched():
 
 def test_empty_text_gives_no_tokens():
     assert tokenise("   \u200b ") == []
+
+
+def test_symbols_on_a_token_edge_are_stripped_when_they_are_punctuation():
+    """Pins the tokeniser on c07's skills: `C#` loses its hash and `.NET` its
+    dot, because `#` and `.` are Unicode punctuation on a token edge, while
+    `C++` survives because `+` is a symbol.
+
+    This is a known limitation, not a target: `C` and `NET` are what the
+    eval compares. The eval tolerates it because both sides of every
+    comparison (the source document and the rendered output) tokenise
+    alike, so the same token comes out of both and no add or drop is
+    reported. Pinned here so the fact is a unit test and not a side-effect
+    of regenerating the golden set.
+    """
+    assert tokenise("C#") == ["C"]
+    assert tokenise(".NET") == ["NET"]
+    assert tokenise("C++") == ["C++"]
+    assert tokenise("Java, C#, .NET, C++") == ["Java", "C", "NET", "C++"]

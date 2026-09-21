@@ -4,13 +4,36 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** in-review
 
-- [ ] `SourceBlock(id, text, kind)` and the id grammar as specified; `Image`, `Span`, `Removal` models in `cvr.models`
-- [ ] Parser coverage test over all 48 documents: every text run `all_text` sees is in some block, and every block's text is in `all_text` (canonicalised both sides)
-- [ ] Block ids are identical across two parses of the same file; ids differ between the four Layouts of one Candidate (they are addresses, not content hashes)
-- [ ] Text-box Layout: text-box blocks appear at their anchor position; the ADR-0008 note "anchor order is an approximation" is drafted into the ticket's PR description for ticket 03 to carry
-- [ ] Header/footer Layout: header and footer blocks carry `default` in the type slot; a hand-made document with a first-page header yields `first`
-- [ ] `NORM_INVISIBLE` events per block match the manifest's injected confusables for the deletion rows (text-box: soft hyphens; header-footer: zero-width spaces); no visible confusable is altered (curly quotes survive in the two-column and header-footer documents)
-- [ ] Two-column documents yield exactly one `Image` and one `RM_PHOTO` removal; the other three Layouts yield none
-- [ ] No LLM, no network; `pytest` for the parser stays well under the thirty-second budget on its own
+- [x] `SourceBlock(id, text, kind)` and the id grammar as specified; `Image`, `Span`, `Removal` models in `cvr.models`
+- [x] Parser coverage test over all 48 documents: every text run `all_text` sees is in some block, and every block's text is in `all_text` (canonicalised both sides)
+- [x] Block ids are identical across two parses of the same file; ids differ between the four Layouts of one Candidate (they are addresses, not content hashes)
+- [x] Text-box Layout: text-box blocks appear at their anchor position; the ADR-0008 note "anchor order is an approximation" is drafted into the ticket's PR description for ticket 03 to carry
+- [x] Header/footer Layout: header and footer blocks carry `default` in the type slot; a hand-made document with a first-page header yields `first`
+- [x] `NORM_INVISIBLE` events per block match the manifest's injected confusables for the deletion rows (text-box: soft hyphens; header-footer: zero-width spaces); no visible confusable is altered (curly quotes survive in the two-column and header-footer documents)
+- [x] Two-column documents yield exactly one `Image` and one `RM_PHOTO` removal; the other three Layouts yield none
+- [x] No LLM, no network; `pytest` for the parser stays well under the thirty-second budget on its own
+
+## Comments
+
+### 2026-09-19: built, in review (branch `phase-1/02-parse-source-document-into-blocks`)
+
+**What was built.** `cvr.parse` with `parse(bytes) -> ParsedDocument(blocks, images, removals, normalisations)`: one lxml walker over body paragraphs, tables (cells row by row, a cell's paragraphs in order) and text boxes (`w:txbxContent`, emitted straight after their anchor body child, in anchor order), then each section's headers and footers by type; python-docx opens the package and resolves header and footer parts by type. The id grammar as specified. NORM_INVISIBLE strips the confusable table's deletion rows and logs one `Normalisation` event per block. Every `word/media/` part becomes an `Image(part, sha256, size)` and a `Removal(RM_PHOTO, image)`. In `cvr.models`: `SourceBlock(id, text, kind)` with `BlockKind`, `Span(block_id, start, end, text)`, `Image`, `Removal(rule, subject: Span | Image)`, `Normalisation(rule, block_id, characters)` and `NormalisationRule` (`NORM_INVISIBLE`). Tests in `tests/parse/` over all 48 documents both directions against `all_text`, plus hand-made documents for a first-page and even header, a second section, a linked header, a table, an empty-paragraph gap, an invisible-only paragraph and a header image; the directory runs in three to five seconds. `CLAUDE.md` records the package.
+
+**Decisions beyond the ticket text.**
+
+- `Span` carries `text` (the raw slice) as the brief's §5 outline has it, and validates only what it can without the block: `0 <= start < end` and `len(text) == end - start`. Whether the text *is* the slice is the verifier's to prove.
+- The NORM_INVISIBLE event is a model, `Normalisation`, in `cvr.models` beside `Removal`, because the `Run` record of ticket 04 carries both. It records the stripped characters in source order and no positions: the pre-strip text is discarded, so there is nothing for a position to point into.
+- A paragraph whose text is empty after the strip is a gap, not a block; whitespace-only paragraphs are gaps too. A paragraph that was *only* invisibles is a gap **and still logs its NORM_INVISIBLE event** at its address (changed in code review: the log must record the one modification the pipeline makes whether or not a block follows), so an event's `block_id` can name a gap. The golden set has no such line.
+- The table cell index `P` counts the cell's children after its `w:tcPr`, so a cell's first paragraph is `:0` as it is in the body and a header. Cell addresses are raw `w:tc` positions, not python-docx's `row.cells`, which repeats a merged cell.
+- Paragraph text is read as python-docx reads it: `w:t` text, a tab for `w:tab`, a newline for `w:br`/`w:cr`, through hyperlinks and other wrappers, never into `w:pPr`/`w:rPr` (a tab stop is a `w:tab` too) or a text box. The fallback half of an `mc:AlternateContent` pair is skipped, in both the text walk and the text-box search, so a DrawingML text box with a VML fallback is read once.
+- Text boxes are found under body children only (a paragraph or a table), which is what the grammar `textbox:N:B:P` can address. A text box anchored inside a header or footer has no address in the grammar and is not read; the golden set has none. Tables inside headers, and tables nested in cells, likewise have no grammar and are not read.
+- Header and footer order within a section: headers `default, first, even`, then footers `default, first, even`. A header whose reference exists is read whether or not Word would display it (no `titlePg` for a first-page header, no `evenAndOddHeaders` for an even one): it is text in the file. A section linked to the previous one is skipped, and checked through `is_linked_to_previous` before touching the element, because python-docx adds an empty definition on access otherwise.
+- Images are collected by walking the package's `word/media/` parts, one `Image` per part in name order, rather than by following image relationships from each part: it is one rule with nothing to forget, and it is how `image_count` counts. **For the maintainer:** `Image.part` is therefore the media part's name (`word/media/image1.png`), not the body, header or footer part that draws it; the spec's "collected from every part" reads either way, and the transform log will not say where a photo sat unless this is changed to follow the references.
+- `ParsedDocument` is a frozen dataclass in `cvr.parse` (as `Generated` is in `cvr.golden`), not a pydantic model: it is a node's return value, never loaded from JSON.
+- `parse` takes `bytes`, as the pipeline function of ticket 06 (`reformat(source_bytes, labeller)`) will hand it.
+
+**ADR-0008 draft note, for ticket 03 to carry into the ADR and its PR description ("anchor order is an approximation").** A text box is emitted at the position of the body child it is anchored in, immediately after that child's own text, and text boxes anchored in the same child in document order. This is the anchor's position, not the box's: Word places a floating box by its own offsets and wrapping, and a box anchored in an early paragraph can be drawn beside a later one, or two boxes anchored in one paragraph can be drawn in either order. Anchor order therefore approximates visual reading order and is not guaranteed to match it. The golden set's text-box Layout anchors each box in an empty paragraph exactly where it is drawn, so the approximation is exact there and the limitation is recorded rather than discovered. It is stated, not mitigated: recovering visual order would mean reading the drawing's geometry, and the pipeline's promise is provenance, not layout fidelity. The same approximation applies to headers and footers, which are emitted after the body although Word draws a header first.
+
+PR: #20 (release/phase-1-01-02 → main)
