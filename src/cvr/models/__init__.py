@@ -1,7 +1,9 @@
 """Content model (``CVContent`` and its entries), the PII model (``PII``),
-the removal rule ids (``RemovalRule``), and the source-side models the
-pipeline passes between its nodes: ``SourceBlock``, ``Span``, ``Image``,
-``Removal`` and ``Normalisation``.
+the removal rule ids (``RemovalRule``), and the models the pipeline passes
+between its nodes: the source side (``SourceBlock``, ``Span``, ``Image``,
+``Removal``, ``Normalisation``), the labelling result (``Labelling`` of
+``Reference``s and ``RemovalLabel``s, or ``LabellingFailure``) and the
+verified tree (``VerifiedContent`` of ``Unit``s).
 
 Every string here is a candidate's own text, held verbatim. Typos, odd
 capitalisation and punctuation are baked into the strings on purpose and
@@ -44,6 +46,10 @@ __all__ = [
     "Span",
     "StrictModel",
     "TextRemovalRule",
+    "Unit",
+    "VerifiedContent",
+    "VerifiedEducation",
+    "VerifiedExperience",
 ]
 
 
@@ -324,3 +330,63 @@ class LabellingFailure(StrictModel):
 
 
 LabellingResult = Labelling | LabellingFailure
+
+
+# --- Verified: what the verifier hands transform. ``CVContent`` again, with a
+# ``Unit`` of Spans in place of every string and ``None`` where a leaf was
+# rejected, so an entry survives with a hole rather than disappearing.
+
+
+class Unit(StrictModel):
+    """One rendered unit: one or more Spans of the same block, ascending and
+    non-overlapping. More than one is a multi-span unit, produced only by
+    clipping a content claim around a removal; transform joins the pieces
+    with a single space of template text."""
+
+    spans: list[Span] = Field(min_length=1)
+
+    @property
+    def block_id(self) -> str:
+        return self.spans[0].block_id
+
+    @model_validator(mode="after")
+    def _one_block_ascending(self) -> Self:
+        blocks = {span.block_id for span in self.spans}
+        if len(blocks) > 1:
+            raise ValueError(f"unit spans more than one block: {sorted(blocks)}")
+        for before, after in zip(self.spans, self.spans[1:]):
+            if after.start < before.end:
+                raise ValueError(
+                    f"unit spans are not ascending and non-overlapping: "
+                    f"{before.start}:{before.end} then {after.start}:{after.end}"
+                )
+        return self
+
+
+class VerifiedExperience(StrictModel):
+    """``dates`` is the whole range as printed, one unit; transform splits it."""
+
+    title: Unit | None = None
+    employer: Unit | None = None
+    location: Unit | None = None
+    dates: Unit | None = None
+    bullets: list[Unit] = Field(default_factory=list)
+
+
+class VerifiedEducation(StrictModel):
+    institution: Unit | None = None
+    qualification: Unit | None = None
+    dates: Unit | None = None
+    details: list[Unit] = Field(default_factory=list)
+
+
+class VerifiedContent(StrictModel):
+    """``CVContent`` in Spans. Empty by default: the labelling-failure tree."""
+
+    name: Unit | None = None
+    profile: list[Unit] = Field(default_factory=list)
+    skills: list[Unit] = Field(default_factory=list)
+    education: list[VerifiedEducation] = Field(default_factory=list)
+    experience: list[VerifiedExperience] = Field(default_factory=list)
+    certifications: list[Unit] = Field(default_factory=list)
+    additional: list[Unit] = Field(default_factory=list)
