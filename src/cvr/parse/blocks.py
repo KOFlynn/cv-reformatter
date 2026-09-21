@@ -23,7 +23,6 @@ its number and the ids are the same on every parse of the same file.
 from collections.abc import Iterator
 
 from docx.document import Document as DocumentType
-from docx.section import _BaseHeaderFooter
 from lxml import etree
 
 from cvr.models import BlockKind, Normalisation, NormalisationRule, SourceBlock
@@ -101,8 +100,9 @@ def _addresses(
     for s, section in enumerate(document.sections):
         for kind, types in (("header", _HEADER_TYPES), ("footer", _FOOTER_TYPES)):
             for type_name, accessor in types:
-                part: _BaseHeaderFooter = getattr(section, accessor)
-                yield from _header_footer(kind, s, type_name, part)
+                yield from _header_footer(
+                    kind, s, type_name, getattr(section, accessor)
+                )
 
 
 def _table(
@@ -121,11 +121,12 @@ def _table(
 
 
 def _header_footer(
-    kind: BlockKind, s: int, type_name: str, part: _BaseHeaderFooter
+    kind: BlockKind, s: int, type_name: str, part
 ) -> Iterator[tuple[BlockKind, str, etree._Element]]:
+    """``part`` is python-docx's header or footer proxy for one section."""
     # A linked header has no part of its own: its content is the previous
-    # section's, already read, or nothing. Reading it through python-docx
-    # would add an empty definition to the document, so ask first.
+    # section's, already read, or nothing. Reaching for its element through
+    # python-docx would add an empty definition to the document, so ask first.
     if part.is_linked_to_previous:
         return
     for p, child in enumerate(part._element):
