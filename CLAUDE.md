@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**Phase 0 (spec, template, golden set, eval metrics) is complete. Phase 1 (the pipeline) is in progress: `parse` and `verify` exist.** The other pipeline packages (label, transform, render, api) do not exist yet; nothing here calls an LLM or opens a `.docx` inside a metric.
+**Phase 0 (spec, template, golden set, eval metrics) is complete. Phase 1 (the pipeline) is in progress: `parse`, `verify` and `transform` exist.** The other pipeline packages (label, render, api) do not exist yet; nothing here calls an LLM or opens a `.docx` inside a metric.
 
 What exists, by package under `src/cvr/`:
 
@@ -18,6 +18,7 @@ What exists, by package under `src/cvr/`:
 - `eval`: the nine metrics as pure functions with sorted `Finding`s: `added_tokens`, `dropped_tokens`, `provenance_violations`, `punctuation_fidelity`, `pii_leak`, `image_leak`, `placement_accuracy`, `ordering_report`, `appendix_rate`; entry alignment in `eval.alignment`, leaves by field type in `eval.leaves`. The runner, thresholds and report are Phase 1.
 - `parse`: `parse(bytes) -> ParsedDocument`, the pipeline's first node: ordered `SourceBlock`s with address ids (body, table cells, headers and footers by type, text boxes at their anchor), invisibles stripped under `NORM_INVISIBLE`, every image collected by content hash and removed under `RM_PHOTO`. Proven over all 48 generated documents against `tests/docx_text.py`.
 - `verify`: `verify(blocks, labelling) -> VerifiedDocument`, the pipeline's third node: one claim ledger per block filled removals → regex backstop → content in tree-walk order → heading backstop → coverage (asserted by a test); matching on canonical text through the offset map, slicing raw. Out: the `VerifiedContent` tree, the flat `(path, Span)` claims, `Removal`s under their rules, `Rejection`s with reasons, `Residue` split into separator and unplaced, the ledgers, `label_failed`. The backstops in `verify.backstops`, the ledger in `verify.ledger`. ADR-0008.
+- `transform`: the pipeline's fourth node, pure over `VerifiedContent` (`models`/`text` only, never `verify`). `transform_content` projects every `Unit` to the string the renderer prints (a multi-span unit joined by one space of template text, logged in `split_map`), splits each entry's `dates` reference into a normalised start/end (`transform.dates.split_dates`: whole-as-one-date tried before splitting on a range separator; accepted formats to `MM/YYYY`/`YYYY`/`Present`, else a verbatim literal; a lone date is the entry's `end`, logged in `date_map`), and reorders experience/education entries (`transform.order`: end date descending, Present first, then start descending, then source order). `Run` is the transform-log record type, defined here since transform assembles it; `transform()` builds one from a `VerifiedContent` plus explicit, optional ledger/removal/normalisation/residue/labeller-metadata arguments, so it needs no labeller, verifier or clock and round-trips through JSON.
 - `template`: `python -m cvr.template.build` writing `templates/fictitious_recruitment.docx` (committed, never hand-edited, ADR-0006); `fill(content, unplaced)` through docxtpl; `template_text`/`template_tokens` read from the built file for the eval whitelist.
 - `tests/eval/fake_pipeline.py` and `tests/eval/corruptions.py`: the "test the test" harness, an honest pipeline over every Candidate plus the eight-row corruption table with declared blast radii and directions, asserted equal to the spec's table over every committed Candidate (so a new Candidate must carry what every row damages: a job with bullets, two jobs, an email, an apostrophe or a hyphen).
 
@@ -37,7 +38,7 @@ uv run python -m cvr.template.build     # rebuild templates/fictitious_recruitme
 
 CI (`.github/workflows/ci.yml`) runs sync, lint, format check and tests on every push and pull request. Both generators are byte-stable, and `tests/golden/test_generate.py` and `tests/template/test_build.py` fail if a committed artefact differs from a fresh generation. The fuller command reference (dependency management, venv activation, useful pytest flags) is `docs/development.md`.
 
-Package layout under `src/cvr/`: `text` and `models` sit at the bottom; `eval`, `golden`, `template`, `parse` and `verify` depend on them and never on each other. `cvr.text` is standard library only. `golden` and `eval` are excluded from the runtime image later; nothing production-facing imports either.
+Package layout under `src/cvr/`: `text` and `models` sit at the bottom; `eval`, `golden`, `template`, `parse`, `verify` and `transform` depend on them and never on each other. `cvr.text` is standard library only. `golden` and `eval` are excluded from the runtime image later; nothing production-facing imports either.
 
 ## What this is
 
@@ -73,12 +74,13 @@ Layout (brief §13, adjusted by the Phase 0 spec so that `cvr` is the one import
 src/cvr/{text,models,eval,golden,template}/                     # exists (Phase 0)
 src/cvr/parse/                                                  # exists (Phase 1, ticket 02)
 src/cvr/verify/                                                 # exists (Phase 1, ticket 03)
-src/cvr/{label,transform,render,graph,api,mcp}/                 # Phase 1+
+src/cvr/transform/                                               # exists (Phase 1, ticket 04)
+src/cvr/{label,render,graph,api,mcp}/                            # Phase 1+
 templates/fictitious_recruitment.docx                           # exists; built by src/cvr/template/build.py, committed
 fixtures/candidates/c01.json … c12.json                         # exists; ground truth, reviewed by hand
 fixtures/generated/<id>__<layout>.docx + .manifest.json         # exists; 48 pairs written by cvr.golden.generate, committed
 eval/{thresholds.yaml,report.json}                              # Phase 1: config, and the gitignored generated report
-tests/{text,models,eval,golden,template,parse,verify}/          # exists; mirrors the package
+tests/{text,models,eval,golden,template,parse,verify,transform}/ # exists; mirrors the package
 tests/docx_text.py                                              # exists; the dumb all_text/image_count helper the golden and template tests observe through
 Dockerfile                                                      # Phase 1
 .github/workflows/ci.yml                                        # exists
