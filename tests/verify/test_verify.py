@@ -226,7 +226,9 @@ def test_llm_removal_is_logged_under_its_rule_and_leaves_the_block_placed_around
 def test_unlocatable_llm_removal_is_rejected_and_nothing_removed():
     blocks = [_block("body:0", "Nothing to remove here")]
     labelling = _labelling(
-        removals=[RemovalReference(rule="RM_DOB", block_id="body:0", quote="01/01/1990")]
+        removals=[
+            RemovalReference(rule="RM_DOB", block_id="body:0", quote="01/01/1990")
+        ]
     )
     result = verify(blocks, labelling)
     assert result.removals == []
