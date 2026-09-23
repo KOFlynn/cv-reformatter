@@ -8,6 +8,8 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "docxtpl",
+    "langchain>=1.0,<2.0",
+    "langchain-anthropic>=1.0,<2.0",
     "lxml",
     "pydantic",
     "python-docx",
