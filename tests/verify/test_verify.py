@@ -8,7 +8,7 @@ from support import experience as _experience
 from support import labelling as _labelling
 from support import ref as _ref
 
-from cvr.models import LabellingFailure, RemovalLabel, RemovalRule, Span
+from cvr.models import LabellingFailure, RemovalReference, RemovalRule, Span
 from cvr.verify import Claim, Rejection, Residue, VerifiedDocument, verify
 
 
@@ -138,7 +138,7 @@ def test_removal_at_the_end_of_a_bullet_yields_a_one_piece_prefix():
     blocks = [_block("body:0", text)]
     labelling = _labelling(
         removals=[
-            RemovalLabel(rule="RM_PHONE", block_id="body:0", quote="085 555 0177")
+            RemovalReference(rule="RM_PHONE", block_id="body:0", quote="085 555 0177")
         ],
         experience=[_experience(bullets=[_ref("body:0", text)])],
     )
@@ -156,7 +156,7 @@ def test_removal_mid_range_yields_a_two_piece_multi_span_unit():
     blocks = [_block("body:0", text)]
     labelling = _labelling(
         removals=[
-            RemovalLabel(rule="RM_PHONE", block_id="body:0", quote="085 555 0177")
+            RemovalReference(rule="RM_PHONE", block_id="body:0", quote="085 555 0177")
         ],
         additional=[_ref("body:0", text)],
     )
@@ -174,7 +174,7 @@ def test_content_wholly_inside_a_removal_is_rejected_as_removed():
     blocks = [_block("body:0", "padraig.lonergan@example.net")]
     labelling = _labelling(
         removals=[
-            RemovalLabel(
+            RemovalReference(
                 rule="RM_EMAIL", block_id="body:0", quote="padraig.lonergan@example.net"
             )
         ],
@@ -191,7 +191,7 @@ def test_an_occurrence_inside_a_removal_is_claimed_so_the_next_one_is_tried():
     blocks = [_block("body:0", "Referee: Dr Excel, a@example.org. Skills: Excel")]
     labelling = _labelling(
         removals=[
-            RemovalLabel(
+            RemovalReference(
                 rule="RM_REFEREE",
                 block_id="body:0",
                 quote="Referee: Dr Excel, a@example.org.",
@@ -209,7 +209,7 @@ def test_llm_removal_is_logged_under_its_rule_and_leaves_the_block_placed_around
     blocks = [_block("body:0", "Referee: Dr A Body, a.body@example.org")]
     labelling = _labelling(
         removals=[
-            RemovalLabel(
+            RemovalReference(
                 rule="RM_REFEREE",
                 block_id="body:0",
                 quote="Referee: Dr A Body, a.body@example.org",
@@ -226,7 +226,7 @@ def test_llm_removal_is_logged_under_its_rule_and_leaves_the_block_placed_around
 def test_unlocatable_llm_removal_is_rejected_and_nothing_removed():
     blocks = [_block("body:0", "Nothing to remove here")]
     labelling = _labelling(
-        removals=[RemovalLabel(rule="RM_DOB", block_id="body:0", quote="01/01/1990")]
+        removals=[RemovalReference(rule="RM_DOB", block_id="body:0", quote="01/01/1990")]
     )
     result = verify(blocks, labelling)
     assert result.removals == []
