@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 (Verify)
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] `langchain`, `langchain-anthropic` (pinned to the major that documents `json_schema`) added to runtime dependencies; `uv.lock` updated; CI syncs with `--locked`
 - [ ] `LabellerConfig` from environment with documented variable names; a test proves temperature is absent from the request when unset and present when set
