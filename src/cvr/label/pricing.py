@@ -12,7 +12,7 @@ PRICE_TABLE_CHECKED = "2026-09-23"
 # model name -> (input $ / million tokens, output $ / million tokens)
 PRICE_TABLE: dict[str, tuple[float, float]] = {
     "claude-opus-5": (5.0, 25.0),
-    "claude-opus-5.5": (4.0, 20.0),
+    "claude-opus-5-5": (4.0, 20.0),
     "claude-sonnet-5": (2.0, 10.0),
 }
 

@@ -8,7 +8,7 @@ Environment variables (all optional; unset means the spec's baseline):
 
 ======================  ===========================================
 ``CVR_LABEL_PROVIDER``  LangChain provider id (default ``anthropic``)
-``CVR_LABEL_MODEL``     model name (default ``claude-opus-5``)
+``CVR_LABEL_MODEL``     model name (default ``claude-opus-5-5``)
 ``CVR_LABEL_EFFORT``    reasoning effort: ``low | medium | high | xhigh | max``
                         (default ``medium``)
 ``CVR_LABEL_TEMPERATURE``  a float; unset or empty means "do not send
@@ -39,7 +39,7 @@ __all__ = [
 ]
 
 DEFAULT_PROVIDER = "anthropic"
-DEFAULT_MODEL = "claude-opus-5"
+DEFAULT_MODEL = "claude-opus-5-5"
 DEFAULT_EFFORT = "medium"
 
 ENV_PROVIDER = "CVR_LABEL_PROVIDER"

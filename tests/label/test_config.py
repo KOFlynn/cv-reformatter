@@ -13,7 +13,7 @@ from cvr.label.config import (
 def test_defaults_are_the_spec_baseline():
     config = LabellerConfig.from_env(env={})
     assert config.provider == DEFAULT_PROVIDER == "anthropic"
-    assert config.model == DEFAULT_MODEL == "claude-opus-5"
+    assert config.model == DEFAULT_MODEL == "claude-opus-5-5"
     assert config.effort == DEFAULT_EFFORT == "medium"
     assert config.temperature is None
     assert config.extra == {}
