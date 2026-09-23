@@ -2,7 +2,7 @@
 the removal rule ids (``RemovalRule``), and the models the pipeline passes
 between its nodes: the source side (``SourceBlock``, ``Span``, ``Image``,
 ``Removal``, ``Normalisation``), the labelling result (``Labelling`` of
-``Reference``s and ``RemovalLabel``s, or ``LabellingFailure``) and the
+``Reference``s and ``RemovalReference``s, or ``LabellingFailure``) and the
 verified tree (``VerifiedContent`` of ``Unit``s).
 
 Every string here is a candidate's own text, held verbatim. Typos, odd
@@ -40,7 +40,7 @@ __all__ = [
     "Referee",
     "Reference",
     "Removal",
-    "RemovalLabel",
+    "RemovalReference",
     "RemovalRule",
     "SourceBlock",
     "Span",
@@ -306,7 +306,7 @@ class ContentReferences(StrictModel):
     additional: list[Reference]
 
 
-class RemovalLabel(StrictModel):
+class RemovalReference(StrictModel):
     """The LLM's claim that a quote should be removed under one of the eight
     text rules."""
 
@@ -319,7 +319,7 @@ class Labelling(StrictModel):
     """A usable answer from the labeller: the content tree and the removals."""
 
     content: ContentReferences
-    removals: list[RemovalLabel]
+    removals: list[RemovalReference]
 
 
 class LabellingFailure(StrictModel):
