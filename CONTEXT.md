@@ -29,8 +29,8 @@ The LLM's claim that a quote from a given block belongs in a given field. A clai
 _Avoid_: label (as a noun), extraction, mapping, pointer
 
 **Labelling failure**:
-The LLM's answer for a whole source document being unusable (malformed, or not matching the schema). The job still completes: every block becomes residue and the output is the banner and the appendix. Distinct from a single bad reference, which loses one leaf and nothing else.
-_Avoid_: crash, error, timeout (a timeout is one cause of it, not the thing itself)
+The LLM's answer for a whole source document being unusable (malformed, not matching the schema, or a refusal). The job still completes: every block becomes residue and the output is the banner and the appendix. Distinct from a single bad reference, which loses one leaf and nothing else, and from a provider that is unavailable or rejects the request as configured, which stops the job because the fault is not in the CV.
+_Avoid_: crash, error, timeout (a timeout is the provider being unavailable, not a labelling failure)
 
 **Span**:
 A verified slice of a block, identified by its position in the source. The only thing that ever reaches the rendered output.

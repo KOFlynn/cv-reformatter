@@ -10,6 +10,7 @@ schema identity, tokens and cost for the pipeline (ticket 06) to put in the
 """
 
 from cvr.label.config import LabellerConfig
+from cvr.label.errors import LabellerError, LabellerMisconfigured, ProviderUnavailable
 from cvr.label.labeller import RealLabeller
 from cvr.label.pricing import PRICE_TABLE, PRICE_TABLE_CHECKED
 from cvr.label.versions import (
@@ -33,5 +34,8 @@ __all__ = [
     "SCHEMA_HASH",
     "SCHEMA_VERSION",
     "LabellerConfig",
+    "LabellerError",
+    "LabellerMisconfigured",
+    "ProviderUnavailable",
     "RealLabeller",
 ]

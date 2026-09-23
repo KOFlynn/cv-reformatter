@@ -1,15 +1,24 @@
-"""The real labeller's provider-agnostic machinery, exercised without any
-network call: the Anthropic-specific request options (temperature sent only
-when set), and turning a structured-output response into a labelling
-result or a labelling failure without ever raising."""
+"""The real labeller's machinery, exercised without any network call: the
+Anthropic-specific request options (temperature sent only when set, the
+client's retries), turning a structured-output response into a labelling
+result or a labelling failure, and the four kinds of failure."""
 
 from typing import Any
 
+import anthropic
+import httpx
+import pytest
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableLambda
 
 from cvr.label.config import LabellerConfig
-from cvr.label.labeller import anthropic_kwargs, label_blocks
+from cvr.label.errors import LabellerMisconfigured, ProviderUnavailable
+from cvr.label.labeller import (
+    PROVIDER_RETRIES,
+    anthropic_kwargs,
+    build_chat_model,
+    label_blocks,
+)
 from cvr.label.versions import (
     CONTENT_HASH,
     PROMPT_HASH,
@@ -129,20 +138,83 @@ def test_malformed_answer_becomes_a_labelling_failure_without_raising():
     assert run.output_tokens == 10
 
 
-def test_a_request_that_raises_becomes_a_labelling_failure_without_raising():
-    config = LabellerConfig()
+def _raising(exc: Exception) -> RunnableLambda:
+    def _raise(_messages: Any) -> dict[str, Any]:
+        raise exc
 
-    def _explode(_messages: Any) -> dict[str, Any]:
-        raise RuntimeError("rate limited")
+    return RunnableLambda(_raise)
 
-    result, run = label_blocks(BLOCKS, RunnableLambda(_explode), config)
+
+_REQUEST = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+
+
+def _status_error(cls: type[anthropic.APIStatusError], status: int) -> Exception:
+    return cls(
+        "provider said no", response=httpx.Response(status, request=_REQUEST), body=None
+    )
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        _status_error(anthropic.RateLimitError, 429),
+        _status_error(anthropic.InternalServerError, 500),
+        _status_error(anthropic.OverloadedError, 529),
+        anthropic.APIConnectionError(request=_REQUEST),
+        anthropic.APITimeoutError(request=_REQUEST),
+    ],
+    ids=["rate-limit", "server-error", "overloaded", "connection", "timeout"],
+)
+def test_a_transient_provider_error_is_provider_unavailable(exc: Exception):
+    with pytest.raises(ProviderUnavailable, match="try again later") as raised:
+        label_blocks(BLOCKS, _raising(exc), LabellerConfig())
+    assert raised.value.__cause__ is exc
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        _status_error(anthropic.AuthenticationError, 401),
+        _status_error(anthropic.PermissionDeniedError, 403),
+        _status_error(anthropic.NotFoundError, 404),
+        _status_error(anthropic.BadRequestError, 400),
+    ],
+    ids=["bad-key", "no-access", "unknown-model", "bad-request"],
+)
+def test_a_rejected_request_is_labeller_misconfigured(exc: Exception):
+    with pytest.raises(LabellerMisconfigured, match="ANTHROPIC_API_KEY") as raised:
+        label_blocks(BLOCKS, _raising(exc), LabellerConfig())
+    assert raised.value.__cause__ is exc
+
+
+def test_anything_else_is_a_defect_and_propagates_unchanged():
+    with pytest.raises(RuntimeError, match="a bug"):
+        label_blocks(BLOCKS, _raising(RuntimeError("a bug")), LabellerConfig())
+
+
+def test_a_refusal_is_a_labelling_failure():
+    raw = AIMessage(
+        content="",
+        response_metadata={"stop_reason": "refusal"},
+        usage_metadata={"input_tokens": 50, "output_tokens": 2, "total_tokens": 52},
+    )
+    model = _fake_structured_model({"raw": raw, "parsed": None, "parsing_error": None})
+
+    result, run = label_blocks(BLOCKS, model, LabellerConfig())
 
     assert isinstance(result, LabellingFailure)
-    assert "rate limited" in result.reason
+    assert result.reason == "the model refused to answer"
     assert run.label_failed is True
-    assert run.input_tokens == 0
-    assert run.output_tokens == 0
-    assert run.cost_usd == 0.0
+    assert run.input_tokens == 50
+
+
+def test_an_unsupported_provider_is_labeller_misconfigured():
+    with pytest.raises(LabellerMisconfigured, match="CVR_LABEL_PROVIDER"):
+        build_chat_model(LabellerConfig(provider="openai"))
+
+
+def test_the_client_retries_before_giving_up():
+    assert anthropic_kwargs(LabellerConfig())["max_retries"] == PROVIDER_RETRIES == 2
 
 
 def test_every_run_carries_the_prompt_and_schema_identity():

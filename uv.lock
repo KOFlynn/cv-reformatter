@@ -196,6 +196,7 @@ name = "cvr"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "anthropic" },
     { name = "docxtpl" },
     { name = "langchain" },
     { name = "langchain-anthropic" },
@@ -212,6 +213,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anthropic", specifier = ">=1.8,<2" },
     { name = "docxtpl" },
     { name = "langchain", specifier = ">=1.0,<2.0" },
     { name = "langchain-anthropic", specifier = ">=1.0,<2.0" },
