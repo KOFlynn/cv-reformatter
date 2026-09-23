@@ -135,3 +135,19 @@ def test_a_date_inside_body_text_is_never_touched() -> None:
     # not one of the accepted formats: passed through untouched, as a literal
     assert date.literal is True
     assert date.value == "renewed March 2024"
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("Jan '00", "01/2000"),
+        ("Jan '20", "01/2020"),
+        ("Jan '26", "01/2026"),
+        ("Jan '27", "01/1927"),
+        ("Jan '98", "01/1998"),
+    ],
+)
+def test_two_digit_year_up_to_the_pivot_is_20yy_above_it_19yy(
+    text: str, expected: str
+) -> None:
+    assert parse_date(text).value == expected

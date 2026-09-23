@@ -58,6 +58,19 @@ _MONTH_YEAR = re.compile(r"^(?P<month>[A-Za-z]+)\s+(?:'(?P<yy>\d{2})|(?P<yyyy>\d
 _SLASH = re.compile(r"^(?P<month>\d{1,2})/(?P<year>\d{4})$")  # "01/2020", "1/2020"
 _ISO = re.compile(r"^(?P<year>\d{4})-(?P<month>\d{1,2})$")  # "2020-01"
 _YEAR_ONLY = re.compile(r"^(?P<year>\d{4})$")  # "2020"
+
+# A two-digit year up to this one is 20YY, above it 19YY: "Jan '20" is 2020,
+# "Jan '98" is 1998. A constant, not today's date, because no function here
+# reads the clock; it is the year the rule was set (2026) and moves forward
+# only by a deliberate change.
+TWO_DIGIT_YEAR_PIVOT = 26
+
+
+def _full_year(yy: str) -> int:
+    two_digits = int(yy)
+    return (2000 if two_digits <= TWO_DIGIT_YEAR_PIVOT else 1900) + two_digits
+
+
 _YEAR_RUN = re.compile(r"\d{4}")
 
 # Every dash variant canonicalises to "-", so this one pattern catches
@@ -101,7 +114,7 @@ def _classify(canonical: str) -> tuple[int | None, int] | None:
         month = _MONTHS.get(match["month"].casefold())
         if month is None:
             return None
-        year = int(match["yyyy"]) if match["yyyy"] else 2000 + int(match["yy"])
+        year = int(match["yyyy"]) if match["yyyy"] else _full_year(match["yy"])
         return month, year
     if match := _SLASH.match(canonical):
         month = int(match["month"])
