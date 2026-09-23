@@ -73,9 +73,7 @@ class LabellerConfig:
             model=source.get(ENV_MODEL, DEFAULT_MODEL),
             effort=source.get(ENV_EFFORT, DEFAULT_EFFORT),
             temperature=(
-                float(temperature_raw)
-                if temperature_raw not in (None, "")
-                else None
+                float(temperature_raw) if temperature_raw not in (None, "") else None
             ),
             extra=json.loads(extra_raw) if extra_raw else {},
         )
