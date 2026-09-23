@@ -117,3 +117,10 @@ arguments. 1638 tests pass in about 31s; ruff and format clean.
 
 PR: none yet (release branch `release/phase-1-04-07`, not opened).
 
+
+### 2026-09-23: maintainer review, on the release branch
+
+- **Lone date is the entry's `end`**: accepted.
+- **One Run, in `models`** (commit `01b1d73`): tickets 04 and 07 were built in parallel, so transform had its own `Run` with copies of verify's ledger and residue shapes, and label had its own `LabelRun`. `Run`, `LabelRun`, `LedgerEntry`, `LedgerKind` and `Residue` now live in `cvr.models`; each node fills its own section and verify uses the shared types directly. Transform no longer builds a `Run`: `transform_content` returns `date_map` and `split_map`, transform's section, and the pipeline function (ticket 06) assembles the `Run`. `unplaced` is derived from the residue rather than stored twice. `LedgerLine` and `transform()` are gone; the Run round-trip test moved to `tests/models/test_run.py`, still over a hand-made `VerifiedContent` through `transform_content`.
+- **Multi-span dates left unsplit**: accepted as a rare edge case.
+- **Two-digit years** (commit `46729a5`): `'00`–`'26` read as 20YY, `'27`–`'99` as 19YY, so `Jan '98` is 1998, not 2098. The pivot is the constant `TWO_DIGIT_YEAR_PIVOT = 26`, not today's date, because no transform function reads the clock.
