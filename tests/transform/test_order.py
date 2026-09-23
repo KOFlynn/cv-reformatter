@@ -65,6 +65,32 @@ def test_undated_entry_sorts_last_in_source_order() -> None:
     ]
 
 
+def test_literal_with_no_year_sorts_last_like_an_undated_entry() -> None:
+    dated = _entry("dated", 0, None, _date("01/2020", 2020, 1))
+    literal_undated = _entry(
+        "literal-undated",
+        1,
+        None,
+        NormalisedDate(
+            value="a while ago", year=None, month=None, present=False, literal=True
+        ),
+    )
+    assert order([literal_undated, dated]) == ["dated", "literal-undated"]
+
+
+def test_literal_with_a_year_sorts_by_it() -> None:
+    literal_2020 = _entry(
+        "literal-2020",
+        0,
+        None,
+        NormalisedDate(
+            value="Summer 2020", year=2020, month=None, present=False, literal=True
+        ),
+    )
+    dated_2019 = _entry("dated-2019", 1, None, _date("12/2019", 2019, 12))
+    assert order([dated_2019, literal_2020]) == ["literal-2020", "dated-2019"]
+
+
 def test_end_descending_beats_start_descending() -> None:
     # a earlier start but a later end must still sort ahead of a later start
     # with an earlier end: the end date is the primary key.
