@@ -18,8 +18,10 @@ from cvr.models import Labelling
 __all__ = [
     "CONTENT_HASH",
     "LABELLING_JSON_SCHEMA",
+    "PROMPT_HASH",
     "PROMPT_TEXT",
     "PROMPT_VERSION",
+    "SCHEMA_HASH",
     "SCHEMA_VERSION",
 ]
 
@@ -37,6 +39,13 @@ PROMPT_TEXT = (Path(__file__).parent / "prompt.md").read_text(encoding="utf-8")
 # tests/models/test_labelling.py.
 LABELLING_JSON_SCHEMA = Labelling.model_json_schema()
 
-CONTENT_HASH = hashlib.sha256(
-    (PROMPT_TEXT + json.dumps(LABELLING_JSON_SCHEMA, sort_keys=True)).encode("utf-8")
-).hexdigest()[:16]
+_SCHEMA_TEXT = json.dumps(LABELLING_JSON_SCHEMA, sort_keys=True)
+
+
+def _hash(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
+PROMPT_HASH = _hash(PROMPT_TEXT)
+SCHEMA_HASH = _hash(_SCHEMA_TEXT)
+CONTENT_HASH = _hash(PROMPT_TEXT + _SCHEMA_TEXT)

@@ -1,4 +1,5 @@
-"""The real labeller: blocks in, a labelling result and a ``LabelRun`` out.
+"""The real labeller: blocks in, a labelling result and the Run's label
+section (``cvr.models.LabelRun``) out.
 ``init_chat_model`` with provider and model from ``LabellerConfig``, then
 ``with_structured_output(Labelling, method="json_schema")`` so Claude's
 native structured-output feature is used instead of a forced tool call,
@@ -17,7 +18,6 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
 from typing import Any
 
 from langchain.chat_models import init_chat_model
@@ -27,35 +27,28 @@ from langchain_core.runnables import Runnable
 
 from cvr.label.config import LabellerConfig
 from cvr.label.pricing import estimate_cost
-from cvr.label.versions import CONTENT_HASH, PROMPT_TEXT, PROMPT_VERSION, SCHEMA_VERSION
-from cvr.models import Labelling, LabellingFailure, LabellingResult, SourceBlock
+from cvr.label.versions import (
+    CONTENT_HASH,
+    PROMPT_HASH,
+    PROMPT_TEXT,
+    PROMPT_VERSION,
+    SCHEMA_HASH,
+    SCHEMA_VERSION,
+)
+from cvr.models import (
+    Labelling,
+    LabellingFailure,
+    LabellingResult,
+    LabelRun,
+    SourceBlock,
+)
 
 __all__ = [
-    "LabelRun",
     "RealLabeller",
     "anthropic_kwargs",
     "build_chat_model",
     "label_blocks",
 ]
-
-
-@dataclass(frozen=True, slots=True)
-class LabelRun:
-    """What the labeller itself knows about one request: the configuration
-    used, the prompt and schema identity, tokens and cost, and whether the
-    answer was usable. The pipeline's ``Run`` (ticket 06) folds this in
-    alongside the ledger, removals and residue that only exist once the
-    result has been verified."""
-
-    config: LabellerConfig
-    prompt_version: str
-    schema_version: str
-    content_hash: str
-    input_tokens: int
-    output_tokens: int
-    cost_usd: float
-    label_failed: bool
-    failure_reason: str | None = None
 
 
 def anthropic_kwargs(config: LabellerConfig) -> dict[str, Any]:
@@ -144,9 +137,11 @@ def label_blocks(
         LabellingFailure(reason=reason) if label_failed else parsed
     )
     run = LabelRun(
-        config=config,
+        config=config.as_dict(),
         prompt_version=PROMPT_VERSION,
+        prompt_hash=PROMPT_HASH,
         schema_version=SCHEMA_VERSION,
+        schema_hash=SCHEMA_HASH,
         content_hash=CONTENT_HASH,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
@@ -162,7 +157,7 @@ class RealLabeller:
     labeller seam (``blocks -> labelling result``). Each call's full
     :class:`LabelRun` (tokens, cost, prompt and schema identity) is recorded
     on :attr:`last_run` immediately afterwards, for the pipeline (ticket 06)
-    to fold into its ``Run``.
+    to put in its ``Run`` as the label section.
     """
 
     def __init__(

@@ -2,8 +2,9 @@
 the removal rule ids (``RemovalRule``), and the models the pipeline passes
 between its nodes: the source side (``SourceBlock``, ``Span``, ``Image``,
 ``Removal``, ``Normalisation``), the labelling result (``Labelling`` of
-``Reference``s and ``RemovalReference``s, or ``LabellingFailure``) and the
-verified tree (``VerifiedContent`` of ``Unit``s).
+``Reference``s and ``RemovalReference``s, or ``LabellingFailure``), the
+verified tree (``VerifiedContent`` of ``Unit``s), and the ``Run`` every node
+fills in its own section of (``LabelRun``, ``LedgerEntry``, ``Residue``).
 
 Every string here is a candidate's own text, held verbatim. Typos, odd
 capitalisation and punctuation are baked into the strings on purpose and
@@ -31,9 +32,12 @@ __all__ = [
     "ExperienceEntry",
     "ExperienceReference",
     "Image",
+    "LabelRun",
     "Labelling",
     "LabellingFailure",
     "LabellingResult",
+    "LedgerEntry",
+    "LedgerKind",
     "Normalisation",
     "NormalisationRule",
     "Personal",
@@ -42,6 +46,8 @@ __all__ = [
     "Removal",
     "RemovalReference",
     "RemovalRule",
+    "Residue",
+    "Run",
     "SourceBlock",
     "Span",
     "StrictModel",
@@ -390,3 +396,81 @@ class VerifiedContent(StrictModel):
     experience: list[VerifiedExperience] = Field(default_factory=list)
     certifications: list[Unit] = Field(default_factory=list)
     additional: list[Unit] = Field(default_factory=list)
+
+
+# --- The Run: one source document taken once through the pipeline, and its
+# transform log. Defined here, where every node can see it, so each node
+# fills in its own section and nothing is copied between packages: parse the
+# normalisations and the photo removals, label the ``LabelRun``, verify the
+# ledgers, removals, residue and ``label_failed``, transform the date and
+# split maps. The pipeline function assembles it.
+
+
+class LedgerKind(StrEnum):
+    REMOVAL = "removal"
+    CONTENT = "content"
+
+
+class LedgerEntry(StrictModel):
+    """A claimed raw range of one block: ``claimant`` is the removal rule id
+    or the path of the field (``experience[1].bullets[2]``)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    start: int
+    end: int
+    claimant: str
+    kind: LedgerKind
+
+
+class Residue(StrictModel):
+    """One unclaimed run of a block. ``separator`` means every character is a
+    separator: logged, but not unplaced text."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    span: Span
+    separator: bool
+
+
+class LabelRun(StrictModel):
+    """The labeller's section of the Run: the configuration used, the prompt
+    and schema identity, tokens and cost, and whether the answer was usable.
+    ``config`` is the labeller configuration as plain values, so this package
+    never imports the label package."""
+
+    config: dict[str, object]
+    prompt_version: str
+    prompt_hash: str
+    schema_version: str
+    schema_hash: str
+    content_hash: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: float = 0.0
+    label_failed: bool = False
+    failure_reason: str | None = None
+
+
+class Run(StrictModel):
+    """One Run and its transform log. Every section but the run id is
+    optional, so a Run can be built by hand in a test with no labeller."""
+
+    run_id: str
+    # label
+    label: LabelRun | None = None
+    # parse and verify
+    normalisations: list[Normalisation] = Field(default_factory=list)
+    removals: list[Removal] = Field(default_factory=list)
+    ledgers: dict[str, list[LedgerEntry]] = Field(default_factory=dict)
+    residue: list[Residue] = Field(default_factory=list)
+    label_failed: bool = False
+    # transform
+    date_map: dict[str, Span] = Field(default_factory=dict)
+    split_map: dict[str, list[Span]] = Field(default_factory=dict)
+
+    @property
+    def unplaced(self) -> list[Span]:
+        """The residue that is not made purely of separators: what goes to
+        the review appendix, in block then source order."""
+        return [residue.span for residue in self.residue if not residue.separator]

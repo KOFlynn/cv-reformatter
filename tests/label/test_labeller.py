@@ -9,12 +9,19 @@ from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableLambda
 
 from cvr.label.config import LabellerConfig
-from cvr.label.labeller import LabelRun, anthropic_kwargs, label_blocks
-from cvr.label.versions import CONTENT_HASH, PROMPT_VERSION, SCHEMA_VERSION
+from cvr.label.labeller import anthropic_kwargs, label_blocks
+from cvr.label.versions import (
+    CONTENT_HASH,
+    PROMPT_HASH,
+    PROMPT_VERSION,
+    SCHEMA_HASH,
+    SCHEMA_VERSION,
+)
 from cvr.models import (
     ContentReferences,
     Labelling,
     LabellingFailure,
+    LabelRun,
     Reference,
     SourceBlock,
 )
@@ -87,9 +94,11 @@ def test_valid_answer_becomes_a_labelling_result():
     assert isinstance(result, Labelling)
     assert result.content.name.quote == "Padraig Lonergan"
     assert run == LabelRun(
-        config=config,
+        config=config.as_dict(),
         prompt_version=PROMPT_VERSION,
+        prompt_hash=PROMPT_HASH,
         schema_version=SCHEMA_VERSION,
+        schema_hash=SCHEMA_HASH,
         content_hash=CONTENT_HASH,
         input_tokens=120,
         output_tokens=40,

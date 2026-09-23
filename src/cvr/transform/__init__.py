@@ -1,5 +1,5 @@
 """The transform node: pure functions from ``VerifiedContent`` to the content
-the renderer projects, plus the ``Run`` record.
+the renderer projects, plus transform's section of the ``Run``.
 
 ``transform_content`` walks the verified tree once: every ``Unit`` becomes
 the plain string the renderer prints (multi-span units joined by one space
@@ -9,28 +9,17 @@ recorded in ``date_map``); experience and education entries are reordered
 (``cvr.transform.order``). Removed Spans never reach ``VerifiedContent`` in
 the first place, so nothing here has removals to apply.
 
-``Run`` is the transform log's record type, defined here because transform is
-the node that assembles it. Its ``ledger`` and ``residue``/``unplaced``
-fields are shaped like ``cvr.verify``'s ``LedgerEntry`` and ``Span``, but
-transform never imports ``cvr.verify`` (the package dependency rule is
-``models`` and ``text`` only): the pipeline function (ticket 06) translates
-a ``VerifiedDocument`` into the plain ``LedgerLine``/``Span`` values ``Run``
-accepts. ``transform`` (the top-level function) is pure and takes every
-labeller-metadata field as an explicit, optional argument, so a ``Run`` can
-be hand-built in a test with no pipeline, no labeller and no clock.
+The ``Run`` itself lives in ``cvr.models``; the pipeline function puts
+``date_map`` and ``split_map`` into it beside the other nodes' sections.
 
 Depends on ``cvr.models`` and ``cvr.text`` only.
 """
 
-from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Literal
 
 from pydantic import Field
 
 from cvr.models import (
-    Normalisation,
-    Removal,
     Span,
     StrictModel,
     Unit,
@@ -42,13 +31,10 @@ from cvr.transform.dates import NormalisedDate, parse_date, split_dates
 from cvr.transform.order import Ranked, order
 
 __all__ = [
-    "LedgerLine",
-    "Run",
     "TransformResult",
     "TransformedContent",
     "TransformedEducation",
     "TransformedExperience",
-    "transform",
     "transform_content",
 ]
 
@@ -85,44 +71,10 @@ class TransformedContent(StrictModel):
     additional: list[str] = Field(default_factory=list)
 
 
-class LedgerLine(StrictModel):
-    """One row of a block's claim ledger, as it appears in the transform
-    log: the claimed raw range, its claimant (a removal rule id or a field
-    path), and whether the claim was a removal or content."""
-
-    start: int
-    end: int
-    claimant: str
-    kind: Literal["removal", "content"]
-
-
-class Run(StrictModel):
-    """The transform log's record type: one per source document taken once
-    through the pipeline. Every labeller-metadata field is optional, so a
-    ``Run`` can be built without a labeller at all."""
-
-    run_id: str
-    labeller_config: dict[str, object] = Field(default_factory=dict)
-    prompt_label: str | None = None
-    prompt_hash: str | None = None
-    schema_label: str | None = None
-    schema_hash: str | None = None
-    tokens: dict[str, int] | None = None
-    cost: float | None = None
-    ledger: dict[str, list[LedgerLine]] = Field(default_factory=dict)
-    removals: list[Removal] = Field(default_factory=list)
-    normalisations: list[Normalisation] = Field(default_factory=list)
-    date_map: dict[str, Span] = Field(default_factory=dict)
-    split_map: dict[str, list[Span]] = Field(default_factory=dict)
-    residue: list[Span] = Field(default_factory=list)
-    unplaced: list[Span] = Field(default_factory=list)
-    label_failed: bool = False
-
-
 @dataclass(frozen=True, slots=True)
 class TransformResult:
     """``transform_content``'s output: the projected content plus the two
-    provenance maps that go into the ``Run``."""
+    provenance maps that are transform's section of the ``Run``."""
 
     content: TransformedContent
     date_map: dict[str, Span]
@@ -239,46 +191,3 @@ def transform_content(content: VerifiedContent) -> TransformResult:
         date_map=date_map,
         split_map=split_map,
     )
-
-
-def transform(
-    content: VerifiedContent,
-    run_id: str,
-    *,
-    ledger: Mapping[str, Sequence[LedgerLine]] | None = None,
-    removals: Sequence[Removal] = (),
-    normalisations: Sequence[Normalisation] = (),
-    residue: Sequence[Span] = (),
-    unplaced: Sequence[Span] = (),
-    label_failed: bool = False,
-    labeller_config: Mapping[str, object] | None = None,
-    prompt_label: str | None = None,
-    prompt_hash: str | None = None,
-    schema_label: str | None = None,
-    schema_hash: str | None = None,
-    tokens: Mapping[str, int] | None = None,
-    cost: float | None = None,
-) -> tuple[TransformedContent, Run]:
-    """``transform_content`` plus the ``Run`` it feeds: every argument beyond
-    ``content`` and ``run_id`` is optional, so this runs with no labeller,
-    no verifier and no clock, over a hand-made ``VerifiedContent``."""
-    result = transform_content(content)
-    run = Run(
-        run_id=run_id,
-        labeller_config=dict(labeller_config) if labeller_config else {},
-        prompt_label=prompt_label,
-        prompt_hash=prompt_hash,
-        schema_label=schema_label,
-        schema_hash=schema_hash,
-        tokens=dict(tokens) if tokens else None,
-        cost=cost,
-        ledger={block_id: list(lines) for block_id, lines in (ledger or {}).items()},
-        removals=list(removals),
-        normalisations=list(normalisations),
-        date_map=result.date_map,
-        split_map=result.split_map,
-        residue=list(residue),
-        unplaced=list(unplaced),
-        label_failed=label_failed,
-    )
-    return result.content, run

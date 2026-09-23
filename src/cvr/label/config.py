@@ -61,6 +61,16 @@ class LabellerConfig:
     temperature: float | None = None
     extra: Mapping[str, Any] = field(default_factory=dict)
 
+    def as_dict(self) -> dict[str, object]:
+        """Every field as plain values, for the Run's label section."""
+        return {
+            "provider": self.provider,
+            "model": self.model,
+            "effort": self.effort,
+            "temperature": self.temperature,
+            "extra": dict(self.extra),
+        }
+
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> LabellerConfig:
         """Read every field from its documented environment variable, or the
