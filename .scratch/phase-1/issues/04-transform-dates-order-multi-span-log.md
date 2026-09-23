@@ -4,7 +4,7 @@
 
 **Blocked by:** 03 (Verify)
 
-**Status:** in-review
+**Status:** done
 
 - [x] One test case per accepted format, each in straight and curly-apostrophe form where an apostrophe exists, all yielding the same normalised string
 - [x] `2020-01 - 2021-06` parses as a range; `2020-01` alone as a single date; `January 2020 - June 2026`, `01/2020 – 06/2026`, `2022-03 to 2026-07` (the three Layout range styles) all split correctly
