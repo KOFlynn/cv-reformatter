@@ -97,7 +97,7 @@ def test_every_run_has_its_own_id():
 # --- Who may import the pipeline
 
 SRC = Path(cvr.__file__).parent
-ALLOWED = ("pipeline", "api", "eval/run")
+ALLOWED = ("pipeline/", "api/", "eval/run.py", "eval/run/")
 
 
 def _imports_pipeline(path: Path) -> bool:

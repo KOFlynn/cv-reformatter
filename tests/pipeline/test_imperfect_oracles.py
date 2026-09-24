@@ -95,7 +95,13 @@ def _content_claimants(run: Run, block_id: str) -> list[str]:
 
 
 def _unplaced_in(run: Run, block_id: str) -> list[str]:
-    return [span.text for span in run.unplaced if span.block_id == block_id]
+    """The block's residue that is not separators, read from the residue
+    itself rather than from ``Run.unplaced``, which derives from it."""
+    return [
+        residue.span.text
+        for residue in run.residue
+        if residue.span.block_id == block_id and not residue.separator
+    ]
 
 
 def _assert_explained_by_the_run(scores: Scores, run: Run) -> None:
@@ -177,13 +183,19 @@ BACKSTOPPED = {RemovalRule.PHONE, RemovalRule.EMAIL, RemovalRule.URL}
 
 @layouts
 def test_a_schema_invalid_answer_puts_every_block_under_the_banner(stem):
-    _, run, scores = _run(stem, schema_invalid)
+    output, run, scores = _run(stem, schema_invalid)
     blocks = parse(document(stem).source).blocks
     position = {block.id: index for index, block in enumerate(blocks)}
 
     assert run.label_failed is True
     assert scores.adapted.content == TransformedContent()
+    assert BANNER in [block.text for block in parse(output).blocks]
     assert scores.adapted.appendix
+    # Every block is removed, separator residue, or unplaced whole.
+    for block in blocks:
+        claimed = [e for e in run.ledgers[block.id] if e.kind is LedgerKind.REMOVAL]
+        unplaced = _unplaced_in(run, block.id)
+        assert claimed or unplaced or is_separator_residue(block.text), block.id
     assert [span.text for span in run.unplaced] == scores.adapted.appendix
     order = [position[span.block_id] for span in run.unplaced]
     assert order == sorted(order)

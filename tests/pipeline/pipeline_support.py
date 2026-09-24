@@ -28,7 +28,7 @@ from cvr.eval import (
     punctuation_fidelity,
 )
 from cvr.eval.adapter import Adapted, adapt
-from cvr.golden import Candidate, Manifest, load_candidate
+from cvr.golden import CANDIDATES_DIR, Candidate, Manifest, load_candidate
 from cvr.golden.generate import GENERATED_DIR
 from cvr.models import (
     CVContent,
@@ -74,9 +74,7 @@ def document(stem: str) -> Document:
     manifest = Manifest.model_validate_json(
         (GENERATED_DIR / f"{stem}.manifest.json").read_text(encoding="utf-8")
     )
-    candidate = load_candidate(
-        GENERATED_DIR.parent / "candidates" / f"{manifest.candidate_id}.json"
-    )
+    candidate = load_candidate(CANDIDATES_DIR / f"{manifest.candidate_id}.json")
     return Document(candidate, manifest, (GENERATED_DIR / f"{stem}.docx").read_bytes())
 
 
@@ -216,17 +214,40 @@ def _pairs(
     return [(span, piece) for span, piece in located if span is not None]
 
 
-def _date_claims(blocks: dict[str, str], run: Run) -> list[str]:
-    """The source text of every entry's claimed date range. Transform
-    replaces it whole (both dates normalised, the separator, ``to`` or a
-    dash, replaced by the template's en dash), so it is accounted for by its
-    claim in the ledger, as the rendered dates are by ``date_map``."""
-    return [
-        blocks[block_id][entry.start : entry.end]
-        for block_id, entries in run.ledgers.items()
-        for entry in entries
-        if entry.kind is LedgerKind.CONTENT and entry.claimant.endswith(".dates")
-    ]
+def _dates_accounted(blocks: dict[str, str], run: Run, printed: set[str]) -> list[str]:
+    """The source text transform replaced in entry date fields, accounted
+    for only as far as the Run and the output show it went somewhere.
+
+    Each date is accounted for by its ``date_map`` slice, and only if its
+    normalised form was printed, so a date lost in transform or render is
+    still dropped. What else a claimed range held (the separator, ``to`` or
+    a dash, which the template's en dash replaces) is accounted for by the
+    claim in the ledger, less those slices.
+    """
+    mapped = [span for date, span in run.date_map if date in printed]
+    accounted = [span.text for span in mapped]
+    for block_id, entries in run.ledgers.items():
+        for entry in entries:
+            if entry.kind is not LedgerKind.CONTENT:
+                continue
+            if not entry.claimant.endswith(".dates"):
+                continue
+            at = entry.start
+            dates = sorted(
+                (
+                    span
+                    for _, span in run.date_map
+                    if span.block_id == block_id
+                    and entry.start <= span.start
+                    and span.end <= entry.end
+                ),
+                key=lambda span: span.start,
+            )
+            for span in dates:
+                accounted.append(blocks[block_id][at : span.start])
+                at = span.end
+            accounted.append(blocks[block_id][at : entry.end])
+    return accounted
 
 
 def _parts(document: ParsedDocument) -> dict[str, str]:
@@ -267,7 +288,7 @@ def score(candidate: Candidate, source: bytes, output: bytes, run: Run) -> Score
         ),
         dropped=dropped_tokens(
             _tokens(sources),
-            [*output_tokens, *_tokens(_date_claims(blocks, run))],
+            [*output_tokens, *_tokens(_dates_accounted(blocks, run, set(rendered)))],
             _tokens(removed),
             _tokens(adapted.appendix),
         ),
