@@ -73,7 +73,7 @@ CHECKS: dict[str, Check] = {
     ),
     "provenance": lambda _, i: (
         not provenance_violations(
-            i.output_units, i.source_blocks, i.template_units, i.date_map
+            i.output_units, i.source_blocks, i.template_units, i.date_map, i.split_map
         )
     ),
     # Reported, not gated, until the Phase 1 baseline; here it must be clean
@@ -164,6 +164,26 @@ def swap_two_words(_: Candidate, result: PipelineResult) -> PipelineResult:
         raise NotApplicable("the first bullet has no two different adjacent words")
     words[at], words[at + 1] = words[at + 1], words[at]
     return _with_bullets(result, index, [" ".join(words), *rest])
+
+
+def join_slices_out_of_source_order(
+    _: Candidate, result: PipelineResult
+) -> PipelineResult:
+    """Declares the first bulleted job's first bullet a multi-span join of
+    its own two halves, logged in the wrong order. What is printed does not
+    move: the bullet's text, and every other leaf, are exactly row 0's.
+    Nothing but ``split_map``'s claimed order changes, so only provenance's
+    ascending-slices check can see it (ADR-0007 amendment)."""
+    index = _first_job_with_bullets(result)
+    bullet = result.content.experience[index].bullets[0]
+    words = bullet.split(" ")
+    if len(words) < 2:
+        raise NotApplicable("the first bullet has fewer than two words")
+    midpoint = len(words) // 2
+    first_half = " ".join(words[:midpoint])
+    second_half = " ".join(words[midpoint:])
+    split_map = {**result.split_map, bullet: [second_half, first_half]}
+    return replace(result, split_map=split_map)
 
 
 def _replace_in_first_leaf(
@@ -316,5 +336,14 @@ CORRUPTIONS: list[Corruption] = [
         swap_a_confusable,
         "punctuation",
         "added dropped appendix ordering placement provenance pii image",
+    ),
+    # Nothing printed moves: the bullet reads exactly as row 0's. Only the
+    # transform log's split_map claims the two halves in the wrong order,
+    # which only provenance's ascending-slices check reads at all.
+    _row(
+        "join two slices out of source order",
+        join_slices_out_of_source_order,
+        "provenance",
+        "added dropped appendix ordering placement pii image punctuation",
     ),
 ]

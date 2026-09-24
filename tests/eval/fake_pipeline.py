@@ -33,12 +33,19 @@ __all__ = [
 class PipelineResult:
     """What a real pipeline hands the renderer: placed content plus unplaced
     text, and what the rendered document then carries outside the body: the
-    header lines and the content hashes of every embedded image."""
+    header lines and the content hashes of every embedded image.
+
+    ``split_map`` is a rendered leaf that is really a multi-span unit,
+    mapped to its ordered raw slices: only a removal clipping a claim around
+    the middle of a block produces one, so the honest pipeline's is always
+    empty.
+    """
 
     content: CVContent
     unplaced: list[str] = field(default_factory=list)
     header: list[str] = field(default_factory=list)
     image_hashes: list[str] = field(default_factory=list)
+    split_map: dict[str, list[str]] = field(default_factory=dict)
 
 
 def fake_pipeline(candidate: Candidate) -> PipelineResult:
@@ -91,6 +98,7 @@ class MetricInputs:
     template_tokens: list[str]
     template_units: list[str]
     date_map: list[tuple[str, str]]
+    split_map: list[tuple[str, list[str]]]
     removed_tokens: list[str]
     appendix_tokens: list[str]
     output_text: dict[str, str]  # part name (body, header) to its text
@@ -131,12 +139,28 @@ def locate(unit: str, blocks: Iterable[str]) -> str | None:
     return matches[0] if matches else None
 
 
+def _pairs_for_unit(
+    unit: str, split_map: dict[str, list[str]], blocks: list[str]
+) -> list[tuple[str, str]]:
+    """The raw ``(located, rendered)`` pairs one output unit contributes to
+    ``punctuation_fidelity``: one pair for a plain unit, one pair per slice
+    for a unit ``split_map`` names as a multi-span join, since the joined
+    whole has no single source location to compare byte for byte."""
+    pieces = split_map.get(unit, [unit])
+    located = ((locate(piece, blocks), piece) for piece in pieces)
+    return [(span, piece) for span, piece in located if span is not None]
+
+
 def metric_inputs(candidate: Candidate, result: PipelineResult) -> MetricInputs:
     source_leaves = leaves(candidate.content)
     removed = pii_values(candidate.pii)
     source_blocks = [*source_leaves, *removed, *candidate.unplaceable]
     output_units = leaves(result.content)
-    located = ((locate(unit, source_blocks), unit) for unit in output_units)
+    pairs = [
+        pair
+        for unit in output_units
+        for pair in _pairs_for_unit(unit, result.split_map, source_blocks)
+    ]
     return MetricInputs(
         source_tokens=_tokens(source_blocks),
         source_content_tokens=_tokens([*source_leaves, *candidate.unplaceable]),
@@ -157,6 +181,7 @@ def metric_inputs(candidate: Candidate, result: PipelineResult) -> MetricInputs:
             for entry in [*candidate.content.education, *candidate.content.experience]
             for date in _entry_dates(entry)
         ],
+        split_map=list(result.split_map.items()),
         removed_tokens=_tokens(removed),
         appendix_tokens=_tokens(result.unplaced),
         output_text={
@@ -165,9 +190,9 @@ def metric_inputs(candidate: Candidate, result: PipelineResult) -> MetricInputs:
         },
         output_image_hashes=list(result.image_hashes),
         template_image_hashes=list(TEMPLATE_IMAGE_HASHES),
-        # A unit provenance cannot locate has no span to compare; it is
+        # A piece provenance cannot locate has no span to compare; it is
         # provenance's finding, not fidelity's.
-        pairs=[(span, unit) for span, unit in located if span is not None],
+        pairs=pairs,
     )
 
 
