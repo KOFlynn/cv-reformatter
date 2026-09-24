@@ -82,7 +82,7 @@ uv run ruff format . && uv run ruff check . && uv run pytest
 
 | | |
 |---|---|
-| Package | `src/cvr/` (`text`, `models`, `eval`, `golden`, `template`, `parse`, `verify`, `transform`) |
+| Package | `src/cvr/` (`text`, `models`, `eval`, `golden`, `template`, `parse`, `label`, `verify`, `transform`, `render`) |
 | Tests | `tests/`, mirroring the package (`tests/text/`, `tests/eval/`, ...) |
 | Golden set | `fixtures/candidates/*.json` (ground truth), `fixtures/generated/` (documents and manifests, committed) |
 | Template | `templates/fictitious_recruitment.docx`, built by `src/cvr/template/build.py` and committed |

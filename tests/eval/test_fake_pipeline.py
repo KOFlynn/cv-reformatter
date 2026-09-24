@@ -118,6 +118,7 @@ SPEC_TABLE: dict[str, tuple[set[str], Direction | None]] = {
     ),
     "leave the photo in": ({"image"}, None),
     "straighten a curly apostrophe": ({"punctuation"}, None),
+    "join two slices out of source order": ({"provenance"}, None),
 }
 SPEC_COLUMNS = {
     "added",
@@ -135,7 +136,7 @@ SPEC_COLUMNS = {
 def test_the_corruption_table_is_the_spec_table():
     assert CHECKS.keys() == SPEC_COLUMNS
     assert {c.name for c in CORRUPTIONS} == SPEC_TABLE.keys()
-    assert len(CORRUPTIONS) == len(SPEC_TABLE) == 8
+    assert len(CORRUPTIONS) == len(SPEC_TABLE) == 9
     for corruption in CORRUPTIONS:
         fails, direction = SPEC_TABLE[corruption.name]
         assert corruption.fails == fails, corruption.name

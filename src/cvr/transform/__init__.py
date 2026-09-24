@@ -9,19 +9,20 @@ recorded in ``date_map``); experience and education entries are reordered
 (``cvr.transform.order``). Removed Spans never reach ``VerifiedContent`` in
 the first place, so nothing here has removals to apply.
 
-The ``Run`` itself lives in ``cvr.models``; the pipeline function puts
-``date_map`` and ``split_map`` into it beside the other nodes' sections.
+``TransformedContent`` and the ``Run`` live in ``cvr.models``; the pipeline
+function puts ``date_map`` and ``split_map`` into the ``Run`` beside the other
+nodes' sections.
 
 Depends on ``cvr.models`` and ``cvr.text`` only.
 """
 
 from dataclasses import dataclass
 
-from pydantic import Field
-
 from cvr.models import (
     Span,
-    StrictModel,
+    TransformedContent,
+    TransformedEducation,
+    TransformedExperience,
     Unit,
     VerifiedContent,
     VerifiedEducation,
@@ -30,45 +31,7 @@ from cvr.models import (
 from cvr.transform.dates import NormalisedDate, parse_date, split_dates
 from cvr.transform.order import Ranked, order
 
-__all__ = [
-    "TransformResult",
-    "TransformedContent",
-    "TransformedEducation",
-    "TransformedExperience",
-    "transform_content",
-]
-
-
-class TransformedExperience(StrictModel):
-    """One experience entry projected to strings, dates normalised."""
-
-    title: str | None = None
-    employer: str | None = None
-    location: str | None = None
-    start: str | None = None
-    end: str | None = None
-    bullets: list[str] = Field(default_factory=list)
-
-
-class TransformedEducation(StrictModel):
-    institution: str | None = None
-    qualification: str | None = None
-    start: str | None = None
-    end: str | None = None
-    details: list[str] = Field(default_factory=list)
-
-
-class TransformedContent(StrictModel):
-    """``VerifiedContent`` projected to the strings the renderer prints, in
-    output order."""
-
-    name: str | None = None
-    profile: list[str] = Field(default_factory=list)
-    skills: list[str] = Field(default_factory=list)
-    education: list[TransformedEducation] = Field(default_factory=list)
-    experience: list[TransformedExperience] = Field(default_factory=list)
-    certifications: list[str] = Field(default_factory=list)
-    additional: list[str] = Field(default_factory=list)
+__all__ = ["TransformResult", "transform_content"]
 
 
 @dataclass(frozen=True, slots=True)

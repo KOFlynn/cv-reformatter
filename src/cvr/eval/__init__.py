@@ -1,4 +1,9 @@
-"""Eval metrics: pure functions over plain data. Depends on ``text`` and ``models`` only."""
+"""Eval metrics: pure functions over plain data. Depends on ``text`` and ``models`` only.
+
+The adapter that reads a rendered document back to leaves is imported as
+``cvr.eval.adapter``, never re-exported here: it also depends on ``template``
+and python-docx, and importing a metric must not load either.
+"""
 
 from cvr.eval.alignment import AlignedBy, Alignment, Section
 from cvr.eval.appendix import appendix_rate

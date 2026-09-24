@@ -87,3 +87,46 @@ def test_findings_are_sorted_by_unit_as_rendered():
         Finding(what="alpha", count=1, where="output"),
         Finding(what="zeta", count=1, where="output"),
     ]
+
+
+# split_map: a multi-span unit's ordered raw slices, from a removal clipping
+# a claim around the middle of a block. The joined text itself is never a
+# contiguous substring (the clip leaves a gap), so a multi-span unit is
+# checked only through split_map, never the whole-unit substring rule.
+CLIPPED_BLOCK = ["Called the office 0871234567 back the same day."]
+
+
+def test_a_multi_span_units_ascending_slices_of_one_block_is_not_a_violation():
+    unit = "Called the office  back the same day."
+    split_map = [(unit, ["Called the office ", "back the same day."])]
+    assert (
+        provenance_violations([unit], CLIPPED_BLOCK, [], [], split_map=split_map) == []
+    )
+
+
+def test_a_multi_span_units_slices_joined_out_of_source_order_is_a_violation():
+    unit = "back the same day.  Called the office "
+    split_map = [(unit, ["back the same day.", "Called the office "])]
+    assert provenance_violations(
+        [unit], CLIPPED_BLOCK, [], [], split_map=split_map
+    ) == [Finding(what=unit, count=1, where="output")]
+
+
+def test_a_multi_span_unit_is_checked_only_through_split_map_not_as_a_whole_substring():
+    # The joined text happens to equal a real contiguous substring, but a
+    # unit declared in split_map is still checked through its slices, not
+    # the fallback whole-unit rule; a slice from the wrong block is a
+    # violation even though the assembled whole matches something.
+    unit = "Led the team"
+    split_map = [(unit, ["Led the", "team, remotely"])]
+    assert provenance_violations([unit], BLOCKS, TEMPLATE, [], split_map=split_map) == [
+        Finding(what=unit, count=1, where="output")
+    ]
+
+
+def test_split_map_slices_must_share_one_block():
+    unit = "Led the team of five engineers"
+    split_map = [(unit, ["Led the team", "of five engineers"])]
+    assert provenance_violations([unit], BLOCKS, TEMPLATE, [], split_map=split_map) == [
+        Finding(what=unit, count=1, where="output")
+    ]
