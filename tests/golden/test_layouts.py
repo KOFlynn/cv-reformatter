@@ -61,6 +61,7 @@ def assert_each_appears(values: list[str], texts: list[str], where: str) -> None
 # --- Source coverage
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(("candidate", "layout"), PAIRS, ids=PAIR_IDS)
 def test_every_content_string_appears_in_the_document(candidate, layout):
     generated = layout.generate(candidate)
@@ -68,6 +69,7 @@ def test_every_content_string_appears_in_the_document(candidate, layout):
     assert_each_appears(content_strings(candidate), texts, f"{candidate.id} content")
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(("candidate", "layout"), PAIRS, ids=PAIR_IDS)
 def test_every_pii_value_appears_in_the_document(candidate, layout):
     generated = layout.generate(candidate)
@@ -78,6 +80,7 @@ def test_every_pii_value_appears_in_the_document(candidate, layout):
 # --- The photo
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(("candidate", "layout"), PAIRS, ids=PAIR_IDS)
 def test_only_two_column_documents_carry_an_image_and_exactly_one(candidate, layout):
     generated = layout.generate(candidate)
@@ -107,6 +110,7 @@ def manifest_strings(manifest) -> list[str]:
     return found
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(("candidate", "layout"), PAIRS, ids=PAIR_IDS)
 def test_manifest_carries_no_candidate_content_except_printed_dates(candidate, layout):
     manifest = layout.generate(candidate).manifest
@@ -128,6 +132,7 @@ def test_manifest_carries_no_candidate_content_except_printed_dates(candidate, l
     assert not leaked
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(("candidate", "layout"), PAIRS, ids=PAIR_IDS)
 def test_manifest_records_every_entry_and_every_date_once(candidate, layout):
     manifest = layout.generate(candidate).manifest
@@ -151,6 +156,7 @@ def test_manifest_records_every_entry_and_every_date_once(candidate, layout):
     assert len(manifest.fragments) == len(candidate.unplaceable)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(("candidate", "layout"), PAIRS, ids=PAIR_IDS)
 def test_generating_twice_in_memory_gives_identical_bytes(candidate, layout):
     first = layout.generate(candidate)

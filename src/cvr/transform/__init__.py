@@ -40,7 +40,7 @@ class TransformResult:
     provenance maps that are transform's section of the ``Run``."""
 
     content: TransformedContent
-    date_map: dict[str, Span]
+    date_map: list[tuple[str, Span]]
     split_map: dict[str, list[Span]]
 
 
@@ -62,7 +62,7 @@ def _render_list(units: list[Unit], split_map: dict[str, list[Span]]) -> list[st
 
 def _split_entry_dates(
     unit: Unit | None, split_map: dict[str, list[Span]]
-) -> tuple[NormalisedDate | None, NormalisedDate | None, dict[str, Span]]:
+) -> tuple[NormalisedDate | None, NormalisedDate | None, list[tuple[str, Span]]]:
     """The start/end dates of one entry's whole-range reference.
 
     A single-span range block is split for real, with a ``date_map`` entry
@@ -74,23 +74,23 @@ def _split_entry_dates(
     single-span block holding one date is.
     """
     if unit is None:
-        return None, None, {}
+        return None, None, []
     if len(unit.spans) == 1:
         split = split_dates(unit.spans[0])
         return split.start, split.end, split.date_map
     text = _render(unit, split_map)
     assert text is not None  # a multi-span unit always renders text
-    return None, parse_date(text), {}
+    return None, parse_date(text), []
 
 
 def _experience(
     entry: VerifiedExperience,
     index: int,
     split_map: dict[str, list[Span]],
-    date_map: dict[str, Span],
+    date_map: list[tuple[str, Span]],
 ) -> Ranked[TransformedExperience]:
     start, end, entry_dates = _split_entry_dates(entry.dates, split_map)
-    date_map.update(entry_dates)
+    date_map.extend(entry_dates)
     item = TransformedExperience(
         title=_render(entry.title, split_map),
         employer=_render(entry.employer, split_map),
@@ -106,10 +106,10 @@ def _education(
     entry: VerifiedEducation,
     index: int,
     split_map: dict[str, list[Span]],
-    date_map: dict[str, Span],
+    date_map: list[tuple[str, Span]],
 ) -> Ranked[TransformedEducation]:
     start, end, entry_dates = _split_entry_dates(entry.dates, split_map)
-    date_map.update(entry_dates)
+    date_map.extend(entry_dates)
     item = TransformedEducation(
         institution=_render(entry.institution, split_map),
         qualification=_render(entry.qualification, split_map),
@@ -123,7 +123,7 @@ def _education(
 def transform_content(content: VerifiedContent) -> TransformResult:
     """``VerifiedContent`` to the strings the renderer prints, in output
     order, plus ``date_map`` and ``split_map`` for the transform log."""
-    date_map: dict[str, Span] = {}
+    date_map: list[tuple[str, Span]] = []
     split_map: dict[str, list[Span]] = {}
 
     name = _render(content.name, split_map)

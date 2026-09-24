@@ -35,3 +35,7 @@ extend-select = ["I"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The tests over all 48 generated documents are the slow suite: excluded by
+# default, run with `-m slow`, and run by CI on every push.
+addopts = ["-m", "not slow"]
+markers = ["slow: runs over all 48 generated documents; `uv run pytest -m slow`"]

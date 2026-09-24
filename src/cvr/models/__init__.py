@@ -510,7 +510,9 @@ class Run(StrictModel):
     residue: list[Residue] = Field(default_factory=list)
     label_failed: bool = False
     # transform
-    date_map: dict[str, Span] = Field(default_factory=dict)
+    # One (normalised date, source slice) pair per date, in tree-walk order;
+    # a list, since two dates may normalise alike and each needs its pair.
+    date_map: list[tuple[str, Span]] = Field(default_factory=list)
     split_map: dict[str, list[Span]] = Field(default_factory=dict)
 
     @property

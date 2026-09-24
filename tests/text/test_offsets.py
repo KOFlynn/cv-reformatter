@@ -93,6 +93,7 @@ def test_text_with_nothing_to_keep_gives_an_empty_map(raw):
     assert canonical.raw_slice(0, 0) == ""
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("document", sorted(GENERATED_DIR.glob("*.docx")))
 def test_agrees_with_canonicalise_over_the_golden_set(document):
     # Property-style: every text run of every generated document, traps and

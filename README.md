@@ -63,9 +63,9 @@ appendix for whatever verification never placed. Phase 2 turns the same five nod
 a LangGraph state machine and adds a bounded retry loop between `verify` and `label`;
 Phase 1 is a plain function pipeline with identical boundaries, so that swap is a change
 of orchestration, not of code. Today, all five nodes (`parse`, `label`, `verify`,
-`transform` and `render`) exist as packages under `src/cvr/`; the pipeline function that
-wires them together and the `api`/`graph`/`mcp` wrappers do not exist yet (tickets 06
-and 11 respectively; `graph` and `mcp` are Phase 2 and 3).
+`transform` and `render`) exist as packages under `src/cvr/`, and `cvr.pipeline.reformat`
+wires them together; the `api`/`graph`/`mcp` wrappers do not exist yet (ticket 11;
+`graph` and `mcp` are Phase 2 and 3).
 
 ## Decisions
 
@@ -188,6 +188,7 @@ review-by-exception halves are already recorded: [ADR-0003](docs/adr/0003-docx-o
 ```
 uv sync                                 # install, using the Python 3.12 pinned in .python-version
 uv run pytest -q                        # unit tests
+uv run pytest -q -m slow                # the tests over all 48 generated documents
 uv run ruff check .                     # lint
 uv run ruff format --check .            # format check
 uv run python -m cvr.golden.generate    # regenerate fixtures/generated/ after a Candidate or Layout change
@@ -196,15 +197,14 @@ uv run python -m cvr.template.build     # rebuild templates/fictitious_recruitme
 
 The fuller command reference — dependency management, running one test directory,
 useful `pytest` flags — is [`docs/development.md`](docs/development.md); CI
-(`.github/workflows/ci.yml`) runs exactly the sync, lint, format-check and test steps
+(`.github/workflows/ci.yml`) runs exactly the sync, lint, format-check and both test steps
 above on every push and pull request.
 
-There is no single command yet that runs a CV through the whole pipeline: the function
-that wires `parse` → `label` → `verify` → `transform` → `render` together
-(`reformat(source_bytes, labeller) -> (output_bytes, Run)`) is ticket 06, the FastAPI
-service is ticket 11, and the Dockerfile is ticket 12. Until then, `parse`, `label`,
-`verify`, `transform` and `render` can each be
-exercised directly through their own package and its tests.
+There is no command yet that runs a CV through the whole pipeline: the function exists
+(`cvr.pipeline.reformat(source_bytes, labeller) -> (output_bytes, Run)`, proven over all
+48 generated documents with an oracle labeller in `tests/pipeline/`), but the eval runner
+that calls it with the real labeller is ticket 09, the FastAPI service ticket 11, and the
+Dockerfile ticket 12.
 
 ## The eval gate
 

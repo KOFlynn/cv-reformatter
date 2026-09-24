@@ -111,8 +111,8 @@ def test_em_dash_range_splits() -> None:
 def test_range_date_map_has_one_pair_per_side() -> None:
     span = _span("2020-01 - 2021-06")
     split = split_dates(span)
-    assert set(split.date_map) == {"01/2020", "06/2021"}
-    for slice_ in split.date_map.values():
+    assert [date for date, _ in split.date_map] == ["01/2020", "06/2021"]
+    for _, slice_ in split.date_map:
         assert slice_.block_id == span.block_id
         assert (
             span.text[slice_.start - span.start : slice_.end - span.start]
@@ -123,7 +123,18 @@ def test_range_date_map_has_one_pair_per_side() -> None:
 def test_single_date_map_is_the_whole_span() -> None:
     span = _span("2020-01")
     split = split_dates(span)
-    assert split.date_map == {"01/2020": span}
+    assert split.date_map == [("01/2020", span)]
+
+
+def test_date_map_keeps_a_pair_for_each_of_two_equal_dates() -> None:
+    """A range whose two sides normalise alike is two dates, each traced to
+    its own slice: the log is one pair per date, not per distinct value."""
+    span = _span("Jun 2016 - June 2016")
+    split = split_dates(span)
+    assert [(date, slice_.text) for date, slice_ in split.date_map] == [
+        ("06/2016", "Jun 2016"),
+        ("06/2016", "June 2016"),
+    ]
 
 
 def test_a_date_inside_body_text_is_never_touched() -> None:

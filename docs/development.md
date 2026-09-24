@@ -20,13 +20,17 @@ after which plain `pytest`, `ruff` and `python` refer to the project's copies.
 ## Tests
 
 ```
-uv run pytest                    # full suite
+uv run pytest                    # default suite, about twenty seconds
+uv run pytest -m slow            # the slow suite: every test over all 48 generated documents
+uv run pytest -m ""              # both
 uv run pytest -q                 # terse output
 uv run pytest tests/text         # one directory
 uv run pytest tests/text/test_tokenise.py
 uv run pytest -k confusable      # tests whose name matches a substring
 uv run pytest -x                 # stop at the first failure
 ```
+
+Tests parametrized over all 48 generated documents (the parse coverage tests, the Layout and generator tests, the perfect oracle through the pipeline) carry `@pytest.mark.slow` and are excluded from the default run by `addopts` in `pyproject.toml`, so the default run stays under thirty seconds; CI runs both suites on every push. A new test over all 48 documents gets the marker too.
 
 No test calls an LLM or opens a `.docx` in a metric; see `CLAUDE.md` for the working rules.
 
@@ -75,7 +79,7 @@ uv sync --locked                 # what CI runs: fails if uv.lock is out of date
 ## Before pushing
 
 ```
-uv run ruff format . && uv run ruff check . && uv run pytest
+uv run ruff format . && uv run ruff check . && uv run pytest && uv run pytest -m slow
 ```
 
 ## Where things are
