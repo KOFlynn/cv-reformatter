@@ -4,7 +4,7 @@
 
 **Blocked by:** 07 (The real labeller)
 
-**Status:** in-review
+**Status:** done
 
 - [x] README opens with what this is, what it is not (no real users, no real CVs), and the design invariant in one sentence
 - [x] Nine §12 sections present, each linking at least one ADR file; items 7 and 5 say explicitly what is still to come and which ticket brings it

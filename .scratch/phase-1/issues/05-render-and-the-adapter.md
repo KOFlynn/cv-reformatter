@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 (Transform)
 
-**Status:** in-review
+**Status:** done
 
 - [x] `render(content, unplaced) -> bytes` over the committed template; no `{{` or `{%` survives in any output
 - [x] Adapter returns leaves by field type (name, profile, skills, education entries, experience entries, certifications, additional, appendix) from a rendered document
