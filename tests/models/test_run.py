@@ -82,7 +82,7 @@ def test_run_carries_every_section() -> None:
     assert set(run.ledgers) == {"body:0", "body:1"}
     assert len(run.removals) == 1
     assert len(run.normalisations) == 1
-    assert set(run.date_map) == {"01/2020", "Present"}
+    assert [date for date, _ in run.date_map] == ["01/2020", "Present"]
     assert run.split_map == {}
     assert run.label_failed is False
 

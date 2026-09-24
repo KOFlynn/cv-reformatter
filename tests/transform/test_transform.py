@@ -42,7 +42,7 @@ def test_certification_date_like_text_is_never_touched() -> None:
     content = VerifiedContent(certifications=[unit("Renewed March 2024")])
     result = transform_content(content)
     assert result.content.certifications == ["Renewed March 2024"]
-    assert result.date_map == {}
+    assert result.date_map == []
 
 
 def test_entry_dates_split_into_start_and_end() -> None:
@@ -58,8 +58,10 @@ def test_entry_dates_split_into_start_and_end() -> None:
     entry = result.content.experience[0]
     assert entry.start == "01/2020"
     assert entry.end == "Present"
-    assert result.date_map["01/2020"].text == "Jan 2020"
-    assert result.date_map["Present"].text == "Present"
+    assert [(date, span.text) for date, span in result.date_map] == [
+        ("01/2020", "Jan 2020"),
+        ("Present", "Present"),
+    ]
 
 
 def test_entry_order_is_applied_across_the_content_tree() -> None:
@@ -73,6 +75,22 @@ def test_entry_order_is_applied_across_the_content_tree() -> None:
     )
     result = transform_content(content)
     assert [entry.title for entry in result.content.experience] == ["Newer", "Older"]
+
+
+def test_two_entries_sharing_a_date_log_a_pair_each() -> None:
+    content = VerifiedContent(
+        experience=[
+            VerifiedExperience(title=unit("First"), dates=unit("2016", start=0)),
+            VerifiedExperience(
+                title=unit("Second"), dates=unit("2016", block_id="body:1")
+            ),
+        ]
+    )
+    result = transform_content(content)
+    assert [(date, span.block_id) for date, span in result.date_map] == [
+        ("2016", "body:0"),
+        ("2016", "body:1"),
+    ]
 
 
 def test_education_entries_are_ordered_too() -> None:
@@ -107,5 +125,5 @@ def test_multi_span_dates_are_not_split_but_are_logged() -> None:
     entry = result.content.experience[0]
     assert entry.start is None
     assert entry.end == "Jan 2020 Present"
-    assert result.date_map == {}
+    assert result.date_map == []
     assert result.split_map == {"Jan 2020 Present": [first, second]}

@@ -98,12 +98,13 @@ class NormalisedDate:
 class DateSplit:
     """The result of splitting one range block: ``start`` is ``None`` for a
     block holding a single date (assigned to ``end``; see the ticket 04
-    comments for why). ``date_map`` holds one pair per normalised value that
-    could be traced back to a contiguous raw slice."""
+    comments for why). ``date_map`` holds one ``(normalised value, raw
+    slice)`` pair per date that could be traced back to a contiguous raw
+    slice, start before end; two sides that normalise alike are two pairs."""
 
     start: NormalisedDate | None
     end: NormalisedDate | None
-    date_map: dict[str, Span]
+    date_map: list[tuple[str, Span]]
 
 
 def _classify(canonical: str) -> tuple[int | None, int] | None:
@@ -182,12 +183,12 @@ def split_dates(span: Span) -> DateSplit:
     date first, then split on a range separator, else a literal."""
     whole = parse_date(span.text)
     if not whole.literal:
-        return DateSplit(start=None, end=whole, date_map={whole.value: span})
+        return DateSplit(start=None, end=whole, date_map=[(whole.value, span)])
 
     canonical = canonicalise_with_offsets(span.text)
     match = _RANGE_SEPARATOR.search(canonical.text)
     if match is None:
-        return DateSplit(start=None, end=whole, date_map={whole.value: span})
+        return DateSplit(start=None, end=whole, date_map=[(whole.value, span)])
 
     left = _sub_span(span, canonical.offsets, canonical.ends, 0, match.start())
     right = _sub_span(
@@ -195,9 +196,9 @@ def split_dates(span: Span) -> DateSplit:
     )
     start_date = parse_date(left.text) if left is not None else None
     end_date = parse_date(right.text) if right is not None else None
-    date_map: dict[str, Span] = {}
+    date_map: list[tuple[str, Span]] = []
     if left is not None and start_date is not None:
-        date_map[start_date.value] = left
+        date_map.append((start_date.value, left))
     if right is not None and end_date is not None:
-        date_map[end_date.value] = right
+        date_map.append((end_date.value, right))
     return DateSplit(start=start_date, end=end_date, date_map=date_map)
