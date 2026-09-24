@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (Text foundations), 02 (Parse)
 
-**Status:** in-review
+**Status:** done
 
 - [x] Labelling-result types (reference tree mirroring `CVContent`, `Reference`, `RemovalLabel` with the closed `RemovalRule` enum, `LabellingFailure`) defined once and shared with ticket 07; the JSON schema they generate is strict-compatible (every property required, no additional properties, nullable not optional) and a test asserts that
 - [x] Exact-match case places and slices raw; curly-versus-straight case matches on canonical text and the raw slice keeps the curly character

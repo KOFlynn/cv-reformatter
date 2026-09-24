@@ -12,7 +12,7 @@ from cvr.models import (
     Labelling,
     LabellingFailure,
     Reference,
-    RemovalLabel,
+    RemovalReference,
     RemovalRule,
 )
 
@@ -46,12 +46,12 @@ def test_entries_carry_one_dates_reference_for_the_whole_range():
 
 
 def test_removal_label_rule_is_the_closed_set_of_text_rules():
-    label = RemovalLabel(rule="RM_EMAIL", block_id="body:1", quote="a@example.org")
+    label = RemovalReference(rule="RM_EMAIL", block_id="body:1", quote="a@example.org")
     assert label.rule is RemovalRule.EMAIL
     with pytest.raises(ValidationError):
-        RemovalLabel(rule="RM_PHOTO", block_id="body:1", quote="x")
+        RemovalReference(rule="RM_PHOTO", block_id="body:1", quote="x")
     with pytest.raises(ValidationError):
-        RemovalLabel(rule="RM_NINTH", block_id="body:1", quote="x")
+        RemovalReference(rule="RM_NINTH", block_id="body:1", quote="x")
 
 
 def test_labelling_failure_carries_a_reason():
@@ -82,7 +82,7 @@ def test_labelling_schema_is_strict_compatible():
 
 def test_labelling_schema_closes_the_rule_enumeration():
     schema = Labelling.model_json_schema()
-    rule = schema["$defs"]["RemovalLabel"]["properties"]["rule"]
+    rule = schema["$defs"]["RemovalReference"]["properties"]["rule"]
     assert sorted(rule["enum"]) == sorted(
         rule.value for rule in RemovalRule if rule is not RemovalRule.PHOTO
     )

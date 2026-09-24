@@ -7,7 +7,7 @@ from support import block as _block
 from support import labelling as _labelling
 from support import ref as _ref
 
-from cvr.models import RemovalLabel, RemovalRule
+from cvr.models import RemovalReference, RemovalRule
 from cvr.verify import verify
 from cvr.verify.backstops import HEADING_VOCABULARY, heading_key, pii_matches
 
@@ -98,7 +98,7 @@ def test_email_inside_an_llm_removal_is_reported_once():
         blocks,
         _labelling(
             removals=[
-                RemovalLabel(
+                RemovalReference(
                     rule="RM_REFEREE",
                     block_id="body:0",
                     quote="Dr A Body, a.body@example.org",

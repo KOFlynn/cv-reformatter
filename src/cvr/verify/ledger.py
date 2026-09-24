@@ -9,31 +9,13 @@ quote occur, what of a range is still free of removals (or of content), and
 what is left unclaimed at the end.
 """
 
-from dataclasses import dataclass
-from enum import StrEnum
-
-from cvr.models import SourceBlock, Span
+from cvr.models import LedgerEntry, SourceBlock, Span
+from cvr.models import LedgerKind as Kind
 from cvr.text import canonicalise, canonicalise_with_offsets
 
 __all__ = ["Kind", "Ledger", "LedgerEntry", "Range"]
 
 type Range = tuple[int, int]
-
-
-class Kind(StrEnum):
-    REMOVAL = "removal"
-    CONTENT = "content"
-
-
-@dataclass(frozen=True, slots=True)
-class LedgerEntry:
-    """A claimed raw range: ``claimant`` is the removal rule id or the path of
-    the field (``experience[1].bullets[2]``)."""
-
-    start: int
-    end: int
-    claimant: str
-    kind: Kind
 
 
 class Ledger:
@@ -117,7 +99,9 @@ class Ledger:
         )
 
     def claim(self, start: int, end: int, claimant: str, kind: Kind) -> Span:
-        self.entries.append(LedgerEntry(start, end, claimant, kind))
+        self.entries.append(
+            LedgerEntry(start=start, end=end, claimant=claimant, kind=kind)
+        )
         return self.span(start, end)
 
     def has_content(self) -> bool:

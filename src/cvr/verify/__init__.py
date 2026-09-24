@@ -27,6 +27,7 @@ from cvr.models import (
     Reference,
     Removal,
     RemovalRule,
+    Residue,
     SourceBlock,
     Span,
     Unit,
@@ -63,15 +64,6 @@ class Rejection:
     block_id: str
     quote: str
     reason: RejectionReason
-
-
-@dataclass(frozen=True, slots=True)
-class Residue:
-    """One unclaimed run of a block. ``separator`` means every character is a
-    separator: logged, but not unplaced text."""
-
-    span: Span
-    separator: bool
 
 
 @dataclass(frozen=True)

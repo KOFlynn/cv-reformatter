@@ -169,7 +169,7 @@ Images are collected from every part by content hash into `Image(part, sha256, s
 
 LangChain `init_chat_model` with provider and model from configuration, and `with_structured_output` using the provider's native structured-output method (`json_schema`), not forced tool calling, because forced tool choice is incompatible with thinking and native structured output is not. Anthropic-specific options (adaptive thinking, effort) are isolated in one provider-configuration function.
 
-`LabellerConfig`: provider, model, effort, optional temperature, and any other sampling knob; read from the environment; printed in every report; temperature sent only when set because Opus 5 rejects it. Default `claude-opus-5` at effort `medium`, tuned from the baseline; a change to any field counts as a model change under the eval-run rule.
+`LabellerConfig`: provider, model, effort, optional temperature, and any other sampling knob; read from the environment; printed in every report; temperature sent only when set because Opus 5 rejects it. Default `claude-opus-5-5` at effort `medium` (changed from `claude-opus-5` by the maintainer on 2026-09-23), tuned from the baseline; a change to any field counts as a model change under the eval-run rule.
 
 The schema is a reference-shaped mirror of `CVContent`: every leaf is a reference `{block_id, quote}`, `quote` mandatory; entries carry one `dates` reference for the whole range block; a `removals` list of `{rule, block_id, quote}` sits beside the tree with `rule` a closed enumeration of the eight text rules. Depth is at most three. The schema is strict-compatible from day one: every property required, no additional properties, nullable in place of optional, so the same schema serves Azure OpenAI's strict mode in Phase 2.
 

@@ -6,7 +6,7 @@ from cvr.models import (
     ExperienceReference,
     Labelling,
     Reference,
-    RemovalLabel,
+    RemovalReference,
     SourceBlock,
 )
 
@@ -19,7 +19,7 @@ def ref(block_id: str, quote: str) -> Reference:
     return Reference(block_id=block_id, quote=quote)
 
 
-def labelling(removals: list[RemovalLabel] | None = None, **fields) -> Labelling:
+def labelling(removals: list[RemovalReference] | None = None, **fields) -> Labelling:
     """A labelling with the given content fields set and the rest empty."""
     content = {
         "name": None,

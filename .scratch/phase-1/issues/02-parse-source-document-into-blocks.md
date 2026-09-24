@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** in-review
+**Status:** done
 
 - [x] `SourceBlock(id, text, kind)` and the id grammar as specified; `Image`, `Span`, `Removal` models in `cvr.models`
 - [x] Parser coverage test over all 48 documents: every text run `all_text` sees is in some block, and every block's text is in `all_text` (canonicalised both sides)
