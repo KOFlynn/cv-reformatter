@@ -5,21 +5,14 @@ in the wrong order is caught here and nowhere else the eval gate can see
 """
 
 import pytest
-from render_support import to_transformed_content
+from render_support import to_transformed_content, unplaced_spans
 
 from cvr.golden import CANDIDATES_DIR, load_candidate
-from cvr.models import Span
 from cvr.render import adapt, render
 
 CANDIDATE_FILES = sorted(CANDIDATES_DIR.glob("*.json"))
 assert CANDIDATE_FILES, f"no Candidate files in {CANDIDATES_DIR}"
 candidates = pytest.mark.parametrize("path", CANDIDATE_FILES, ids=lambda p: p.stem)
-
-
-def _unplaced(*fragments: str) -> list[Span]:
-    return [
-        Span(block_id="body:0", start=0, end=len(text), text=text) for text in fragments
-    ]
 
 
 @candidates
@@ -47,7 +40,7 @@ def test_unplaced_text_round_trips_and_raises_the_banner():
     candidate = load_candidate(CANDIDATES_DIR / "c01.json")
     content = to_transformed_content(candidate.content)
     fragments = ["Available from 1 September", "Full clean driving licence"]
-    adapted = adapt(render(content, _unplaced(*fragments)))
+    adapted = adapt(render(content, unplaced_spans(*fragments)))
     assert adapted.appendix == fragments
     assert adapted.content == content
 

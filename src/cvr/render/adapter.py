@@ -32,7 +32,7 @@ from io import BytesIO
 from docx import Document
 from docx.text.paragraph import Paragraph
 
-from cvr.template.build import BANNER
+from cvr.template import BANNER
 from cvr.transform import (
     TransformedContent,
     TransformedEducation,
@@ -123,7 +123,7 @@ def _read_bullet_list(paragraphs: list[Paragraph], index: int) -> tuple[int, lis
     return index, items
 
 
-def _peek_date_line(
+def _read_date_line(
     paragraphs: list[Paragraph], index: int, *, needs_shape: bool
 ) -> tuple[int, str | None, str | None]:
     """The entry's date line at ``index``, if that is what sits there,
@@ -156,7 +156,7 @@ def _read_experience(
         index += 1
         employer, location = _split_employer_location(_text(paragraphs[index]))
         index += 1
-        index, start, end = _peek_date_line(paragraphs, index, needs_shape=False)
+        index, start, end = _read_date_line(paragraphs, index, needs_shape=False)
         index, bullets = _read_bullet_list(paragraphs, index)
         entries.append(
             TransformedExperience(
@@ -180,7 +180,7 @@ def _read_education(
         index += 1
         institution = _none_if_blank(_text(paragraphs[index]))
         index += 1
-        index, start, end = _peek_date_line(paragraphs, index, needs_shape=True)
+        index, start, end = _read_date_line(paragraphs, index, needs_shape=True)
         details: list[str] = []
         while (
             index < len(paragraphs)

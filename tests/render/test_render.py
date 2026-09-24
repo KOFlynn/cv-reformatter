@@ -6,20 +6,13 @@ must still turn content into a document that passes these.
 
 import pytest
 from docx_text import all_text
-from render_support import to_transformed_content
+from render_support import to_transformed_content, unplaced_spans
 
 from cvr.golden import CANDIDATES_DIR, load_candidate
-from cvr.models import Span
 from cvr.render import render
 from cvr.template.build import BANNER, FOOTER, WORDMARK
 
 PROFILE_HEADING = "Profile"
-
-
-def _unplaced(*fragments: str) -> list[Span]:
-    return [
-        Span(block_id="body:0", start=0, end=len(text), text=text) for text in fragments
-    ]
 
 
 @pytest.fixture(scope="module")
@@ -73,7 +66,9 @@ def test_the_banner_is_absent_when_nothing_is_unplaced(rendered):
 
 
 def test_the_banner_and_fragments_appear_when_text_is_unplaced(content):
-    fragments = _unplaced("Available from 1 September", "Full clean driving licence")
+    fragments = unplaced_spans(
+        "Available from 1 September", "Full clean driving licence"
+    )
     rendered = all_text(render(content, fragments))
     assert BANNER in rendered
     assert all(fragment.text in rendered for fragment in fragments)

@@ -6,14 +6,22 @@ here we only need what a Candidate's own content already states, since every
 ``DateValue.expected`` is transform's hand-written answer for that date.
 """
 
-from cvr.models import CVContent, DateValue, EducationEntry, ExperienceEntry
+from cvr.models import CVContent, DateValue, EducationEntry, ExperienceEntry, Span
 from cvr.transform import (
     TransformedContent,
     TransformedEducation,
     TransformedExperience,
 )
 
-__all__ = ["to_transformed_content"]
+__all__ = ["to_transformed_content", "unplaced_spans"]
+
+
+def unplaced_spans(*fragments: str) -> list[Span]:
+    """Unplaced fragments as the Spans ``render`` takes. The block id and
+    offsets are unexamined by anything under test here; only ``text`` is."""
+    return [
+        Span(block_id="body:0", start=0, end=len(text), text=text) for text in fragments
+    ]
 
 
 def _expected(date: DateValue | None) -> str | None:
