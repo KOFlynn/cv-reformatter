@@ -114,7 +114,6 @@ Re-ran `uv run ruff format --check .` and `uv run pytest -q` after the edits: un
 
 PR: none yet; not opened per the task brief (the parent integrates this branch).
 
-Release PR: none yet.
 
 
 ### 2026-09-24: maintainer review, on the release branch
@@ -122,3 +121,5 @@ Release PR: none yet.
 - **Template builder byte-stability**: `CLAUDE.md` claimed both generators were byte-stable. Diffing a fresh build against the committed template showed every part inside identical and only the zip entry timestamps (the build time) different, so a rebuild on another day differs in bytes. `CLAUDE.md` now says so (commit `8d94428`); the builder itself is unchanged.
 - **`render` counted as built** (commit `8225b6d`): the README was written alongside ticket 05 and listed `render` as future work; merged together, it exists.
 - **Item 5 naming Phase 2, not a ticket**: accepted until Phase 2 is cut into tickets.
+
+Release PR: #23.
