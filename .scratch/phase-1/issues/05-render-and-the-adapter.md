@@ -153,4 +153,21 @@ test, no API key); ruff and format clean.
   `tests/verify/support.py` at collection time. Followed ticket 04's fix
   (`transform_support.py`) rather than rediscovering it.
 
+**Code review (`code-review` skill, against `main`).** Spec axis: clean —
+no missing/partial requirements, no scope creep, nothing implemented
+wrong. Standards axis: one hard finding, fixed — `adapter.py` imported
+`BANNER` from `cvr.template.build` rather than `cvr.template`'s own
+`__all__`, the only place production code (as opposed to tests, which
+already do this) reached past a package's declared public interface;
+`cvr.template` now exports `BANNER` and the adapter imports it from
+there. Two judgement calls, fixed: the `_unplaced()` test helper was
+duplicated verbatim in `test_render.py` and `test_roundtrip.py` despite
+`render_support.py` existing for exactly this, so it moved there as
+`unplaced_spans()`; `_peek_date_line` was renamed `_read_date_line`
+since it consumes the paragraph on a match, which "peek" doesn't
+suggest. One judgement call left as-is: `adapter.py`'s `_SECTIONS`
+dict-then-if/elif dispatch is a single occurrence, not a repeated
+switch, so a callable-per-section dict would remove a chain that only
+exists once — reviewer's own assessment was "not worth blocking on."
+
 PR: none yet.
