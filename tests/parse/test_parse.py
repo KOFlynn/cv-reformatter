@@ -59,6 +59,7 @@ def test_the_golden_set_is_all_forty_eight_documents():
 # --- Coverage: every text run is in some block, every block is in the text.
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("stem", STEMS)
 def test_every_text_run_all_text_sees_is_in_some_block(stem):
     # A ``w:t`` never crosses a paragraph, so each one is inside one block.
@@ -71,6 +72,7 @@ def test_every_text_run_all_text_sees_is_in_some_block(stem):
     assert not missing, f"{stem}: text the parser did not see: {missing}"
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("stem", STEMS)
 def test_every_block_is_in_the_text_all_text_sees(stem):
     texts = " ".join(canonicalise(text) for text in all_text(document(stem)))
@@ -83,11 +85,13 @@ def test_every_block_is_in_the_text_all_text_sees(stem):
 # --- Ids: addresses, stable for a file, different between Layouts.
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("stem", STEMS)
 def test_two_parses_of_one_file_give_identical_blocks(stem):
     assert parsed(stem) == parsed(stem)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("stem", STEMS)
 def test_ids_are_unique_and_follow_the_grammar(stem):
     blocks = parsed(stem).blocks
@@ -270,6 +274,7 @@ def test_a_linked_header_is_not_read_twice():
 # --- NORM_INVISIBLE: the deletion rows stripped and logged, nothing else touched.
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("stem", STEMS)
 def test_invisible_characters_are_stripped_and_every_one_is_logged(stem):
     result = parsed(stem)
@@ -288,6 +293,7 @@ def test_invisible_characters_are_stripped_and_every_one_is_logged(stem):
     ), "one event per block"
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("stem", STEMS)
 def test_events_match_the_manifest_deletion_row_confusables(stem):
     injected = {
@@ -344,6 +350,7 @@ def test_a_paragraph_that_is_only_invisibles_is_a_gap_and_is_still_logged():
 # --- Images: collected by content hash, removed under RM_PHOTO.
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("stem", STEMS)
 def test_only_two_column_documents_carry_an_image_and_it_is_removed(stem):
     result = parsed(stem)

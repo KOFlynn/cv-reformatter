@@ -30,3 +30,8 @@ jobs:
 
       - name: Test
         run: uv run pytest
+
+      # The tests over all 48 generated documents, excluded from the default
+      # run by the marker; still run on every push.
+      - name: Slow tests (all 48 generated documents)
+        run: uv run pytest -m slow

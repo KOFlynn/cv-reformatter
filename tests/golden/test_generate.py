@@ -60,6 +60,7 @@ def test_manifest_file_is_json_with_the_document_sha(fresh):
         assert raw["document_sha256"] == manifest.document_sha256
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("name", STEMS)
 def test_regenerating_gives_identical_text_and_manifest_sha(fresh, fresh_again, name):
     assert all_text(fresh / f"{name}.docx") == all_text(fresh_again / f"{name}.docx"), (
@@ -71,6 +72,7 @@ def test_regenerating_gives_identical_text_and_manifest_sha(fresh, fresh_again, 
     ), f"{name}.manifest.json: document SHA differs between two generations"
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("name", STEMS)
 def test_committed_pair_matches_a_fresh_generation(fresh, name):
     """The committed golden set must be what the current code produces, or eval
