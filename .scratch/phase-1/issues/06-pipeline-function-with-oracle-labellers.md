@@ -47,4 +47,4 @@ Spec, fixed:
 
 Spec, recorded above: the double-claim reading and the `date_map` shape.
 
-PR: none yet.
+PR: #25.
