@@ -14,9 +14,9 @@ as a design constraint, not a hope.
 ## What this is not
 
 A **portfolio demo**, not a product. It has no real users, will never process a real
-CV, and is not for sale. It **is** deployed, so that a real CI gate blocks a real
-deployment rather than being a slide. Every fixture, cache and log in this repository is
-synthetic; see the working rules below.
+CV, and is not for sale. That does not make the CI gate optional: the service is still
+deployed, so a real gate blocks a real deployment. Every fixture, cache and log in this
+repository is synthetic; see the working rules below.
 
 ## The invariant
 
@@ -75,14 +75,13 @@ the end-of-phase revision once every number below exists.
 
 ### 1. The LLM labels, code transforms
 
-The LLM only emits `{field, block_id, quote}` assignments pointing into the parsed
-source. A verifier checks each quote is an exact substring of its block; the renderer
-always uses the located slice, never the model's string. The alternative — an LLM that
-rewrites the CV into the template, or one that extracts straight to output JSON — was
-rejected because either way the invariant becomes something tested after the fact
-rather than a property of the code, and both let LLM-generated characters reach the
-document. Consequence: added text is impossible by construction; the eval's added-text
-gate exists only to catch bugs in our own code, never in the model's wording.
+This is the invariant above, restated as a decision with an alternative on record. The
+alternative — an LLM that rewrites the CV into the template, or one that extracts
+straight to output JSON — was rejected because either way the invariant becomes
+something tested after the fact rather than a property of the code, and both let
+LLM-generated characters reach the document. Consequence: added text is impossible by
+construction; the eval's added-text gate exists only to catch bugs in our own code,
+never in the model's wording.
 [ADR-0001](docs/adr/0001-llm-labels-code-transforms.md),
 [ADR-0007](docs/adr/0007-provenance-check-and-blind-spots.md) (how the check covers
 what a plain substring test alone would miss),
