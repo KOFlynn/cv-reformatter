@@ -62,10 +62,10 @@ ordering. `render` fills the committed template through `docxtpl`, including the
 appendix for whatever verification never placed. Phase 2 turns the same five nodes into
 a LangGraph state machine and adds a bounded retry loop between `verify` and `label`;
 Phase 1 is a plain function pipeline with identical boundaries, so that swap is a change
-of orchestration, not of code. Today, `parse`, `label`, `verify` and `transform` exist
-as packages under `src/cvr/`; `render`, the pipeline function that wires all five nodes
-together, and the `api`/`graph`/`mcp` wrappers do not exist yet (tickets 05, 06, 11
-respectively; `graph` and `mcp` are Phase 2 and 3).
+of orchestration, not of code. Today, all five nodes, `parse`, `label`, `verify`, `transform` and `render`,
+exist as packages under `src/cvr/`; the pipeline function that wires them together and
+the `api`/`graph`/`mcp` wrappers do not exist yet (tickets 06 and 11 respectively;
+`graph` and `mcp` are Phase 2 and 3).
 
 ## Decisions
 
@@ -201,9 +201,9 @@ above on every push and pull request.
 
 There is no single command yet that runs a CV through the whole pipeline: the function
 that wires `parse` → `label` → `verify` → `transform` → `render` together
-(`reformat(source_bytes, labeller) -> (output_bytes, Run)`) is ticket 06, `render`
-itself is ticket 05, the FastAPI service is ticket 11, and the Dockerfile is ticket 12.
-Until then, `parse`, `verify`, `transform` and the real `label` node can each be
+(`reformat(source_bytes, labeller) -> (output_bytes, Run)`) is ticket 06, the FastAPI
+service is ticket 11, and the Dockerfile is ticket 12. Until then, `parse`, `label`,
+`verify`, `transform` and `render` can each be
 exercised directly through their own package and its tests.
 
 ## The eval gate
