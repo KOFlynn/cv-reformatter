@@ -4,7 +4,7 @@
 
 **Blocked by:** 05 (Render and the adapter)
 
-**Status:** in-review
+**Status:** done
 
 - [x] `reformat` in its own module; only `api` and the eval runner will import it; each node is called once in order and nothing else touches the LLM
 - [x] Oracle labeller builds a labelling result from a Candidate and the parsed blocks; a Candidate string it cannot find raises and the test fails loudly
