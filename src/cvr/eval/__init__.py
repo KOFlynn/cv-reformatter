@@ -1,9 +1,10 @@
-"""Eval metrics: pure functions over plain data, plus the adapter that reads a
-rendered document back to leaves (``eval.adapter``). The metrics depend on
-``text`` and ``models`` only; the adapter also on ``template`` and python-docx.
+"""Eval metrics: pure functions over plain data. Depends on ``text`` and ``models`` only.
+
+The adapter that reads a rendered document back to leaves is imported as
+``cvr.eval.adapter``, never re-exported here: it also depends on ``template``
+and python-docx, and importing a metric must not load either.
 """
 
-from cvr.eval.adapter import Adapted, adapt
 from cvr.eval.alignment import AlignedBy, Alignment, Section
 from cvr.eval.appendix import appendix_rate
 from cvr.eval.finding import Finding
@@ -17,7 +18,6 @@ from cvr.eval.provenance import provenance_violations
 from cvr.eval.punctuation import punctuation_fidelity
 
 __all__ = [
-    "Adapted",
     "AlignedBy",
     "Alignment",
     "FieldType",
@@ -28,7 +28,6 @@ __all__ = [
     "Section",
     "SectionOrdering",
     "Tally",
-    "adapt",
     "added_tokens",
     "appendix_rate",
     "dropped_tokens",

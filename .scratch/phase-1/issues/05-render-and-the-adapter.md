@@ -176,7 +176,7 @@ PR: none yet.
 ### 2026-09-24: maintainer review, on the release branch
 
 - **`render` depending on `transform`**: not accepted. The spec gives `render` `models`, `text` and `template` only. `TransformedContent`, `TransformedExperience` and `TransformedEducation` now live in `cvr.models` beside `VerifiedContent`, as the `Run` did in the 04/07 release (commit `d1f19dd`).
-- **The adapter in `render`**: moved to `cvr.eval.adapter`, as the spec's dependency section says (`eval` gains a runner and an adapter). Only the eval reads a rendered document back, and `eval` stays out of the runtime image. Its one dependency beyond `text` and `models` is `template`, for the review-appendix banner. The round-trip test stays in `tests/render` as render's own test and imports `adapt` from `cvr.eval`.
+- **The adapter in `render`**: moved to `cvr.eval.adapter`, as the spec's dependency section says (`eval` gains a runner and an adapter). Only the eval reads a rendered document back, and `eval` stays out of the runtime image. Its dependencies beyond `text` and `models` are `template` (for the review-appendix banner) and python-docx, so it is imported as `cvr.eval.adapter` and not re-exported from `cvr.eval`: importing a metric loads neither, pinned by `tests/eval/test_imports.py`. The round-trip test stays in `tests/render` as render's own test.
 - **The two adapter heuristics** (employer/location split on the first `", "`, education's date line recognised by shape): accepted as recorded in ADR-0007.
 
 Release PR: #23.

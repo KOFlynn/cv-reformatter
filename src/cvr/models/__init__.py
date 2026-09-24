@@ -405,7 +405,7 @@ class VerifiedContent(StrictModel):
 # --- Transformed: what transform hands render. ``VerifiedContent`` projected
 # to the strings the renderer prints, dates split and normalised, entries in
 # output order. Defined here rather than in ``transform`` so that ``render``
-# (and the adapter in ``eval``) read it without depending on another node.
+# reads it without depending on another node.
 
 
 class TransformedExperience(StrictModel):
@@ -420,6 +420,8 @@ class TransformedExperience(StrictModel):
 
 
 class TransformedEducation(StrictModel):
+    """One education entry projected to strings, dates normalised."""
+
     institution: str | None = None
     qualification: str | None = None
     start: str | None = None
