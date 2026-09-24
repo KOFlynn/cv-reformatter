@@ -12,18 +12,22 @@ leaf's ``None`` becomes an empty string here rather than reaching the
 template as the literal word "None"; that is the one adaptation this module
 makes, and it never invents wording.
 
-Depends on ``cvr.models`` (``Span``), ``cvr.template`` (the committed
-template and ``fill``) and, for the shape transform hands it,
-``cvr.transform``. Never on ``verify``, ``parse``, ``label`` or ``eval``.
+Depends on ``cvr.models`` (``TransformedContent``, ``Span``) and
+``cvr.template`` (the committed template and ``fill``); never on another node
+or on ``eval``.
 """
 
-from cvr.models import CVContent, DateValue, EducationEntry, ExperienceEntry, Span
-from cvr.template import fill
-from cvr.transform import (
+from cvr.models import (
+    CVContent,
+    DateValue,
+    EducationEntry,
+    ExperienceEntry,
+    Span,
     TransformedContent,
     TransformedEducation,
     TransformedExperience,
 )
+from cvr.template import fill
 
 __all__ = ["render"]
 

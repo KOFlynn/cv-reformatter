@@ -6,8 +6,12 @@ here we only need what a Candidate's own content already states, since every
 ``DateValue.expected`` is transform's hand-written answer for that date.
 """
 
-from cvr.models import CVContent, DateValue, EducationEntry, ExperienceEntry, Span
-from cvr.transform import (
+from cvr.models import (
+    CVContent,
+    DateValue,
+    EducationEntry,
+    ExperienceEntry,
+    Span,
     TransformedContent,
     TransformedEducation,
     TransformedExperience,

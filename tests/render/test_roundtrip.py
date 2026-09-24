@@ -7,8 +7,9 @@ in the wrong order is caught here and nowhere else the eval gate can see
 import pytest
 from render_support import to_transformed_content, unplaced_spans
 
+from cvr.eval import adapt
 from cvr.golden import CANDIDATES_DIR, load_candidate
-from cvr.render import adapt, render
+from cvr.render import render
 
 CANDIDATE_FILES = sorted(CANDIDATES_DIR.glob("*.json"))
 assert CANDIDATE_FILES, f"no Candidate files in {CANDIDATES_DIR}"

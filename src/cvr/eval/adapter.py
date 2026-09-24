@@ -1,4 +1,4 @@
-"""The adapter: the inverse of ``render``, walking a rendered document back
+"""The adapter: the inverse of ``cvr.render``, walking a rendered document back
 to leaves by field type (name, profile, skills, education entries,
 experience entries, certifications, additional, appendix) so the Phase 0
 eval metrics can be fed from real output without changing (ADR-0007
@@ -32,12 +32,8 @@ from io import BytesIO
 from docx import Document
 from docx.text.paragraph import Paragraph
 
+from cvr.models import TransformedContent, TransformedEducation, TransformedExperience
 from cvr.template import BANNER
-from cvr.transform import (
-    TransformedContent,
-    TransformedEducation,
-    TransformedExperience,
-)
 
 __all__ = ["Adapted", "adapt"]
 

@@ -3,7 +3,8 @@ the removal rule ids (``RemovalRule``), and the models the pipeline passes
 between its nodes: the source side (``SourceBlock``, ``Span``, ``Image``,
 ``Removal``, ``Normalisation``), the labelling result (``Labelling`` of
 ``Reference``s and ``RemovalReference``s, or ``LabellingFailure``), the
-verified tree (``VerifiedContent`` of ``Unit``s), and the ``Run`` every node
+verified tree (``VerifiedContent`` of ``Unit``s), the transformed tree
+(``TransformedContent``, the strings render prints), and the ``Run`` every node
 fills in its own section of (``LabelRun``, ``LedgerEntry``, ``Residue``).
 
 Every string here is a candidate's own text, held verbatim. Typos, odd
@@ -52,6 +53,9 @@ __all__ = [
     "Span",
     "StrictModel",
     "TextRemovalRule",
+    "TransformedContent",
+    "TransformedEducation",
+    "TransformedExperience",
     "Unit",
     "VerifiedContent",
     "VerifiedEducation",
@@ -396,6 +400,44 @@ class VerifiedContent(StrictModel):
     experience: list[VerifiedExperience] = Field(default_factory=list)
     certifications: list[Unit] = Field(default_factory=list)
     additional: list[Unit] = Field(default_factory=list)
+
+
+# --- Transformed: what transform hands render. ``VerifiedContent`` projected
+# to the strings the renderer prints, dates split and normalised, entries in
+# output order. Defined here rather than in ``transform`` so that ``render``
+# (and the adapter in ``eval``) read it without depending on another node.
+
+
+class TransformedExperience(StrictModel):
+    """One experience entry projected to strings, dates normalised."""
+
+    title: str | None = None
+    employer: str | None = None
+    location: str | None = None
+    start: str | None = None
+    end: str | None = None
+    bullets: list[str] = Field(default_factory=list)
+
+
+class TransformedEducation(StrictModel):
+    institution: str | None = None
+    qualification: str | None = None
+    start: str | None = None
+    end: str | None = None
+    details: list[str] = Field(default_factory=list)
+
+
+class TransformedContent(StrictModel):
+    """``VerifiedContent`` projected to the strings the renderer prints, in
+    output order."""
+
+    name: str | None = None
+    profile: list[str] = Field(default_factory=list)
+    skills: list[str] = Field(default_factory=list)
+    education: list[TransformedEducation] = Field(default_factory=list)
+    experience: list[TransformedExperience] = Field(default_factory=list)
+    certifications: list[str] = Field(default_factory=list)
+    additional: list[str] = Field(default_factory=list)
 
 
 # --- The Run: one source document taken once through the pipeline, and its
