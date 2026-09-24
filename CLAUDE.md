@@ -84,7 +84,7 @@ templates/fictitious_recruitment.docx                           # exists; built 
 fixtures/candidates/c01.json … c12.json                         # exists; ground truth, reviewed by hand
 fixtures/generated/<id>__<layout>.docx + .manifest.json         # exists; 48 pairs written by cvr.golden.generate, committed
 eval/{thresholds.yaml,report.json}                              # Phase 1: config, and the gitignored generated report
-tests/{text,models,eval,golden,template,parse,verify,transform,label}/ # exists; mirrors the package
+tests/{text,models,eval,golden,template,parse,verify,transform,render,label}/ # exists; mirrors the package
 tests/docx_text.py                                              # exists; the dumb all_text/image_count helper the golden and template tests observe through
 Dockerfile                                                      # Phase 1
 .github/workflows/ci.yml                                        # exists
