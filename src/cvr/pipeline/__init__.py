@@ -27,12 +27,18 @@ __all__ = ["Labeller", "reformat"]
 type Labeller = Callable[[Sequence[SourceBlock]], LabellingResult]
 
 
-def reformat(source: bytes, labeller: Labeller) -> tuple[bytes, Run]:
+def reformat(
+    source: bytes, labeller: Labeller, *, run_id: str | None = None
+) -> tuple[bytes, Run]:
     """Reformat the ``.docx`` bytes ``source`` with ``labeller``.
 
     Always completes with a document for a readable ``.docx``: a labelling
     failure places nothing, and every block's text goes to the review
     appendix under the banner (ADR-0004).
+
+    ``run_id`` is the Run's id when the caller already has one (the API
+    issues it before the upload is read, so a rejected upload carries it
+    too); otherwise a fresh one is made here.
     """
     parsed = parse(source)
     labelling = labeller(parsed.blocks)
@@ -41,7 +47,7 @@ def reformat(source: bytes, labeller: Labeller) -> tuple[bytes, Run]:
     output = render(transformed.content, verified.unplaced)
     last_run = getattr(labeller, "last_run", None)
     run = Run(
-        run_id=uuid4().hex,
+        run_id=run_id if run_id is not None else uuid4().hex,
         label=last_run if isinstance(last_run, LabelRun) else None,
         normalisations=parsed.normalisations,
         removals=[*parsed.removals, *verified.removals],

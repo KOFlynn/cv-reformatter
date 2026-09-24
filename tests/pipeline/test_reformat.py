@@ -94,6 +94,14 @@ def test_every_run_has_its_own_id():
     assert len(ids) == 2
 
 
+def test_a_caller_given_run_id_is_the_runs():
+    doc = document("c04__single-column")
+    _, run = reformat(
+        doc.source, Oracle(doc.candidate, doc.manifest), run_id="from-the-caller"
+    )
+    assert run.run_id == "from-the-caller"
+
+
 # --- Who may import the pipeline
 
 SRC = Path(cvr.__file__).parent
