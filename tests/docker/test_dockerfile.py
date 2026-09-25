@@ -30,9 +30,8 @@ def instructions(text: str) -> list[Instruction]:
     pending = ""
     for raw in text.splitlines():
         line = raw.strip()
-        if not pending and (not line or line.startswith("#")):
-            continue
-        if pending and line.startswith("#"):
+        # Docker skips blank and comment lines, inside a continuation too.
+        if not line or line.startswith("#"):
             continue
         if line.endswith("\\"):
             pending += line[:-1] + " "
@@ -76,7 +75,7 @@ def env_names(args: str) -> list[str]:
 
 
 def test_the_parser_joins_continuations_and_drops_comments():
-    text = "# syntax=docker/dockerfile:1\nFROM a AS b\n# note\nRUN x \\\n  # inner\n  && y\n"
+    text = "# syntax=docker/dockerfile:1\nFROM a AS b\n# note\nRUN x \\\n  # inner\n\n  && y\n"
     assert instructions(text) == [
         Instruction("FROM", "a AS b"),
         Instruction("RUN", "x && y"),
@@ -137,10 +136,12 @@ def test_no_build_argument_or_baked_variable_names_a_secret(parsed):
 def test_the_final_stage_runs_as_a_non_root_user(final):
     users = [i.args for i in final if i.keyword == "USER"]
     assert users, "the final stage never leaves root"
+    # The user in force when the container starts is the last one set.
     assert users[-1].split(":")[0] not in {"root", "0"}
-    # Nothing after the last USER switches back to root for the running image.
+    # And the command runs under it: CMD comes after that USER.
     last_user = max(n for n, i in enumerate(final) if i.keyword == "USER")
-    assert final[-1].keyword == "CMD" and len(final) - 1 > last_user
+    last_cmd = max(n for n, i in enumerate(final) if i.keyword == "CMD")
+    assert last_cmd > last_user
 
 
 def test_the_final_stage_serves_the_api_on_all_interfaces(final):

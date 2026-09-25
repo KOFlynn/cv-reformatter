@@ -8,6 +8,7 @@ the tests below name every path the ticket says must never reach the image,
 and every path the image needs."""
 
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -130,15 +131,17 @@ def test_never_in_the_build_context(path, parsed):
 
 
 def _runtime_sources() -> list[str]:
-    """Every file under ``src/`` except the golden and eval packages."""
-    src = REPO_ROOT / "src"
-    return sorted(
-        path.relative_to(REPO_ROOT).as_posix()
-        for path in src.rglob("*")
-        if path.is_file()
-        and "__pycache__" not in path.parts
-        and not {"golden", "eval"} & set(path.relative_to(src / "cvr").parts[:1])
-    )
+    """Every tracked file under ``src/`` except the golden and eval packages
+    (tracked, so a stray local ``.pyc`` or ``.env`` is not "needed")."""
+    tracked = subprocess.run(
+        ["git", "ls-files", "-z", "--", "src"],
+        check=True,
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+    ).stdout.split("\0")
+    excluded = ("src/cvr/golden/", "src/cvr/eval/")
+    return sorted(p for p in tracked if p and not p.startswith(excluded))
 
 
 def test_the_build_context_carries_what_the_image_needs(parsed):

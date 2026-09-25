@@ -19,9 +19,13 @@ import sys
 EXCLUDED = ("cvr.golden", "cvr.eval")
 
 
+def excluded(name):
+    return any(name == p or name.startswith(p + ".") for p in EXCLUDED)
+
+
 class Blocked(importlib.abc.MetaPathFinder):
     def find_spec(self, name, path=None, target=None):
-        if any(name == p or name.startswith(p + ".") for p in EXCLUDED):
+        if excluded(name):
             raise ImportError(f"{name} is not in the image")
         return None
 
@@ -43,11 +47,7 @@ with open(sys.argv[1], "rb") as handle:
 assert response.status_code == 200, response.status_code
 assert response.content[:2] == b"PK"
 
-loaded = sorted(
-    name for name in sys.modules if any(
-        name == p or name.startswith(p + ".") for p in EXCLUDED
-    )
-)
+loaded = sorted(name for name in sys.modules if excluded(name))
 assert not loaded, loaded
 print("ok")
 """

@@ -42,18 +42,26 @@ docker run --rm --entrypoint sh "$IMAGE" -c '
   [ -z "$found" ] || { echo "present: $found"; status=1; }
   find /app -maxdepth 3 -not -path "/app/.venv/*" | sort
   exit $status' || fail "a path that must not be in the image is"
-docker run --rm "$IMAGE" python -c "import cvr.golden" 2>/dev/null \
-  && fail "cvr.golden imports" || echo "cvr.golden: not importable"
+for module in cvr.golden cvr.eval; do
+  docker run --rm "$IMAGE" python -c "import $module" 2>/dev/null \
+    && fail "$module imports" || echo "$module: not importable"
+done
+
+work=$(mktemp -d)
+trap 'docker rm -f "$NAME" >/dev/null 2>&1 || true; rm -rf "$work"' EXIT
 
 echo "== no key in the history or the filesystem"
-# A key-shaped string (prefix plus a long body), and the key itself if set.
+# A key-shaped string (prefix plus a long body), and the key itself if set;
+# the key goes to grep through a private file, not on its command line.
 PATTERN='sk-ant-[A-Za-z0-9]+-[A-Za-z0-9_-]{20,}'
 hist=$(docker history --no-trunc "$IMAGE" | grep -cE "$PATTERN" || true)
 echo "docker history --no-trunc $IMAGE | grep -cE '$PATTERN': $hist"
 container=$(docker create "$IMAGE")
 fs=$(docker export "$container" | grep -acE "$PATTERN" || true)
 if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-  literal=$(docker export "$container" | grep -acF "$ANTHROPIC_API_KEY" || true)
+  (umask 077 && printf '%s\n' "$ANTHROPIC_API_KEY" > "$work/key")
+  literal=$(docker export "$container" | grep -acFf "$work/key" || true)
+  rm -f "$work/key"
 else
   literal="not checked (no key set)"
 fi
@@ -63,23 +71,31 @@ echo "docker export | grep -acE '$PATTERN': $fs; the key itself: $literal"
 [ "$literal" = 0 ] || [ -z "${ANTHROPIC_API_KEY:-}" ] || fail "the key is in the image"
 
 echo "== run"
-docker run -d --rm --name "$NAME" -p "$PORT:8000" -e ANTHROPIC_API_KEY "$IMAGE" >/dev/null
-trap 'docker rm -f "$NAME" >/dev/null 2>&1 || true' EXIT
+# No --rm: if /health never answers, the container's logs are still there.
+docker run -d --name "$NAME" -p "$PORT:8000" -e ANTHROPIC_API_KEY "$IMAGE" >/dev/null
 i=0
 until curl -fs "http://127.0.0.1:$PORT/health" >/dev/null; do
-  i=$((i + 1)); [ "$i" -lt 30 ] || fail "no /health after 30s"; sleep 1
+  i=$((i + 1))
+  [ "$i" -lt 30 ] || { docker logs "$NAME"; fail "no /health after 30s"; }
+  sleep 1
 done
 curl -si "http://127.0.0.1:$PORT/health"; echo
 
 if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-  out=$(mktemp -d)
-  status=$(curl -s -o "$out/out.docx" -D "$out/headers" -w '%{http_code}' \
+  status=$(curl -s -o "$work/out.docx" -D "$work/headers" -w '%{http_code}' \
     -F "file=@$DOC" "http://127.0.0.1:$PORT/reformat")
-  cat "$out/headers"
-  echo "status $status, $(wc -c < "$out/out.docx") bytes"
+  cat "$work/headers"
+  echo "status $status, $(wc -c < "$work/out.docx") bytes"
   [ "$status" = 200 ] || fail "/reformat answered $status"
-  grep -qi '^x-run-id:' "$out/headers" || fail "no X-Run-Id"
-  docker logs "$NAME" 2>&1 | head -c 600; echo
+  grep -qi '^x-run-id:' "$work/headers" || fail "no X-Run-Id"
+  # A labelling failure is also a 200 (the banner document); the summary
+  # line says whether the model's labelling was used.
+  summary=$(docker logs "$NAME" 2>/dev/null | grep -F '"label_failed":' | head -n 1)
+  echo "$summary" | cut -c1-400
+  case $summary in
+    *'"label_failed":false'*) ;;
+    *) fail "the labelling failed, or no summary line was logged" ;;
+  esac
 else
   echo "/reformat skipped: set ANTHROPIC_API_KEY to post $DOC"
 fi
