@@ -79,6 +79,24 @@ The real labeller is built on the first document, not at startup, so `/health` w
 
 A change to any `CVR_LABEL_*` value counts as a model change: run the eval.
 
+## Running the API in a container
+
+Needs Docker Desktop (WSL2 backend). From the repo root:
+
+```
+docker build -t cvr:local .
+docker run --rm -p 8000:8000 -e ANTHROPIC_API_KEY cvr:local
+                                                 # -e NAME with no value passes the key from your shell
+curl http://127.0.0.1:8000/health
+curl -F "file=@fixtures/generated/c04__single-column.docx" -OJ http://127.0.0.1:8000/reformat
+sh scripts/check-image.sh                        # build and check the image: size, user, absent paths,
+                                                 # no key in history or filesystem, /health, one /reformat
+```
+
+The image is `python:3.12-slim` (the version in `.python-version`) in two stages: the builder runs `uv sync --locked --no-dev`, dependencies first so a source change reuses that layer; the runtime stage copies the virtual environment, `src/` and the template, and runs `python -m cvr.api` as the non-root user `cvr` with `CVR_API_HOST=0.0.0.0` and `CVR_API_PORT=8000`. The project is installed editable, because `cvr.template.paths` finds the template beside `src/`, so `/app` keeps the repo's layout. Every variable in the table above can be passed with `-e`.
+
+The key is a runtime `-e` only: never a `--build-arg`, never in the Dockerfile, never in a file in the build context. `.dockerignore` is an allowlist (`pyproject.toml`, `uv.lock`, `.python-version`, `src/` without `cvr/golden` and `cvr/eval`, the template); anything else, including `.env`, `.cache/`, `eval/`, `fixtures/`, `tests/` and `.git`, never reaches the build. `tests/docker/` checks the Dockerfile, the allowlist and that the service imports neither `cvr.golden` nor `cvr.eval` without Docker; `scripts/check-image.sh` checks a built image. `/reformat` in the container calls the real model, like the local server.
+
 ## Lint and format
 
 ```
@@ -116,6 +134,7 @@ uv run ruff format . && uv run ruff check . && uv run pytest && uv run pytest -m
 | Tests | `tests/`, mirroring the package (`tests/text/`, `tests/eval/`, ...) |
 | Golden set | `fixtures/candidates/*.json` (ground truth), `fixtures/generated/` (documents and manifests, committed) |
 | Template | `templates/fictitious_recruitment.docx`, built by `src/cvr/template/build.py` and committed |
+| Image | `Dockerfile`, `.dockerignore`, `scripts/check-image.sh` |
 | Specs and tickets | `.scratch/<feature>/spec.md`, `.scratch/<feature>/issues/NN-*.md` |
 | Glossary | `CONTEXT.md` |
 | Decisions | `docs/adr/` |
