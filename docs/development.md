@@ -79,6 +79,19 @@ The real labeller is built on the first document, not at startup, so `/health` w
 
 A change to any `CVR_LABEL_*` value counts as a model change: run the eval.
 
+## Eval
+
+```
+uv run python -m cvr.eval.run                          # every generated document, real labeller, through the cache
+uv run python -m cvr.eval.run --layout text-box        # one Layout (repeatable)
+uv run python -m cvr.eval.run --candidate c04          # one Candidate (repeatable); combines with --layout
+uv run python -m cvr.eval.run --no-cache               # a live call for every document (the baseline runs); still refreshes the cache
+```
+
+Each document goes through `cvr.pipeline.reformat` with the real labeller (`CVR_LABEL_*` configure it; `ANTHROPIC_API_KEY` is needed only on a cache miss), out through the adapter and into every metric. The run writes `eval/report.json` and `eval/report.md` (both gitignored), prints a one-line verdict plus one line per failure naming the metric and the candidates, and exits 1 on any hard-gate breach (errors, added, dropped, provenance, PII, image, ordering, structural leaves) or missed threshold in `eval/thresholds.yaml` (placeholders until ticket 10). `--thresholds`, `--out` and `--cache-dir` point it elsewhere.
+
+The response cache is `.cache/eval-responses/`, one JSON file per answer, keyed on the whole `LabellerConfig`, the prompt and schema hashes and the source document's sha256: a second run over unchanged inputs makes no LLM call, and a change to any of them misses. It is gitignored and must stay out of the Docker image (ticket 12's `.dockerignore`). Delete the directory to clear it. Four documents are labelled at once (parse, render and scoring run one document at a time: python-docx shares one lxml parser, which is not thread-safe); a provider still unavailable after the client's own two retries (a 429, an overload) is retried up to five more times with exponential backoff and jitter, and the report counts every retry.
+
 ## Lint and format
 
 ```
@@ -113,6 +126,7 @@ uv run ruff format . && uv run ruff check . && uv run pytest && uv run pytest -m
 | | |
 |---|---|
 | Package | `src/cvr/` (`text`, `models`, `eval`, `golden`, `template`, `parse`, `label`, `verify`, `transform`, `render`, `pipeline`, `api`) |
+| Eval | `eval/thresholds.yaml` (committed), `eval/report.{json,md}` (generated, gitignored), `.cache/eval-responses/` (gitignored) |
 | Tests | `tests/`, mirroring the package (`tests/text/`, `tests/eval/`, ...) |
 | Golden set | `fixtures/candidates/*.json` (ground truth), `fixtures/generated/` (documents and manifests, committed) |
 | Template | `templates/fictitious_recruitment.docx`, built by `src/cvr/template/build.py` and committed |
