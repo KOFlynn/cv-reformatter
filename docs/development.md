@@ -53,6 +53,32 @@ uv run python -m cvr.template.build              # rebuild templates/fictitious_
 
 The template is built by script and never hand-edited (ADR-0006): Word splits docxtpl tags across runs as you type them. After any change to `src/cvr/template/build.py`, rebuild and commit the result; `tests/template/test_build.py` fails if the committed file's text and tags differ from a fresh build. `cvr.template.fill(content, unplaced)` renders it, and `cvr.template.template_tokens()` reads its fixed words back out for the eval whitelist.
 
+## Running the API locally
+
+```
+uv run python -m cvr.api                         # serve on http://127.0.0.1:8000
+curl http://127.0.0.1:8000/health                # liveness: {"status":"ok"}; never touches the labeller
+curl -F "file=@fixtures/generated/c04__single-column.docx" -OJ http://127.0.0.1:8000/reformat
+                                                 # saves c04__single-column-reformatted.docx; -i to see X-Run-Id
+```
+
+In PowerShell use `curl.exe`, not the `curl` alias. `POST /reformat` takes one multipart field, `file`, a `.docx`; anything else is a 415. Every response carries `X-Run-Id`; each `/reformat` request writes its transform log to standard output as one summary JSON line and one line per block, all with that run id. There are no other routes (no `/docs`, no `/openapi.json`).
+
+The real labeller is built on the first document, not at startup, so `/health` works without a key; `/reformat` without one answers 500. `/reformat` calls the real model and costs money: for anything but a deliberate check, use the tests, which inject the oracle labeller.
+
+| Variable | Read by | Default | |
+|---|---|---|---|
+| `CVR_API_HOST` | `python -m cvr.api` | `127.0.0.1` | interface to bind; a container sets `0.0.0.0` |
+| `CVR_API_PORT` | `python -m cvr.api` | `8000` | port to listen on |
+| `ANTHROPIC_API_KEY` | the labeller | (none) | required for `/reformat`, not for `/health` |
+| `CVR_LABEL_PROVIDER` | the labeller | `anthropic` | LangChain provider id |
+| `CVR_LABEL_MODEL` | the labeller | `claude-opus-5-5` | model name |
+| `CVR_LABEL_EFFORT` | the labeller | `medium` | `low`, `medium`, `high`, `xhigh` or `max` |
+| `CVR_LABEL_TEMPERATURE` | the labeller | unset | sent only when set |
+| `CVR_LABEL_EXTRA` | the labeller | unset | JSON object of any other sampling kwarg |
+
+A change to any `CVR_LABEL_*` value counts as a model change: run the eval.
+
 ## Lint and format
 
 ```
@@ -86,7 +112,7 @@ uv run ruff format . && uv run ruff check . && uv run pytest && uv run pytest -m
 
 | | |
 |---|---|
-| Package | `src/cvr/` (`text`, `models`, `eval`, `golden`, `template`, `parse`, `label`, `verify`, `transform`, `render`) |
+| Package | `src/cvr/` (`text`, `models`, `eval`, `golden`, `template`, `parse`, `label`, `verify`, `transform`, `render`, `pipeline`, `api`) |
 | Tests | `tests/`, mirroring the package (`tests/text/`, `tests/eval/`, ...) |
 | Golden set | `fixtures/candidates/*.json` (ground truth), `fixtures/generated/` (documents and manifests, committed) |
 | Template | `templates/fictitious_recruitment.docx`, built by `src/cvr/template/build.py` and committed |
