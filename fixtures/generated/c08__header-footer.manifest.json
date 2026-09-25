@@ -3,7 +3,7 @@
   "layout": "header-footer",
   "seed": 0,
   "generator_version": "0.2.0",
-  "manifest_version": 2,
+  "manifest_version": 3,
   "dates": [
     {
       "section": "experience",
@@ -73,5 +73,13 @@
     "experience": 0,
     "bullet": 1
   },
+  "headings": [
+    "Personal Statement",
+    "Technical Skills",
+    "Employment",
+    "Certifications",
+    "Further Information",
+    "Qualifications"
+  ],
   "document_sha256": "b97f343f17f352b38b9b035d82937c75221ad99225bd6d9d3ad0fdee909c3f19"
 }

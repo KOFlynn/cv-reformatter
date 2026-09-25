@@ -13,10 +13,11 @@ fidelity while provenance passes. See the row comments in ``corruptions``.
 
 import pytest
 from corruptions import CHECKS, CORRUPTIONS, Direction, NotApplicable, failed_metrics
-from fake_pipeline import fake_pipeline, metric_inputs
+from fake_pipeline import fake_pipeline, metric_inputs, pii_removals
 
 from cvr.eval import placement_accuracy
 from cvr.golden import CANDIDATES_DIR, load_candidate
+from cvr.models import RemovalRule
 from cvr.template import template_text, template_tokens
 
 # Parametrised over files rather than loaded Candidates so that one malformed
@@ -67,6 +68,15 @@ def test_the_fake_pipeline_maps_a_candidate_to_every_metric_input():
     assert "sinead.osampla@example.com" in inputs.source_tokens
     assert "sinead.osampla@example.com" not in inputs.output_tokens
     assert "sinead.osampla@example.com" not in inputs.source_content_tokens
+    # They come from the removal log: each PII value under its own rule.
+    assert [(r.rule, r.subject.text) for r in inputs.removals] == pii_removals(
+        candidate.pii
+    )
+    assert (RemovalRule.EMAIL, "sinead.osampla@example.com") in pii_removals(
+        candidate.pii
+    )
+    # There is no document, so no source headings to remove.
+    assert inputs.headings == []
     # The appendix is the unplaceable list, empty for c01.
     assert inputs.appendix_tokens == []
     # The placed content is what the structural metrics compare to the Candidate's.
@@ -119,6 +129,10 @@ SPEC_TABLE: dict[str, tuple[set[str], Direction | None]] = {
     "leave the photo in": ({"image"}, None),
     "straighten a curly apostrophe": ({"punctuation"}, None),
     "join two slices out of source order": ({"provenance"}, None),
+    "remove a content line under a PII rule": (
+        {"removal", "placement"},
+        Direction(precision="unchanged", recall="down"),
+    ),
 }
 SPEC_COLUMNS = {
     "added",
@@ -130,13 +144,14 @@ SPEC_COLUMNS = {
     "placement",
     "ordering",
     "appendix",
+    "removal",
 }
 
 
 def test_the_corruption_table_is_the_spec_table():
     assert CHECKS.keys() == SPEC_COLUMNS
     assert {c.name for c in CORRUPTIONS} == SPEC_TABLE.keys()
-    assert len(CORRUPTIONS) == len(SPEC_TABLE) == 9
+    assert len(CORRUPTIONS) == len(SPEC_TABLE) == 10
     for corruption in CORRUPTIONS:
         fails, direction = SPEC_TABLE[corruption.name]
         assert corruption.fails == fails, corruption.name

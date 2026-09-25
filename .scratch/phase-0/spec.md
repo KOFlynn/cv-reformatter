@@ -177,7 +177,7 @@ Each Layout takes a Candidate and returns a document plus a manifest. No randomn
 
 Undated entries are always emitted after all dated entries, in Candidate order, never scrambled among themselves. Literal dates are printed verbatim regardless of date style. Unplaceable fragments are placed somewhere plausible per Layout and the placement is recorded in the manifest.
 
-The manifest carries: candidate id, layout name, seed, generator version, manifest version, the printed string for each entry date, the emitted entry order per section, contact-block location, confusables injected, photo yes/no, where each unplaceable fragment went, and the SHA of the document. It never carries Candidate content and never feeds a metric.
+The manifest carries: candidate id, layout name, seed, generator version, manifest version, the printed string for each entry date, the emitted entry order per section, contact-block location, confusables injected, photo yes/no, where each unplaceable fragment went, and the SHA of the document. It never carries Candidate content and never feeds a metric. (Amended during ticket 17: it also carries the section headings the Layout wrote, in document order, which the eval runner hands `removal_precision` as the `RM_HEADING` allowlist. A heading is the Layout's text, not the Candidate's, and it reaches the metric as an argument, as the Candidate's PII does.)
 
 Generated documents and manifests share a stem `<candidate-id>__<layout-name>` and are committed.
 
@@ -194,6 +194,7 @@ All pure; inputs are tokens, units, hashes or content; outputs are sorted. Findi
 - `provenance_violations(output_units, source_blocks, template_units, date_map)`: every unit must be a canonicalised exact substring of some block, or a template unit, or the rendered side of a date_map pair.
 - `punctuation_fidelity(pairs of raw located span and raw rendered unit)`: byte equality, no canonicalisation. Reported metric first; promoted to a hard gate after the Phase 1 baseline.
 - `pii_leak(output_text, pii)`: variant matching per class; most specific rule wins (`RM_REFEREE` before `RM_EMAIL`/`RM_PHONE`); one hit per occurrence; returns hits carrying the rule id.
+- `removal_precision(removals, pii, headings)`: every text removal in the log must be covered by a value its own rule may remove: the `PII` value(s) for that rule, or for `RM_HEADING` a heading the Layout wrote. Canonical substring matching, so a sub-slice of an allowed value passes; `RM_PHOTO` removes images and is out of scope. A finding names the block, the rule and the text. (Added by ticket 17: `dropped_tokens` counts every logged removal as accounted for, so without it a content line removed under a PII rule failed no hard gate.)
 - `image_leak(output_image_hashes, template_image_hashes)`: any output image not in the template set.
 - `placement_accuracy(actual, expected)`: two-pass alignment. Pass one: experience on `(canonicalise(employer), (start.year, start.month))`, education on `(canonicalise(institution), canonicalise(qualification))`. Pass two: greedy best Jaccard overlap over canonicalised leaves among the remainder, cutoff 0.5. Unmatched after both: all leaves miss. Within a matched entry scalars compare directly and lists align by canonicalised text with multiplicity; top-level lists likewise. Returns precision and recall overall and per field type, `unaligned_entries` per section, and `aligned_by` per entry.
 - `ordering_report(actual, expected)`: per section, compares the sequence of alignment keys over the matched subsequence only; reports the unmatched count separately.
@@ -201,26 +202,28 @@ All pure; inputs are tokens, units, hashes or content; outputs are sorted. Findi
 
 `template_tokens` and `template_units` are extracted from the template at run time minus tags, never hardcoded. `date_map` is the transform log's `(source date text, rendered date text)` pairs; in Phase 0 tests it is written literally.
 
-Gates (recorded here; thresholds set in Phase 1): added, dropped, provenance, PII and image at zero; ordering exactly correct; structural leaves at 100% precision and recall; bullets, skills and details on tunable precision and recall thresholds gated separately, not F1; appendix rate on a tunable maximum.
+Gates (recorded here; thresholds set in Phase 1): added, dropped, provenance, PII, image and removal precision at zero (removal precision added by ticket 17); ordering exactly correct; structural leaves at 100% precision and recall; bullets, skills and details on tunable precision and recall thresholds gated separately, not F1; appendix rate on a tunable maximum.
 
 ### Test the test
 
-A fake pipeline maps a Candidate to metric inputs: output units are the content leaves, output tokens are the tokenised leaves plus template tokens, the date map pairs each manifest-free `expected` with itself, removed tokens are the PII values, the appendix is the unplaceable list, output images are empty. It runs over all twelve real Candidates. Row 0 asserts zero findings and 100% everywhere.
+A fake pipeline maps a Candidate to metric inputs: output units are the content leaves, output tokens are the tokenised leaves plus template tokens, the date map pairs each manifest-free `expected` with itself, the removal log is every PII value under its own rule and the removed tokens are its text, there are no source headings, the appendix is the unplaceable list, output images are empty. It runs over all twelve real Candidates. Row 0 asserts zero findings and 100% everywhere.
 
 Corruptions, each with a declared blast radius:
 
 | Corruption | Must fail | Must pass | Direction |
 |---|---|---|---|
-| insert a word into a bullet | added, provenance, placement | dropped, pii, image, ordering, appendix, punctuation | precision down, recall down |
-| drop a bullet | dropped, placement | added, provenance, pii, image, ordering, appendix, punctuation | recall down, precision unchanged |
+| insert a word into a bullet | added, provenance, placement | dropped, pii, image, ordering, appendix, punctuation, removal | precision down, recall down |
+| drop a bullet | dropped, placement | added, provenance, pii, image, ordering, appendix, punctuation, removal | recall down, precision unchanged |
 | re-emit the source email in the header | pii | everything else | — |
 | reverse experience order | ordering | everything else | — |
-| swap two words inside a bullet | provenance, placement | added, dropped, pii, image, ordering, appendix, punctuation | precision down, recall down |
-| move one job's bullets into the appendix | appendix, placement | added, dropped, provenance, pii, image, ordering | recall down, precision unchanged |
+| swap two words inside a bullet | provenance, placement | added, dropped, pii, image, ordering, appendix, punctuation, removal | precision down, recall down |
+| move one job's bullets into the appendix | appendix, placement | added, dropped, provenance, pii, image, ordering, punctuation, removal | recall down, precision unchanged |
 | leave the photo in | image | everything else | — |
 | straighten a curly apostrophe | punctuation | everything else, provenance included | — |
+| join two slices out of source order | provenance | everything else | — |
+| remove a content line under a PII rule | removal, placement | added, dropped, provenance, pii, image, ordering, appendix, punctuation | recall down, precision unchanged |
 
-Direction for placement follows from whole-leaf scoring: a bullet with a word inserted matches no expected leaf and its expected leaf matches no actual leaf, so one error is a false positive and a false negative at once. "Precision only" would need token-level scoring inside a matched leaf, which nothing here defines. (Corrected during ticket 05; the original row said recall unchanged.) The swapped-words row moves placement the same way, and passes punctuation fidelity because a unit provenance cannot locate has no raw span to compare. (Placed during ticket 07; the original row left punctuation out.) The appendix row leaves precision unchanged: the moved bullets are leaves not found, and nothing wrong is placed. (Made explicit during ticket 13; the original row said only recall down.) A corruption must apply to every committed Candidate, so a new Candidate must carry what every row damages: a job with bullets, at least two jobs, an email, and an apostrophe or a hyphen in some leaf.
+Direction for placement follows from whole-leaf scoring: a bullet with a word inserted matches no expected leaf and its expected leaf matches no actual leaf, so one error is a false positive and a false negative at once. "Precision only" would need token-level scoring inside a matched leaf, which nothing here defines. (Corrected during ticket 05; the original row said recall unchanged.) The swapped-words row moves placement the same way, and passes punctuation fidelity because a unit provenance cannot locate has no raw span to compare. (Placed during ticket 07; the original row left punctuation out.) The appendix row leaves precision unchanged: the moved bullets are leaves not found, and nothing wrong is placed. (Made explicit during ticket 13; the original row said only recall down.) The join row came with ticket 05's `split_map`: nothing printed moves, only the logged order of the slices, which only provenance reads. The removal row came with ticket 17: the deleted bullet is logged under `RM_PERSONAL`, so its tokens are accounted for as removed and no text gate sees it; only the removal log judged against what each rule may remove does, and placement loses the bullet as for any omission. `removal` is in every other row's must-pass. A corruption must apply to every committed Candidate, so a new Candidate must carry what every row damages: a job with bullets, at least two jobs, an email, and an apostrophe or a hyphen in some leaf.
 
 ### Scaffolding
 
@@ -237,7 +240,7 @@ A good test here exercises one seam from the outside and asserts on what comes o
 3. **Candidate loader**: JSON in, model out or a validation error. Every committed Candidate loads; unknown tags are rejected; every tag's predicate holds for every Candidate carrying it; every tag is carried by at least one Candidate.
 4. **Layouts**: Candidate in, document and manifest out, observed only through a deliberately dumb `all_text` helper that walks every text run in every part (body, headers, footers, text boxes) with no structure and no reading order. Source coverage: every content string and PII value appears, both sides canonicalised. Regeneration: generating twice yields identical `all_text` and identical manifest SHA. Undated entries appear after dated ones. Literal dates appear verbatim. The two-column Layout's document contains exactly one image; the others contain none.
 5. **Template**: context in, document out via docxtpl. Renders with a Candidate's content; contains the name and a bullet; banner present only when `unplaced` is non-empty; no `{{` or `{%` survives; profile heading absent when profile is empty.
-6. **Test the test**: the fake pipeline over all Candidates, row 0 and the eight corruptions with blast radius and direction assertions.
+6. **Test the test**: the fake pipeline over all Candidates, row 0 and the ten corruptions with blast radius and direction assertions.
 
 No LLM in any test. No `.docx` in any metric test. There is no prior art in this repo; these are the first tests.
 

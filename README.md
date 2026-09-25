@@ -208,10 +208,15 @@ Dockerfile ticket 12.
 
 ## The eval gate
 
-`src/cvr/eval/` already holds nine metrics as pure functions with sorted findings:
-`added_tokens`, `dropped_tokens`, `provenance_violations`, `pii_leak`, `image_leak` and
-`ordering_report` are **hard gates** — they must come back exactly zero (or, for
-ordering, exactly correct) or CI fails regardless of any threshold.
+`src/cvr/eval/` already holds ten metrics as pure functions with sorted findings:
+`added_tokens`, `dropped_tokens`, `removal_precision`, `provenance_violations`,
+`pii_leak`, `image_leak` and `ordering_report` are **hard gates** — they must come back
+exactly zero (or, for ordering, exactly correct) or CI fails regardless of any threshold.
+`removal_precision` closes the hole `dropped_tokens` leaves: a logged removal counts as
+accounted for, so a content line deleted under a PII rule lost candidate text without
+failing anything. It checks every removed slice against what its own rule may remove
+(the Candidate's PII values for that rule, or a heading the Layout wrote), so the only
+text the output may lose is PII and the source's own headings.
 `placement_accuracy` and `appendix_rate` are **thresholds**: a minimum and a maximum set
 from evidence rather than picked in advance. `punctuation_fidelity` starts as a reported
 metric and is promoted to a hard gate only once three baseline runs come back clean on

@@ -107,7 +107,9 @@ def _reformat_and_score(document: Document, labeller: Labeller):
     the labeller call."""
     with _DOCUMENTS:
         output, run = reformat(document.source, _Unlocked(labeller))
-        scores = score(document.candidate, document.source, output, run)
+        scores = score(
+            document.candidate, document.source, output, run, document.manifest.headings
+        )
     return run, scores
 
 

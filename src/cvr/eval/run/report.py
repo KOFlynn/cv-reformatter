@@ -14,7 +14,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from cvr.eval import FieldType, Tally, appendix_rate
+from cvr.eval import FieldType, Finding, Tally, appendix_rate, wrongful_removal
 from cvr.eval.run.cache import CacheStats, LabellerIdentity
 from cvr.eval.run.runner import DocumentResult
 from cvr.eval.run.thresholds import Thresholds
@@ -25,11 +25,17 @@ __all__ = ["Failure", "Report", "Totals", "build_report", "gate", "totals_of"]
 @dataclass(frozen=True)
 class Totals:
     """What a group of documents adds up to. Counts are findings (a
-    ``Finding``'s count, one per PII hit); rates are derived on output."""
+    ``Finding``'s count, one per PII hit); rates are derived on output.
+
+    ``wrongful_removals`` keeps each text removed that its rule may not
+    remove as ``(rule, canonical text)``, once per occurrence, so the gate
+    can name the rule and the text; the report counts them.
+    """
 
     documents: int = 0
     added: int = 0
     dropped: int = 0
+    wrongful_removals: tuple[tuple[str, str], ...] = ()
     provenance: int = 0
     punctuation: int = 0
     pii: int = 0
@@ -66,6 +72,7 @@ class Totals:
             "documents": self.documents,
             "added": self.added,
             "dropped": self.dropped,
+            "wrongful_removals": len(self.wrongful_removals),
             "provenance": self.provenance,
             "pii": self.pii,
             "images": self.images,
@@ -104,6 +111,14 @@ def _count(findings: Iterable[Any]) -> int:
     return sum(getattr(finding, "count", 1) for finding in findings)
 
 
+def _wrongful(findings: Iterable[Finding]) -> tuple[tuple[str, str], ...]:
+    """Each ``removal_precision`` finding as ``(rule, text)``, once per
+    occurrence."""
+    return tuple(
+        wrongful_removal(finding) for finding in findings for _ in range(finding.count)
+    )
+
+
 def totals_of(result: DocumentResult) -> Totals:
     """One document's contribution. An errored document counts as a
     document and an error, and nothing else."""
@@ -124,6 +139,7 @@ def totals_of(result: DocumentResult) -> Totals:
     return usage + Totals(
         added=_count(scores.added),
         dropped=_count(scores.dropped),
+        wrongful_removals=_wrongful(scores.removals),
         provenance=_count(scores.provenance),
         punctuation=_count(scores.punctuation),
         pii=len(scores.pii),
@@ -171,20 +187,49 @@ def _whole(tally: Tally) -> bool:
     return tally.hits == tally.actual == tally.expected
 
 
-# The hard gates: (metric, what a breach is, whether a document breaches).
-_HARD: list[tuple[str, str, Callable[[Totals], bool]]] = [
-    ("errors", "the document did not complete", lambda t: t.errors > 0),
-    ("added_tokens", "tokens in the output not in the source", lambda t: t.added > 0),
-    ("dropped_tokens", "source tokens unaccounted for", lambda t: t.dropped > 0),
-    (
+type _Gate = Callable[[Mapping[str, Totals]], list[Failure]]
+
+
+def _hard(metric: str, detail: str, failing: Callable[[Totals], bool]) -> _Gate:
+    """A hard gate with one failure naming every document that breaches it."""
+
+    def judge(documents: Mapping[str, Totals]) -> list[Failure]:
+        stems = _stems(documents, failing)
+        return [Failure(metric, detail, stems)] if stems else []
+
+    return judge
+
+
+def _wrongful_removals(documents: Mapping[str, Totals]) -> list[Failure]:
+    """One failure per distinct wrongful removal, naming its rule and text
+    and every document it was made in, in rule-then-text order."""
+    stems: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for stem, totals in documents.items():
+        for removal in dict.fromkeys(totals.wrongful_removals):
+            stems[removal].append(stem)
+    return [
+        Failure("removal_precision", f'{rule} may not remove "{text}"', tuple(found))
+        for (rule, text), found in sorted(stems.items())
+    ]
+
+
+# The hard gates, in the order their failures are reported.
+_HARD: list[_Gate] = [
+    _hard("errors", "the document did not complete", lambda t: t.errors > 0),
+    _hard(
+        "added_tokens", "tokens in the output not in the source", lambda t: t.added > 0
+    ),
+    _hard("dropped_tokens", "source tokens unaccounted for", lambda t: t.dropped > 0),
+    _wrongful_removals,
+    _hard(
         "provenance_violations",
         "rendered text that is not a source slice",
         lambda t: t.provenance > 0,
     ),
-    ("pii_leak", "PII values in the output", lambda t: t.pii > 0),
-    ("image_leak", "images in the output", lambda t: t.images > 0),
-    ("ordering", "entries out of order", lambda t: t.ordering_failures > 0),
-    (
+    _hard("pii_leak", "PII values in the output", lambda t: t.pii > 0),
+    _hard("image_leak", "images in the output", lambda t: t.images > 0),
+    _hard("ordering", "entries out of order", lambda t: t.ordering_failures > 0),
+    _hard(
         "placement_accuracy (structural)",
         "structural leaves below 100% precision or recall",
         lambda t: not _whole(t.structural),
@@ -196,11 +241,7 @@ def gate(documents: Mapping[str, Totals], thresholds: Thresholds) -> list[Failur
     """Every reason the run fails, hard gates first, in a fixed order, from
     each document's totals by stem."""
     total = sum(documents.values(), Totals())
-    failures = [
-        Failure(metric, detail, stems)
-        for metric, detail, failing in _HARD
-        if (stems := _stems(documents, failing))
-    ]
+    failures = [failure for judge in _HARD for failure in judge(documents)]
     if thresholds.punctuation_hard and total.punctuation:
         failures.append(
             Failure(
@@ -269,6 +310,7 @@ def _document(result: DocumentResult) -> dict[str, Any]:
             for name, findings in (
                 ("added", scores.added),
                 ("dropped", scores.dropped),
+                ("removals", scores.removals),
                 ("provenance", scores.provenance),
                 ("punctuation", scores.punctuation),
                 ("pii", scores.pii),
@@ -425,6 +467,7 @@ _COLUMNS: list[tuple[str, Callable[[Totals], str]]] = [
     ("Docs", lambda t: str(t.documents)),
     ("Added", lambda t: str(t.added)),
     ("Dropped", lambda t: str(t.dropped)),
+    ("Wrongful removals", lambda t: str(len(t.wrongful_removals))),
     ("Provenance", lambda t: str(t.provenance)),
     ("PII", lambda t: str(t.pii)),
     ("Images", lambda t: str(t.images)),
