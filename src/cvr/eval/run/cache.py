@@ -23,7 +23,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from cvr.golden.generate import GENERATED_DIR
+from cvr.eval.run.documents import REPO_ROOT
 from cvr.models import (
     Labelling,
     LabellingFailure,
@@ -40,10 +40,11 @@ __all__ = [
     "LabellerIdentity",
     "ResponseCache",
     "cache_key",
+    "label_run_of",
 ]
 
-# The repository root's .cache/, beside fixtures/ (gitignored).
-CACHE_DIR = GENERATED_DIR.parents[1] / ".cache" / "eval-responses"
+# Gitignored, like the whole of .cache/.
+CACHE_DIR = REPO_ROOT / ".cache" / "eval-responses"
 
 
 @dataclass(frozen=True)
@@ -73,7 +74,8 @@ def cache_key(identity: LabellerIdentity, source: bytes) -> str:
 
 
 class _Entry(BaseModel):
-    """One cached answer, with the key's parts beside it for a reader."""
+    """One cached answer: a usable labelling or a failure, and the
+    ``LabelRun`` recorded when it was made."""
 
     kind: Literal["labelling", "failure"]
     labelling: Labelling | None = None
@@ -123,13 +125,20 @@ class CacheStats:
     live_calls: int = 0
     _lock: Lock = field(default_factory=Lock, repr=False, compare=False)
 
-    def hit(self) -> None:
+    def record_hit(self) -> None:
         with self._lock:
             self.hits += 1
 
-    def live(self) -> None:
+    def record_live_call(self) -> None:
         with self._lock:
             self.live_calls += 1
+
+
+def label_run_of(labeller: Labeller) -> LabelRun | None:
+    """The ``LabelRun`` a labeller recorded on ``last_run``, if it records
+    one, read as ``reformat`` reads it."""
+    last_run = getattr(labeller, "last_run", None)
+    return last_run if isinstance(last_run, LabelRun) else None
 
 
 @dataclass
@@ -156,13 +165,12 @@ class CachedLabeller:
         self.last_run = None
         if self.read and (cached := self.cache.get(self.key)) is not None:
             self.hit = True
-            self.stats.hit()
+            self.stats.record_hit()
             result, self.last_run = cached
             return result
         labeller = self.live()
-        self.stats.live()
+        self.stats.record_live_call()
         result = labeller(blocks)
-        last_run = getattr(labeller, "last_run", None)
-        self.last_run = last_run if isinstance(last_run, LabelRun) else None
+        self.last_run = label_run_of(labeller)
         self.cache.put(self.key, result, self.last_run)
         return result

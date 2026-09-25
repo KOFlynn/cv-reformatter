@@ -8,7 +8,10 @@ from pathlib import Path
 from cvr.golden import CANDIDATES_DIR, Candidate, Manifest, load_candidate
 from cvr.golden.generate import GENERATED_DIR
 
-__all__ = ["Document", "document", "generated_stems", "select"]
+__all__ = ["REPO_ROOT", "Document", "document", "generated_stems", "select"]
+
+# The repository root, where the eval directory and .cache/ sit beside fixtures/.
+REPO_ROOT = CANDIDATES_DIR.parents[1]
 
 
 @dataclass(frozen=True)

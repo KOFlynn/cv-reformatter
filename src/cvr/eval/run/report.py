@@ -310,6 +310,8 @@ class Report:
     cache: dict[str, Any]
     thresholds: Thresholds
     failures: list[Failure]
+    # What this run paid: live calls only, replayed answers cost nothing.
+    spent_usd: float = 0.0
     documents: list[dict[str, Any]] = field(default_factory=list)
 
     @property
@@ -346,10 +348,10 @@ class Report:
                 # What the labellings cost when they were made, replayed or
                 # not; and what this run paid, live calls only.
                 "labelling": round(total.cost_usd, 4),
-                "this_run": round(self.cache["spent_usd"], 4),
+                "this_run": round(self.spent_usd, 4),
             },
             "wall_time_seconds": round(self.wall_seconds, 1),
-            "cache": {k: v for k, v in self.cache.items() if k != "spent_usd"},
+            "cache": self.cache,
             "retries": total.retries,
             "thresholds": {
                 "placement_accuracy": {"min": self.thresholds.placement_min},
@@ -409,9 +411,9 @@ def build_report(
             "read": cache_read,
             "hits": stats.hits,
             "live_calls": stats.live_calls,
-            "spent_usd": spent,
         },
         thresholds=thresholds,
+        spent_usd=spent,
         failures=gate({r.document.stem: totals_of(r) for r in results}, thresholds),
         documents=[_document(result) for result in results],
     )
@@ -500,7 +502,10 @@ def _markdown(report: Report) -> str:
             f"{'' if cache['read'] else ' (reads bypassed)'}, "
             f"{cache['hits']} hits, {cache['live_calls']} live calls"
         ),
-        f"- Retries (provider unavailable): {total.retries}",
+        (
+            f"- Retries: {total.retries} (provider unavailable: a 429, an "
+            "overload or a dropped connection, beyond the client's own two)"
+        ),
         "",
         "## Gate",
         "",

@@ -7,12 +7,12 @@ from pathlib import Path
 
 import yaml
 
-from cvr.golden.generate import GENERATED_DIR
+from cvr.eval.run.documents import REPO_ROOT
 
 __all__ = ["EVAL_DIR", "THRESHOLDS_FILE", "Thresholds", "load_thresholds"]
 
 # The repository root's eval/: config and generated reports, never code.
-EVAL_DIR = GENERATED_DIR.parents[1] / "eval"
+EVAL_DIR = REPO_ROOT / "eval"
 THRESHOLDS_FILE = EVAL_DIR / "thresholds.yaml"
 
 

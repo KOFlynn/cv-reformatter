@@ -24,6 +24,7 @@ from cvr.eval.run.cache import (
     LabellerIdentity,
     ResponseCache,
     cache_key,
+    label_run_of,
 )
 from cvr.eval.run.documents import Document
 from cvr.eval.run.score import Scores, score
@@ -78,11 +79,10 @@ class _Counted:
 
     @property
     def last_run(self) -> LabelRun | None:
-        last_run = getattr(self.labeller, "last_run", None)
-        return last_run if isinstance(last_run, LabelRun) else None
+        return label_run_of(self.labeller)
 
     def __call__(self, blocks):
-        self.stats.live()
+        self.stats.record_live_call()
         return self.labeller(blocks)
 
 

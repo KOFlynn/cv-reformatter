@@ -20,7 +20,6 @@ from cvr.eval import (
     PiiHit,
     PlacementReport,
     added_tokens,
-    appendix_rate,
     dropped_tokens,
     image_leak,
     ordering_report,
@@ -137,14 +136,10 @@ class Scores:
     placement: PlacementReport
     ordering: OrderingReport
     # Appendix tokens and source content tokens (the source less what the
-    # Run removed), kept apart so a group's rate is token-weighted.
+    # Run removed), kept as counts so a group's appendix rate is
+    # token-weighted (``report.Totals``).
     appendix_tokens: int
     content_tokens: int
-
-    @property
-    def appendix_rate(self) -> float:
-        # The metric counts items, so the two counts stand in for the tokens.
-        return appendix_rate(range(self.appendix_tokens), range(self.content_tokens))
 
     @property
     def hard_gates(self) -> dict[str, list]:
