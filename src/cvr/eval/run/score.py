@@ -5,9 +5,9 @@ and the headings the Layout wrote, and assembles each metric's inputs from
 real artefacts only: the source side from the parsed source, the output side
 from the rendered document through the adapter (``cvr.eval.adapter``), the
 removal log, the maps and the unplaced text from the ``Run``. The Candidate
-and the headings are used only as the expected side. Ticket 06 wired this in ``tests/pipeline/`` for the
-oracle labellers; the runner owns it now, and the pipeline tests import it
-from here.
+and the headings are used only as the expected side. Ticket 06 wired this
+in ``tests/pipeline/`` for the oracle labellers; the runner owns it now, and
+the pipeline tests import it from here.
 """
 
 import re

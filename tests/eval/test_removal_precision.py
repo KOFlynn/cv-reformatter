@@ -3,7 +3,7 @@ heading list, never a Candidate."""
 
 import pytest
 
-from cvr.eval import Finding, removal_precision
+from cvr.eval import Finding, removal_precision, wrongful_removal
 from cvr.models import PII, Image, Personal, Referee, Removal, RemovalRule, Span
 
 PII_VALUES = PII(
@@ -170,3 +170,9 @@ def test_findings_are_sorted_by_block_then_rule_and_text():
         Finding(where="body:9", what="RM_PERSONAL: Apple", count=1),
         Finding(where="body:9", what="RM_PERSONAL: Zebra", count=1),
     ]
+
+
+def test_a_finding_reads_back_as_its_rule_and_text():
+    text = "EU citizen; no visa required for Ireland: yes"
+    (finding,) = judged(removal(RemovalRule.PERSONAL, text))
+    assert wrongful_removal(finding) == (RemovalRule.PERSONAL, text)

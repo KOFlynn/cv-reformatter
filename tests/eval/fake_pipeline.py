@@ -4,9 +4,9 @@ Candidate and a pipeline result to every metric input.
 There is no document anywhere here: the source side is reconstructed from the
 Candidate (content leaves, PII values and unplaceable fragments are everything
 a Layout would have printed), and the output side from whatever the pipeline
-returned, its removal log included. Row 0 runs the honest pipeline; the corruption rows run a damaged
-one through the same map, so a metric sees exactly what it would see in
-Phase 1 with the document and LLM taken out.
+returned, its removal log included. Row 0 runs the honest pipeline; the
+corruption rows run a damaged one through the same map, so a metric sees
+exactly what it would see in Phase 1 with the document and LLM taken out.
 """
 
 from collections.abc import Iterable
@@ -129,9 +129,8 @@ class MetricInputs:
     """Everything the metrics take, as the Phase 1 runner will assemble it."""
 
     source_tokens: list[str]
-    source_content_tokens: list[
-        str
-    ]  # source minus the PII values, as the Candidate says
+    # The source minus the PII values, as the Candidate says.
+    source_content_tokens: list[str]
     source_blocks: list[str]  # the leaves themselves, since there is no document
     output_content: CVContent  # the placed content; the Candidate's is expected
     output_units: list[str]

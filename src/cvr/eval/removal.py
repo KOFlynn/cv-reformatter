@@ -30,7 +30,9 @@ from cvr.eval.finding import Finding, findings
 from cvr.models import PII, Removal, RemovalRule, Span
 from cvr.text import canonicalise
 
-__all__ = ["removal_precision"]
+__all__ = ["removal_precision", "wrongful_removal"]
+
+_SEPARATOR = ": "
 
 
 def _allowed(pii: PII, headings: Iterable[str]) -> dict[RemovalRule, list[str]]:
@@ -75,5 +77,13 @@ def removal_precision(
         text = canonicalise(removal.subject.text)
         if not text or any(text in value for value in allowed.get(removal.rule, [])):
             continue
-        wrongful[(removal.subject.block_id, f"{removal.rule}: {text}")] += 1
+        wrongful[(removal.subject.block_id, f"{removal.rule}{_SEPARATOR}{text}")] += 1
     return findings(wrongful)
+
+
+def wrongful_removal(finding: Finding) -> tuple[RemovalRule, str]:
+    """The rule and canonical text of one ``removal_precision`` finding,
+    read back from its ``what`` here, beside where it is written, so the
+    report never depends on the format."""
+    rule, _, text = finding.what.partition(_SEPARATOR)
+    return RemovalRule(rule), text

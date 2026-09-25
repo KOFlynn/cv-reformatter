@@ -14,7 +14,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from cvr.eval import FieldType, Finding, Tally, appendix_rate
+from cvr.eval import FieldType, Finding, Tally, appendix_rate, wrongful_removal
 from cvr.eval.run.cache import CacheStats, LabellerIdentity
 from cvr.eval.run.runner import DocumentResult
 from cvr.eval.run.thresholds import Thresholds
@@ -113,12 +113,9 @@ def _count(findings: Iterable[Any]) -> int:
 
 def _wrongful(findings: Iterable[Finding]) -> tuple[tuple[str, str], ...]:
     """Each ``removal_precision`` finding as ``(rule, text)``, once per
-    occurrence; its ``what`` is ``"<rule>: <text>"``."""
+    occurrence."""
     return tuple(
-        (rule, text)
-        for finding in findings
-        for rule, _, text in [finding.what.partition(": ")]
-        for _ in range(finding.count)
+        wrongful_removal(finding) for finding in findings for _ in range(finding.count)
     )
 
 
