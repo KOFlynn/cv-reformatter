@@ -12,13 +12,13 @@ from oracle import Oracle
 from pipeline_support import document
 
 import cvr.api.app as api_app
+from cvr.api import DOCX_MEDIA_TYPE as DOCX
 from cvr.api import RUN_ID_HEADER, create_app
 from cvr.api.app import content_disposition, output_filename
 from cvr.eval.adapter import adapt
 from cvr.label import LabellerMisconfigured, ProviderUnavailable
-from cvr.models import LabellingFailure
+from cvr.models import LabellingFailure, LabelRun
 
-DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 STEM = "c04__single-column"
 
 
@@ -123,6 +123,54 @@ def test_a_labeller_that_raises_is_a_5xx_with_a_run_id(capsys):
     assert summary["run_id"] == run_id
     assert summary["status"] == 500
     assert "RuntimeError" in summary["error"]
+
+
+def test_a_failure_after_labelling_still_logs_what_the_labelling_cost(
+    monkeypatch, capsys
+):
+    label_run = LabelRun(
+        config={"model": "stand-in"},
+        prompt_version="p",
+        prompt_hash="ph",
+        schema_version="s",
+        schema_hash="sh",
+        content_hash="ch",
+        input_tokens=1200,
+        cost_usd=0.02,
+    )
+
+    class Recording:
+        last_run = None
+
+        def __call__(self, blocks):
+            self.last_run = label_run
+            return LabellingFailure(reason="stand-in")
+
+    def failing_after_the_labeller(source, labeller, *, run_id):
+        labeller([])
+        raise RuntimeError("render failed")
+
+    monkeypatch.setattr(api_app, "reformat", failing_after_the_labeller)
+    response = _post(
+        TestClient(create_app(Recording())), "cv.docx", document(STEM).source
+    )
+    assert response.status_code == 500
+    summary = _summary(capsys.readouterr().out)
+    assert summary["run_id"] == response.headers[RUN_ID_HEADER]
+    assert summary["label"]["input_tokens"] == 1200
+    assert summary["label"]["cost_usd"] == 0.02
+
+
+def test_a_log_that_cannot_be_written_still_returns_the_run_id(monkeypatch):
+    def broken(lines):
+        raise OSError("stdout closed")
+
+    monkeypatch.setattr(api_app, "write_lines", broken)
+    doc = document(STEM)
+    client = TestClient(create_app(Oracle(doc.candidate, doc.manifest)))
+    response = _post(client, "cv.docx", doc.source)
+    assert response.status_code == 200
+    assert RUN_ID_HEADER in response.headers
 
 
 @pytest.mark.parametrize(

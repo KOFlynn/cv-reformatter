@@ -9,19 +9,19 @@ requires-python = ">=3.12"
 dependencies = [
     "anthropic>=1.8,<2",
     "docxtpl",
-    "fastapi>=0.141.1",
+    "fastapi>=0.141,<1.0",
     "langchain>=1.0,<2.0",
     "langchain-anthropic>=1.0,<2.0",
     "lxml",
     "pydantic",
     "python-docx",
-    "python-multipart>=0.0.32",
-    "uvicorn>=0.54.0",
+    "python-multipart>=0.0.32,<0.1",
+    "uvicorn>=0.54,<1.0",
 ]
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28.1",
+    "httpx",
     "pytest",
     "ruff",
 ]

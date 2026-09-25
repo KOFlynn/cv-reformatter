@@ -33,6 +33,7 @@ from cvr.label import (
     ProviderUnavailable,
     RealLabeller,
 )
+from cvr.models import LabelRun
 from cvr.pipeline import Labeller, reformat
 
 __all__ = [
@@ -47,8 +48,6 @@ RUN_ID_HEADER = "X-Run-Id"
 DOCX_MEDIA_TYPE = (
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 )
-_LOGGED_PATHS = frozenset({"/reformat"})
-
 logger = logging.getLogger(__name__)
 
 
@@ -77,6 +76,18 @@ def _is_docx(filename: str | None, body: bytes) -> bool:
     return (filename or "").lower().endswith(".docx") and zipfile.is_zipfile(
         BytesIO(body)
     )
+
+
+def _describe(exc: Exception) -> str:
+    """An exception as the summary line's ``error``."""
+    return f"{type(exc).__name__}: {exc}"
+
+
+def _last_run(labeller: Labeller) -> LabelRun | None:
+    """The labeller's record of its last call, when it keeps one (as
+    ``RealLabeller`` does, resetting it at the start of each call)."""
+    last_run = getattr(labeller, "last_run", None)
+    return last_run if isinstance(last_run, LabelRun) else None
 
 
 class _LabellerSource:
@@ -108,29 +119,35 @@ def create_app(labeller: Labeller | None = None) -> FastAPI:
     one_at_a_time = threading.Lock()
 
     @app.middleware("http")
-    async def run_id(request: Request, call_next):
+    async def attach_run_id(request: Request, call_next):
         run_id = uuid4().hex
         request.state.run_id = run_id
         request.state.run = None
         request.state.error = None
+        request.state.label = None
         try:
             response = await call_next(request)
         except Exception as exc:
             logger.exception("run %s failed", run_id)
-            request.state.error = f"{type(exc).__name__}: {exc}"
+            request.state.error = _describe(exc)
             response = JSONResponse(
                 {"detail": "internal error", "run_id": run_id}, status_code=500
             )
         response.headers[RUN_ID_HEADER] = run_id
-        if request.url.path in _LOGGED_PATHS:
-            write_lines(
-                request_lines(
-                    run_id,
-                    response.status_code,
-                    run=request.state.run,
-                    error=request.state.error,
+        if request.url.path == "/reformat":
+            try:
+                write_lines(
+                    request_lines(
+                        run_id,
+                        response.status_code,
+                        run=request.state.run,
+                        label=request.state.label,
+                        error=request.state.error,
+                    )
                 )
-            )
+            except Exception:
+                # The response, and its run id, still go back to the caller.
+                logger.exception("run %s: the transform log was not written", run_id)
         return response
 
     @app.get("/health")
@@ -150,15 +167,22 @@ def create_app(labeller: Labeller | None = None) -> FastAPI:
             request.state.error = "not a .docx"
             raise HTTPException(415, "upload a .docx file")
         try:
+            labeller = source.get()
             with one_at_a_time:
-                output, run = reformat(body, source.get(), run_id=request.state.run_id)
+                try:
+                    output, run = reformat(body, labeller, run_id=request.state.run_id)
+                except Exception:
+                    # A node after the labeller failed, or the labeller did:
+                    # whatever the labelling cost is still logged.
+                    request.state.label = _last_run(labeller)
+                    raise
         except ProviderUnavailable as exc:
-            request.state.error = f"ProviderUnavailable: {exc}"
+            request.state.error = _describe(exc)
             raise HTTPException(
                 503, "the labelling provider is unavailable; try again later"
             ) from exc
         except LabellerMisconfigured as exc:
-            request.state.error = f"LabellerMisconfigured: {exc}"
+            request.state.error = _describe(exc)
             raise HTTPException(500, "the labeller is misconfigured") from exc
         request.state.run = run
         return Response(

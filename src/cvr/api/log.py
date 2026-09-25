@@ -10,6 +10,10 @@ block) goes on the block's line; everything else (the label section,
 ``label_failed``, the image removals, which belong to no block) on the
 summary. Together the lines hold the whole Run; no endpoint returns it
 (ADR-0009: that would be the first half of a review queue).
+
+A block line grows with its block's text, so a single paragraph of tens of
+kilobytes would still make a line past the limit. No golden-set document
+comes near it (tested); the limit is checked there, not enforced here.
 """
 
 import json
@@ -17,7 +21,9 @@ import sys
 from collections.abc import Iterable
 from typing import TextIO
 
-from cvr.models import Run, Span
+from pydantic import BaseModel
+
+from cvr.models import Image, LabelRun, Run, Span
 
 __all__ = ["MAX_LINE_BYTES", "request_lines", "write_lines"]
 
@@ -29,77 +35,69 @@ def _json(value: object) -> str:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
 
 
-def _dump(model) -> object:
+def _dump(model: BaseModel) -> object:
     return model.model_dump(mode="json")
 
 
-def _block_ids(run: Run) -> list[str]:
-    """Every block the Run mentions, in ledger (source) order: verify keeps a
-    ledger for every block, so the rest only guards against a hand-built
-    Run."""
-    ids = dict.fromkeys(run.ledgers)
+def _block_lines(run: Run) -> list[dict[str, object]]:
+    """One detail line per block, in ledger (source) order, each holding
+    that block's share of the Run. Verify keeps a ledger for every block;
+    a block only the rest mention (a hand-built Run) follows the ledgers."""
+    lines: dict[str, dict[str, object]] = {}
+
+    def line(block_id: str) -> dict[str, object]:
+        if block_id not in lines:
+            lines[block_id] = {
+                "run_id": run.run_id,
+                "line": "block",
+                "block_id": block_id,
+                "ledger": [],
+                "removals": [],
+                "normalisations": [],
+                "residue": [],
+                "dates": [],
+                "splits": {},
+            }
+        return lines[block_id]
+
+    for block_id, ledger in run.ledgers.items():
+        line(block_id)["ledger"] = [_dump(entry) for entry in ledger]
     for removal in run.removals:
         if isinstance(removal.subject, Span):
-            ids.setdefault(removal.subject.block_id)
+            line(removal.subject.block_id)["removals"].append(_dump(removal))
     for normalisation in run.normalisations:
-        ids.setdefault(normalisation.block_id)
+        line(normalisation.block_id)["normalisations"].append(_dump(normalisation))
     for residue in run.residue:
-        ids.setdefault(residue.span.block_id)
-    for _, span in run.date_map:
-        ids.setdefault(span.block_id)
-    for spans in run.split_map.values():
-        ids.setdefault(spans[0].block_id)
-    return list(ids)
-
-
-def _block_line(run: Run, block_id: str) -> dict[str, object]:
-    return {
-        "run_id": run.run_id,
-        "line": "block",
-        "block_id": block_id,
-        "ledger": [_dump(entry) for entry in run.ledgers.get(block_id, [])],
-        "removals": [
-            _dump(removal)
-            for removal in run.removals
-            if isinstance(removal.subject, Span)
-            and removal.subject.block_id == block_id
-        ],
-        "normalisations": [
-            _dump(normalisation)
-            for normalisation in run.normalisations
-            if normalisation.block_id == block_id
-        ],
-        "residue": [
-            _dump(residue)
-            for residue in run.residue
-            if residue.span.block_id == block_id
-        ],
-        "dates": [
-            [date, _dump(span)]
-            for date, span in run.date_map
-            if span.block_id == block_id
-        ],
+        line(residue.span.block_id)["residue"].append(_dump(residue))
+    for date, span in run.date_map:
+        line(span.block_id)["dates"].append([date, _dump(span)])
+    for path, spans in run.split_map.items():
         # A multi-span unit's spans are all of one block.
-        "splits": {
-            path: [_dump(span) for span in spans]
-            for path, spans in run.split_map.items()
-            if spans[0].block_id == block_id
-        },
-    }
+        line(spans[0].block_id)["splits"][path] = [_dump(span) for span in spans]
+    return list(lines.values())
 
 
 def request_lines(
-    run_id: str, status: int, *, run: Run | None = None, error: str | None = None
+    run_id: str,
+    status: int,
+    *,
+    run: Run | None = None,
+    label: LabelRun | None = None,
+    error: str | None = None,
 ) -> list[str]:
     """The log lines of one request: the summary first, then a line per block
     when there is a ``run``. A request refused before the pipeline ran, or
-    one the pipeline failed on, has only the summary, with its ``error``."""
+    one the pipeline failed on, has only the summary, with its ``error``
+    and, when the labeller had answered before the failure, its ``label``
+    section, so the tokens and cost spent are logged either way."""
     summary: dict[str, object] = {"run_id": run_id, "line": "summary", "status": status}
     if error is not None:
         summary["error"] = error
     if run is None:
+        if label is not None:
+            summary["label"] = _dump(label)
         return [_json(summary)]
-    blocks = _block_ids(run)
+    blocks = _block_lines(run)
     summary |= {
         "label": None if run.label is None else _dump(run.label),
         "label_failed": run.label_failed,
@@ -107,7 +105,7 @@ def request_lines(
         "images": [
             _dump(removal)
             for removal in run.removals
-            if not isinstance(removal.subject, Span)
+            if isinstance(removal.subject, Image)
         ],
         "removals": len(run.removals),
         "normalisations": len(run.normalisations),
@@ -116,7 +114,7 @@ def request_lines(
         "dates": len(run.date_map),
         "splits": len(run.split_map),
     }
-    return [_json(summary), *(_json(_block_line(run, b)) for b in blocks)]
+    return [_json(summary), *map(_json, blocks)]
 
 
 def write_lines(lines: Iterable[str], stream: TextIO | None = None) -> None:

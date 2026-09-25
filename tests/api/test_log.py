@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 from oracle import Oracle
 from pipeline_support import GENERATED, document
 
+from cvr.api import DOCX_MEDIA_TYPE as DOCX
 from cvr.api import RUN_ID_HEADER, create_app
 from cvr.api.log import MAX_LINE_BYTES, request_lines
 from cvr.models import Image, LabelRun, Run
@@ -28,8 +29,6 @@ LABEL_RUN = LabelRun(
     content_hash="ch",
     input_tokens=1,
 )
-
-DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
 def _logged(stem: str, capsys) -> tuple[str, list[str]]:
