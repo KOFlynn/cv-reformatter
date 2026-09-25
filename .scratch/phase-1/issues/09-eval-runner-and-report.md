@@ -91,3 +91,13 @@ Spec: the partial retry count and the `--no-cache` semantics are recorded above.
 The slow test runs the command over all 48 documents with the perfect oracle: exit 0, with the appendix maximum at 1% because c09 and c11 carry unplaceable fragments.
 
 Totals: default suite 1067 passed, 1 skipped (the label spike, no key), about 27–30s on this machine, up from about 23s. Slow suite 817 passed, about 43s.
+
+### 2026-09-25: first real run, and what it found
+
+The maintainer ran `uv run python -m cvr.eval.run` over all 48 documents on the default `LabellerConfig` (anthropic, `claude-opus-5-5`, effort `medium`; prompt 1.0.0 `53be22dba291883f`, schema 1.0.0 `3ee02723787bc1ee`). **PASS**, every hard gate at zero. 255,478 tokens in and 111,235 out, $3.2466 (checked by hand against `PRICE_TABLE`: $4 and $20 per million), 227.7s wall time, 48 live calls, 0 retries. Totals: structural placement 100/100, tunable placement 100.00 precision / 99.56 recall, appendix 0.72%. The report's markdown goes in the release PR description; the last box is ticked when it is there.
+
+Every imperfect cell was traced to the cached labelling:
+
+- **c09 and c11 appendix** (3–6%): exactly each Candidate's `unplaceable` ground truth (8 and 15 tokens). Correct.
+- **c06 text-box skills** (7 of 8): "Microsoft Excel" appears twice in the source and was labelled once in this Layout only; the second copy's two tokens went to the appendix, not lost. Acceptable.
+- **c07 additional** (2 of 3, all four Layouts): the labeller removed "EU citizen; no visa required for Ireland" under `RM_PERSONAL`. The ground truth is right (a right-to-work statement is content, not nationality); the prompt's "nationality" example drives it. And the run still passed, because `dropped_tokens` counts any logged removal as accounted for, so a wrongful removal is visible only as tunable recall. Two follow-ups: ticket 17 (a removal-precision hard gate) and ticket 18 (narrow `RM_PERSONAL` in the prompt). Ticket 10 is now blocked by both, so the baseline is measured against the gate and the prompt that ship.

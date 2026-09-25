@@ -2,7 +2,7 @@
 
 **What to build:** The numbers the gate holds to, set by evidence. Three full eval runs on the default `LabellerConfig` with the cache bypassed (LLM output is not deterministic, so one run is a sample of one). The dated baseline file records all three runs and their spread per metric; a wide spread is itself a finding written into the baseline notes, because it says the prompt is unstable. `thresholds.yaml` is then set: `placement_accuracy.min` to the worst of the three less one to two points of headroom, rounded down; `appendix_rate.max` to the worst plus the same headroom, rounded up; `punctuation_fidelity.hard: true` iff all three runs are clean, otherwise the reason it stays soft is recorded. The per-layout and per-tag breakdowns are read for anything structural (a Layout or a tag failing across all three runs) and each such finding becomes a note in the baseline and, if it is a defect, a follow-up ticket rather than a threshold adjustment. If effort or model is changed to reach an acceptable baseline, the change and the numbers behind it go in the baseline file and the PR description, per the eval-run rule.
 
-**Blocked by:** 09 (Eval runner and report)
+**Blocked by:** 09 (Eval runner and report), 17 (Removal precision hard gate), 18 (Narrow RM_PERSONAL in the prompt)
 
 **Status:** ready-for-agent
 
