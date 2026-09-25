@@ -118,7 +118,12 @@ def main(
     """The command line. ``labeller`` replaces the real one (tests pass the
     oracle); everything else is exactly what CI runs."""
     parser = argparse.ArgumentParser(
-        prog="python -m cvr.eval.run", description=__doc__.splitlines()[0]
+        prog="python -m cvr.eval.run",
+        description=(
+            "Run every generated document through the pipeline, score it, "
+            "write eval/report.json and eval/report.md, and exit 1 on any "
+            "hard-gate breach or missed threshold."
+        ),
     )
     parser.add_argument(
         "--layout", action="append", default=[], help="only this Layout (repeatable)"
@@ -134,9 +139,13 @@ def main(
         action="store_true",
         help="call the LLM for every document; fresh answers still refresh the cache",
     )
-    parser.add_argument("--thresholds", type=Path, default=THRESHOLDS_FILE)
+    parser.add_argument(
+        "--thresholds", type=Path, default=THRESHOLDS_FILE, help="thresholds file"
+    )
     parser.add_argument("--out", type=Path, default=EVAL_DIR, help="report directory")
-    parser.add_argument("--cache-dir", type=Path, default=CACHE_DIR)
+    parser.add_argument(
+        "--cache-dir", type=Path, default=CACHE_DIR, help="response cache directory"
+    )
     args = parser.parse_args(argv)
 
     try:
