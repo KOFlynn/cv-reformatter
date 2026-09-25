@@ -1,4 +1,4 @@
-"""The four imperfect oracles: the perfect answer damaged in one known way,
+"""The five imperfect oracles: the perfect answer damaged in one known way,
 through the whole pipeline, so the ledger, rejection, residue and
 labelling-failure paths are proven end to end rather than only at metric
 level. Each runs over one Candidate in all four Layouts, so the damaged
@@ -9,6 +9,13 @@ An unplaced fragment is the whole unclaimed run of its block, so it keeps
 any bullet glyph or comma beside it; the comparisons allow separators
 around the expected text and canonicalise, and the Run's own unplaced list
 is asserted equal to the appendix exactly.
+
+Only the fifth, a content line removed under a PII rule, trips the removal
+precision gate (ticket 17). The other four leave every removal as the
+perfect oracle made it (the PII values under their rules, the Layout's
+headings by the heading backstop), and even the schema-invalid answer, whose
+every removal is a backstop's, removes nothing its rule may not: that is
+asserted in each, not assumed.
 """
 
 import pytest
@@ -17,12 +24,13 @@ from oracle import (
     Oracle,
     location_claims_the_employer_line,
     omit_first_bullet,
+    remove_first_bullet_as_personal,
     schema_invalid,
     unlocatable_title,
 )
 from pipeline_support import Scores, document, score
 
-from cvr.eval import FieldType, Tally
+from cvr.eval import FieldType, Finding, Tally
 from cvr.models import (
     ExperienceEntry,
     LedgerKind,
@@ -63,7 +71,11 @@ def _run(stem, damage) -> tuple[bytes, Run, Scores]:
     doc = document(stem)
     labeller = Imperfect(Oracle(doc.candidate, doc.manifest), damage)
     output, run = reformat(doc.source, labeller)
-    return output, run, score(doc.candidate, doc.source, output, run)
+    return (
+        output,
+        run,
+        score(doc.candidate, doc.source, output, run, doc.manifest.headings),
+    )
 
 
 def _perfect_first_entry(stem) -> tuple[ExperienceEntry, Reference, Reference]:
@@ -106,6 +118,9 @@ def _unplaced_in(run: Run, block_id: str) -> list[str]:
 
 def _assert_explained_by_the_run(scores: Scores, run: Run) -> None:
     assert [span.text for span in run.unplaced] == scores.adapted.appendix
+    # Every hard gate clean, removal precision included: a leaf lost to the
+    # appendix is not a removal.
+    assert scores.removals == []
     assert {gate: f for gate, f in scores.hard_gates.items() if f} == {}
 
 
@@ -118,7 +133,9 @@ def test_an_omitted_leaf_is_unplaced_and_nothing_else_changes(stem):
     perfect_output, perfect_run = reformat(
         doc.source, Oracle(doc.candidate, doc.manifest)
     )
-    perfect = score(doc.candidate, doc.source, perfect_output, perfect_run)
+    perfect = score(
+        doc.candidate, doc.source, perfect_output, perfect_run, doc.manifest.headings
+    )
     output, run, scores = _run(stem, omit_first_bullet)
     entry, _, _ = _perfect_first_entry(stem)
     bullet = entry.bullets[0]
@@ -175,6 +192,39 @@ def test_a_double_claim_rejects_the_later_field_and_leaves_its_range_unplaced(st
     _assert_explained_by_the_run(scores, run)
 
 
+# --- Content removed under a PII rule
+
+
+@layouts
+def test_a_content_line_removed_under_a_pii_rule_fails_removal_precision_alone(stem):
+    """The first real run's c07 finding, reproduced: the line is logged as
+    removed, so no token is dropped and nothing reaches the appendix; only
+    placement recall and removal precision see it, and only the latter is a
+    hard gate."""
+    _, run, scores = _run(stem, remove_first_bullet_as_personal)
+    entry, _, _ = _perfect_first_entry(stem)
+    bullet = entry.bullets[0]
+    (removed,) = [
+        r
+        for r in run.removals
+        if r.rule is RemovalRule.PERSONAL
+        and canonicalise(r.subject.text) == canonicalise(bullet)
+    ]
+
+    assert scores.removals == [
+        Finding(
+            where=removed.subject.block_id,
+            what=f"RM_PERSONAL: {canonicalise(bullet)}",
+            count=1,
+        )
+    ]
+    assert {gate for gate, f in scores.hard_gates.items() if f} == {"removals"}
+    assert scores.adapted.appendix == []
+    bullets = scores.placement.by_field[FieldType.BULLET]
+    assert bullets.precision == 1.0
+    assert bullets.recall < 1.0
+
+
 # --- Schema-invalid answer
 
 
@@ -207,6 +257,9 @@ def test_a_schema_invalid_answer_puts_every_block_under_the_banner(stem):
     # Every block's text is printed, removed or separator: nothing dropped,
     # nothing added, every fragment a slice of the source.
     assert scores.dropped == scores.added == scores.provenance == []
+    # Every removal is a backstop's, and each is a PII value under its own
+    # rule or a heading the Layout wrote: none is wrongful.
+    assert scores.removals == []
     # The backstops and RM_PHOTO still ran; what only the LLM removes
     # (addresses, here) is in the appendix, where the banner flags it.
     assert not [hit for hit in scores.pii if hit.rule in BACKSTOPPED]

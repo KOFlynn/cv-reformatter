@@ -38,6 +38,10 @@ def test_a_clean_run_passes():
         ({"errors": 1}, "errors"),
         ({"added": 1}, "added_tokens"),
         ({"dropped": 2}, "dropped_tokens"),
+        (
+            {"wrongful_removals": (("RM_PERSONAL", "Fluent German"),)},
+            "removal_precision",
+        ),
         ({"provenance": 1}, "provenance_violations"),
         ({"pii": 1}, "pii_leak"),
         ({"images": 1}, "image_leak"),
@@ -90,3 +94,46 @@ def test_failures_come_hard_gates_first_in_a_fixed_order():
     run = _run(pii=1, added=1, tunable=Tally(0, 0, 20))
     metrics = [f.metric for f in gate(run, Thresholds(placement_min=70))]
     assert metrics == ["added_tokens", "pii_leak", "placement_accuracy (tunable)"]
+
+
+def test_each_wrongful_removal_is_its_own_failure_naming_rule_text_and_candidates():
+    line = ("RM_PERSONAL", "EU citizen; no visa required for Ireland")
+    heading = ("RM_REFEREE", "References")
+    run = {
+        "c01__single-column": CLEAN,
+        "c07__single-column": Totals(
+            **{**vars_of(CLEAN), "wrongful_removals": (line,)}
+        ),
+        "c07__text-box": Totals(
+            **{**vars_of(CLEAN), "wrongful_removals": (line, line)}
+        ),
+        "c11__single-column": Totals(
+            **{**vars_of(CLEAN), "wrongful_removals": (heading,)}
+        ),
+    }
+    failures = gate(run, PLACEHOLDERS)
+    assert [f.summary() for f in failures] == [
+        (
+            "removal_precision: RM_PERSONAL may not remove "
+            '"EU citizen; no visa required for Ireland" (c07)'
+        ),
+        'removal_precision: RM_REFEREE may not remove "References" (c11)',
+    ]
+    assert failures[0].documents == ("c07__single-column", "c07__text-box")
+
+
+def test_wrongful_removals_add_up_and_count_in_the_totals():
+    one = Totals(wrongful_removals=(("RM_PERSONAL", "a"),))
+    two = Totals(wrongful_removals=(("RM_DOB", "b"), ("RM_DOB", "b")))
+    assert (one + two).wrongful_removals == (
+        ("RM_PERSONAL", "a"),
+        ("RM_DOB", "b"),
+        ("RM_DOB", "b"),
+    )
+    assert (one + two).as_dict()["wrongful_removals"] == 3
+
+
+def test_removal_precision_follows_dropped_tokens_in_the_hard_gates():
+    run = _run(wrongful_removals=(("RM_PERSONAL", "x"),), dropped=1, pii=1)
+    metrics = [f.metric for f in gate(run, PLACEHOLDERS)]
+    assert metrics == ["dropped_tokens", "removal_precision", "pii_leak"]

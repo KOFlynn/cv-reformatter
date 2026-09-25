@@ -55,6 +55,7 @@ __all__ = [
     "location_claims_the_employer_line",
     "omit_first_bullet",
     "perfect_labelling",
+    "remove_first_bullet_as_personal",
     "schema_invalid",
     "unlocatable_title",
 ]
@@ -303,6 +304,20 @@ def location_claims_the_employer_line(labelling: Labelling) -> Labelling:
     return _with_first_experience(
         labelling, entry.model_copy(update={"location": location})
     )
+
+
+def remove_first_bullet_as_personal(labelling: Labelling) -> Labelling:
+    """Remove the first bullet under RM_PERSONAL instead of placing it, as the
+    first real run did with c07's right-to-work line (ticket 17)."""
+    entry = labelling.content.experience[0]
+    bullet = entry.bullets[0]
+    damaged = _with_first_experience(
+        labelling, entry.model_copy(update={"bullets": entry.bullets[1:]})
+    )
+    removal = RemovalReference(
+        rule=RemovalRule.PERSONAL, block_id=bullet.block_id, quote=bullet.quote
+    )
+    return damaged.model_copy(update={"removals": [*damaged.removals, removal]})
 
 
 def schema_invalid(labelling: Labelling) -> LabellingFailure:

@@ -1,17 +1,18 @@
-"""Every Phase 0 metric fed from one real run.
+"""Every metric fed from one real run.
 
-``score`` takes a Candidate, the source bytes, and what ``reformat``
-returned, and assembles each metric's inputs from real artefacts only: the
-source side from the parsed source, the output side from the rendered
-document through the adapter (``cvr.eval.adapter``), the removal log, the
-maps and the unplaced text from the ``Run``. The Candidate is used only as
-the expected side. Ticket 06 wired this in ``tests/pipeline/`` for the
+``score`` takes a Candidate, the source bytes, what ``reformat`` returned
+and the headings the Layout wrote, and assembles each metric's inputs from
+real artefacts only: the source side from the parsed source, the output side
+from the rendered document through the adapter (``cvr.eval.adapter``), the
+removal log, the maps and the unplaced text from the ``Run``. The Candidate
+and the headings are used only as the expected side. Ticket 06 wired this in ``tests/pipeline/`` for the
 oracle labellers; the runner owns it now, and the pipeline tests import it
 from here.
 """
 
 import re
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from cvr.eval import (
@@ -27,6 +28,7 @@ from cvr.eval import (
     placement_accuracy,
     provenance_violations,
     punctuation_fidelity,
+    removal_precision,
 )
 from cvr.eval.adapter import Adapted, adapt
 from cvr.golden import Candidate
@@ -133,6 +135,8 @@ class Scores:
     punctuation: list[Finding]
     pii: list[PiiHit]
     images: list[Finding]
+    # Text removed that its rule may not remove (ticket 17).
+    removals: list[Finding]
     placement: PlacementReport
     ordering: OrderingReport
     # Appendix tokens and source content tokens (the source less what the
@@ -146,6 +150,7 @@ class Scores:
         return {
             "added": self.added,
             "dropped": self.dropped,
+            "removals": self.removals,
             "provenance": self.provenance,
             "pii": self.pii,
             "images": self.images,
@@ -229,8 +234,16 @@ def _parts(document: ParsedDocument) -> dict[str, str]:
     return {part: "\n".join(texts) for part, texts in parts.items()}
 
 
-def score(candidate: Candidate, source: bytes, output: bytes, run: Run) -> Scores:
-    """Every metric over one real run, the Candidate as the expected side.
+def score(
+    candidate: Candidate,
+    source: bytes,
+    output: bytes,
+    run: Run,
+    headings: Sequence[str],
+) -> Scores:
+    """Every metric over one real run, the Candidate and the headings the
+    Layout wrote (the manifest's, the RM_HEADING allowlist) as the expected
+    side.
 
     The output is read twice: through the adapter for the leaves, and
     through ``parse`` for everything printed (the template's own text, the
@@ -282,6 +295,7 @@ def score(candidate: Candidate, source: bytes, output: bytes, run: Run) -> Score
         ),
         pii=pii_leak(_parts(printed), candidate.pii),
         images=image_leak([image.sha256 for image in printed.images], []),
+        removals=removal_precision(run.removals, candidate.pii, headings),
         placement=placement_accuracy(actual, candidate.content),
         ordering=ordering_report(actual, candidate.content),
         appendix_tokens=len(appendix_tokens),

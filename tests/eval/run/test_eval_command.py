@@ -7,7 +7,11 @@ import io
 import json
 
 import pytest
-from pipeline.oracle import omit_first_bullet, unlocatable_title
+from pipeline.oracle import (
+    omit_first_bullet,
+    remove_first_bullet_as_personal,
+    unlocatable_title,
+)
 from run_support import C04, ORACLE, imperfect, oracle, thresholds_file
 
 from cvr.eval.run import main
@@ -126,6 +130,29 @@ def test_a_structural_miss_fails_whatever_the_thresholds(tmp_path, capsys):
     metrics = [f["metric"] for f in _report(tmp_path)["gate"]["failures"]]
     assert metrics == ["placement_accuracy (structural)"]
     assert "placement_accuracy (structural)" in capsys.readouterr().out
+
+
+def test_a_content_line_removed_under_a_pii_rule_fails_naming_rule_and_text(
+    tmp_path, capsys
+):
+    # The placeholder thresholds tolerate the lost bullet's recall, as they
+    # tolerated c07's lost line in the first real run; the removal gate does not.
+    assert _main(tmp_path, imperfect(remove_first_bullet_as_personal), *ONE) == 1
+    report = _report(tmp_path)
+    (failure,) = report["gate"]["failures"]
+    assert failure["metric"] == "removal_precision"
+    assert failure["detail"].startswith('RM_PERSONAL may not remove "')
+    assert failure["documents"] == ["c04__single-column"]
+    assert report["totals"]["wrongful_removals"] == 1
+    (document,) = report["documents"]
+    (finding,) = document["findings"]["removals"]
+    assert finding["what"].startswith("RM_PERSONAL: ")
+    out = capsys.readouterr().out
+    assert 'removal_precision: RM_PERSONAL may not remove "' in out
+    assert "(c04)" in out
+    markdown = (tmp_path / "out" / "report.md").read_text(encoding="utf-8")
+    assert "Wrongful removals" in markdown
+    assert "removal_precision: RM_PERSONAL may not remove" in markdown
 
 
 def test_an_unknown_filter_is_an_error_not_an_empty_pass(tmp_path):

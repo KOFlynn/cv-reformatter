@@ -16,7 +16,7 @@ from cvr.pipeline import reformat
 def test_perfect_oracle_scores_clean_on_every_metric(stem):
     doc = document(stem)
     output, run = reformat(doc.source, Oracle(doc.candidate, doc.manifest))
-    scores = score(doc.candidate, doc.source, output, run)
+    scores = score(doc.candidate, doc.source, output, run, doc.manifest.headings)
 
     assert {
         gate: findings for gate, findings in scores.hard_gates.items() if findings
