@@ -16,6 +16,7 @@ from cvr.eval.pii import PiiHit, pii_leak
 from cvr.eval.placement import PlacementReport, Tally, placement_accuracy
 from cvr.eval.provenance import provenance_violations
 from cvr.eval.punctuation import punctuation_fidelity
+from cvr.eval.removal import removal_precision
 
 __all__ = [
     "AlignedBy",
@@ -37,4 +38,5 @@ __all__ = [
     "placement_accuracy",
     "provenance_violations",
     "punctuation_fidelity",
+    "removal_precision",
 ]
