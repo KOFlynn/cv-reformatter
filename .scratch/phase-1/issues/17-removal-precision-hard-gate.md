@@ -13,7 +13,7 @@ A new pure metric, `removal_precision` (name open), checks every logged text rem
 - [x] The corruption table in `tests/eval/corruptions.py` gains a row "remove a content line under a PII rule" that only this metric fails (dropped, added, provenance and PII stay clean), and every existing row places the new metric in `fails` or `passes`; the spec's table updated to match
 - [x] The eval runner (`cvr.eval.run`) adds it to the hard gates, the report's tables and each document's findings; the summary names the rule, candidate and text
 - [x] Perfect-oracle tests over all 48 documents still clean; the leaf-omitting and other imperfect oracles checked for whether they now also trip it, and the expectation written down
-- [ ] Replayed from the cache of ticket 09's first real run (no live calls): the run fails on c07 in all four Layouts, and on nothing else; the report diff in the PR description
+- [x] Replayed from the cache of ticket 09's first real run (no live calls): the run fails on c07 in all four Layouts and on `c11__single-column` (amended 2026-09-25, see the last comment), and on nothing else; the report diff in the PR description
 - [x] `CLAUDE.md` (the `eval` package list, nine metrics becoming ten) and the README's eval section updated
 
 ## Comments
@@ -111,3 +111,7 @@ Spec review raised:
 - the fake pipeline carrying no headings, so no corruption row exercises `RM_HEADING`. The unit tests and the 48-document oracle tests cover it.
 
 **Tests.** Default suite: 1221 passed, 1 skipped (the label spike, no key), about 40s. Slow suite: 914 passed, about 60s. `ruff check` and `ruff format --check` are clean.
+
+### 2026-09-25: c11 decided, option (a)
+
+The maintainer keeps the gate strict: a referees section's heading is the source's heading and belongs under `RM_HEADING`, so the `c11__single-column` finding is a real labelling defect, not a metric that is too tight. The fix goes into ticket 18's prompt change, whose text and boxes are amended to cover it. The replay box above is amended to expect c11 as well as c07, which is what the replay showed, and is ticked.
