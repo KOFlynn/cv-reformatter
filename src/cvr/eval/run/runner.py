@@ -8,11 +8,20 @@ backoff and jitter, and every retry is counted for the report. A
 misconfigured labeller is not retried, and anything else raised is a
 defect; either way the document is recorded as errored, which fails the
 run, rather than losing every other document's result.
+
+Only the labelling runs concurrently. Everything else (parse, verify,
+transform, render and scoring) runs one document at a time under one lock,
+which each document gives up only while its labeller is called: python-docx
+parses through one module-level lxml parser, and lxml parsers are not safe
+to share between threads (seen as a source document intermittently read
+as "not a Word file"). The labelling is what waits on the network, so it is
+the only part concurrency buys anything for.
 """
 
 import asyncio
 import random
 import sys
+import threading
 import traceback
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
@@ -70,6 +79,38 @@ def backoff(retry: int, jitter: float) -> float:
     return min(BACKOFF_CAP, BACKOFF_BASE * 2**retry) * (0.5 + jitter / 2)
 
 
+# Held by whichever worker is reading or writing a .docx; see the docstring.
+_DOCUMENTS = threading.Lock()
+
+
+@dataclass
+class _Unlocked:
+    """A labeller called with ``_DOCUMENTS`` released, so other documents'
+    pipeline steps proceed while this one waits on its labeller."""
+
+    labeller: Labeller
+
+    @property
+    def last_run(self) -> LabelRun | None:
+        return label_run_of(self.labeller)
+
+    def __call__(self, blocks):
+        _DOCUMENTS.release()
+        try:
+            return self.labeller(blocks)
+        finally:
+            _DOCUMENTS.acquire()
+
+
+def _reformat_and_score(document: Document, labeller: Labeller):
+    """``reformat`` then ``score``, holding ``_DOCUMENTS`` for everything but
+    the labeller call."""
+    with _DOCUMENTS:
+        output, run = reformat(document.source, _Unlocked(labeller))
+        scores = score(document.candidate, document.source, output, run)
+    return run, scores
+
+
 @dataclass
 class _Counted:
     """A labeller with no cache in front: every call is a live call."""
@@ -118,11 +159,8 @@ async def _one(
         while True:
             labeller = make()
             try:
-                output, run = await asyncio.to_thread(
-                    reformat, document.source, labeller
-                )
-                scores = await asyncio.to_thread(
-                    score, document.candidate, document.source, output, run
+                run, scores = await asyncio.to_thread(
+                    _reformat_and_score, document, labeller
                 )
             except ProviderUnavailable as exc:
                 if retries < MAX_RETRIES:

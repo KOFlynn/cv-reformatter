@@ -120,3 +120,36 @@ def test_no_more_than_the_bound_are_in_flight_at_once():
     assert peak[0] <= 2
     assert [result.document.stem for result in results] == stems
     assert runner.CONCURRENCY == 4
+
+
+def test_only_the_labelling_runs_concurrently(monkeypatch):
+    """python-docx shares one lxml parser across threads, so everything but
+    the labeller call runs one document at a time, while labellers overlap."""
+    lock = threading.Lock()
+    in_flight = {"label": 0, "score": 0}
+    peak = {"label": 0, "score": 0}
+
+    def tracked(kind, seconds, call):
+        with lock:
+            in_flight[kind] += 1
+            peak[kind] = max(peak[kind], in_flight[kind])
+        try:
+            time.sleep(seconds)
+            return call()
+        finally:
+            with lock:
+                in_flight[kind] -= 1
+
+    score = runner.score
+    monkeypatch.setattr(
+        runner, "score", lambda *args: tracked("score", 0.05, lambda: score(*args))
+    )
+
+    def live(doc):
+        return lambda blocks: tracked("label", 0.5, lambda: oracle(doc)(blocks))
+
+    stems = [f"c0{n}__single-column" for n in range(1, 5)]
+    results, _ = run_documents([document(s) for s in stems], live, ORACLE, cache=None)
+    assert all(result.error is None for result in results)
+    assert peak["score"] == 1
+    assert peak["label"] > 1
