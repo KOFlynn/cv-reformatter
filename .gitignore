@@ -7,8 +7,14 @@ dist/
 .pytest_cache/
 .ruff_cache/
 
-# Generated eval report (thresholds and the dated baseline are committed)
+# Generated eval report, JSON and markdown (thresholds and the dated
+# baseline are committed; CI uploads the report as an artifact)
 eval/report.json
+eval/report.md
+
+# The eval's LLM response cache: answers quoting the golden set, never
+# committed and never in the image
+.cache/
 
 # Teaching workspace (/teach skill), personal, never committed
 .teach/
