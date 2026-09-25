@@ -3,7 +3,7 @@
   "layout": "text-box",
   "seed": 0,
   "generator_version": "0.2.0",
-  "manifest_version": 2,
+  "manifest_version": 3,
   "dates": [
     {
       "section": "experience",
@@ -92,5 +92,13 @@
     }
   ],
   "pii_in_bullet": null,
+  "headings": [
+    "About Me",
+    "Core Competencies",
+    "Professional Experience",
+    "Education & Training",
+    "Certifications",
+    "Additional Information"
+  ],
   "document_sha256": "e2d0810d519100db0de5c6cdf3494134b0c95390f34e1894f749ee265f272a9a"
 }

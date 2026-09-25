@@ -194,7 +194,7 @@ class _Writer:
     # --- Body
 
     def heading(self, text: str) -> None:
-        self.document.add_heading(text, level=1)
+        self.document.add_heading(self.decisions.heading(text), level=1)
 
     def line(self, text: str, *, bold: bool = False, italic: bool = False) -> None:
         # Only set what is asked for: ``run.bold = False`` would write an
