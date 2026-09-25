@@ -1,0 +1,25 @@
+# An allowlist: everything is left out of the build context unless named
+# below, so a new file or directory (a cache, a report, an .env) never reaches
+# the image by default. What must never be in it: .git, the golden and eval
+# packages, fixtures/, tests/, environment files, the eval response cache
+# (.cache/), eval/, .scratch/, .claude/, .venv and every other local cache.
+# tests/docker/test_dockerignore.py checks both directions.
+*
+
+# The project and its lock.
+!pyproject.toml
+!uv.lock
+!.python-version
+
+# The service's source, and the template render fills at run time.
+!src/
+!templates/fictitious_recruitment.docx
+
+# Never, even under an allowed path: the golden set and the eval (neither is
+# imported by the service), environment files, bytecode and build leftovers.
+src/cvr/golden/
+src/cvr/eval/
+**/.env*
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
