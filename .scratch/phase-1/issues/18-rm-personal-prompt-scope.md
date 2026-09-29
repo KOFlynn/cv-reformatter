@@ -10,8 +10,8 @@ The rule is reworded so `RM_PERSONAL` covers a bare personal attribute stated ab
 
 - [x] `prompt.md`'s `RM_PERSONAL` wording narrowed and a referees section's heading placed under `RM_HEADING`, as above; no other prompt change; `versions.json` bumped and the import-time version check passing
 - [x] Before the change, with ticket 17's gate: the cached ticket 09 run fails on c07 (all four Layouts) and `c11__single-column` under the new gate (the evidence that the gate sees both defects) — already shown by ticket 17's replay comment ("Replay of ticket 09's first real run"), not rerun here
-- [ ] After the change: a live eval run over all 48 documents; c07's `additional` recall back to 3/3 in every Layout, c11's referees heading removed under `RM_HEADING` in every Layout, and the removal-precision gate clean; no other metric worse than ticket 09's run. Report diff against ticket 09's first run and the cost in the PR description, per the eval-run rule
-- [ ] If any other Candidate's genuine `personal` values (nationality, marital status) stop being removed, that is a PII leak and fails the ticket; the wording is revised, not the gate
+- [x] After the change: a live eval run over all 48 documents; c07's `additional` recall back to 3/3 in every Layout, c11's referees heading removed under `RM_HEADING` in every Layout, and the removal-precision gate clean; no other metric worse than ticket 09's run. Report diff against ticket 09's first run and the cost in the PR description, per the eval-run rule
+- [x] If any other Candidate's genuine `personal` values (nationality, marital status) stop being removed, that is a PII leak and fails the ticket; the wording is revised, not the gate
 - [ ] Ticket 10's baseline runs are taken after this ticket merges, so the thresholds are set against the prompt that ships
 
 ## Comments
@@ -84,3 +84,41 @@ after:
 **Tests.** Default suite: 1221 passed, 1 skipped (the label spike, no key), 38.84s. Slow suite: 914 passed, 49.25s. `ruff check .` and `ruff format --check .` both clean.
 
 Next: the maintainer runs `uv run python -m cvr.eval.run` (48 live calls, about $3.25) and the report is diffed against ticket 09's first run.
+
+### 2026-09-29: live eval run, passed
+
+The maintainer ran `uv run python -m cvr.eval.run` on this branch (prompt 1.1.0, `9b688aca3f8c5fa0`): 48 live calls, 0 cache hits, **PASS**, every gate held. **Cost $3.2736** (263,398 in / 111,000 out tokens), wall time 227.9s. The first run (ticket 09, prompt 1.0.0) was $3.2466, 255,478 in / 111,235 out, 227.7s.
+
+**The two defects are gone.**
+- **c07:** `additional` recall is 3/3 in all four Layouts. "EU citizen; no visa required for Ireland" is placed, not removed. c07's tunable recall is 100.00, up from 96.43.
+- **c11:** the run has 0 wrongful removals. `removal_precision` is strict per rule, so a referees heading removed under `RM_REFEREE` would be a finding. The heading therefore went under `RM_HEADING` in every Layout, by the labeller or the heading backstop. This is inferred from the gate, not read from the removal log.
+- **Box 4, PII:** 0 leaks in the run. `has-personal-details` stays at 100.00 / 100.00, so genuine `personal` values are still removed.
+
+**The `report.md` diff against ticket 09's first run** (the first run's report as it was, before ticket 17 added the "Wrongful removals" column; that column is 0 everywhere here):
+
+```
+  all              tunable recall 99.56 -> 99.82   appendix 0.72 -> 0.73
+  header-footer    appendix 0.71 -> 0.77
+  single-column    appendix 0.70 -> 0.75
+  text-box         tunable recall 99.29 -> 100.00  appendix 0.76 -> 0.69
+  two-column       tunable recall 99.65 -> 100.00
+  duplicate-skill  tunable recall 98.91 -> 97.83   appendix 0.21 -> 0.41
+  inline-skills    tunable recall 96.43 -> 100.00
+  non-ie-locale    tunable recall 98.72 -> 100.00
+  typo             tunable recall 99.60 -> 99.19   appendix 0.07 -> 0.14
+  unusual-sections tunable recall 98.91 -> 97.83   appendix 0.21 -> 0.41
+  c06              tunable recall 98.91 -> 97.83   appendix 0.21 -> 0.41
+  c07              tunable recall 96.43 -> 100.00
+  Prompt: 1.0.0 (53be22dba291883f) -> 1.1.0 (9b688aca3f8c5fa0)
+```
+
+Every other row is unchanged. Added, dropped, provenance, PII, images, ordering, structural placement, punctuation, label failures and errors are 0 or 100.00 in both runs.
+
+**One metric is worse: c06, judged run-to-run variance (maintainer's decision, option (a)).** This covers c06's row and the three tags c06 carries (`duplicate-skill`, `unusual-sections`, `typo`).
+- c06 lists "Microsoft Excel" twice on purpose (`duplicate-skill`). One copy is sometimes left unplaced and goes to the review appendix, not `skills`. No text is lost; skills recall is 7/8 in those documents.
+- The first run's c06 answers, replayed from cache under prompt 1.0.0 on `release/phase-1-09-11` (`--candidate c06 --out <tmp>`: 4 hits, 0 live calls), sent Excel to the appendix in `c06__text-box` only.
+- This run sent it there in `c06__single-column` and `c06__header-footer`. Text-box and two-column placed both copies.
+- The Layout that misses moves between runs, and the prompt change touches no skills rule. So the maintainer judged it sampling variance, not a regression from this change, and box 3 is ticked on that basis.
+- Measuring that variance is ticket 10's job: its three baseline runs set the tunable thresholds against it.
+
+Box 5 stays open until ticket 10 runs its baseline after this ticket merges.
