@@ -225,11 +225,24 @@ it, so the promotion is earned rather than assumed.
 Thresholds live in `eval/thresholds.yaml` and are set from three full eval runs on the
 default `LabellerConfig`, with one to two points of headroom below the worst placement
 score and above the worst appendix rate; the runs themselves are committed as a dated
-baseline at `eval/baseline-YYYY-MM-DD.json`. **Neither file exists yet.** The runner
-that produces them (`python -m cvr.eval.run`, writing `eval/report.json` and
-`eval/report.md`) is ticket 09; the baseline run and the thresholds themselves are
-ticket 10. This section is updated with the real thresholds and a link to the baseline
-file once ticket 10 lands.
+baseline, [`eval/baseline-2026-09-29.json`](eval/baseline-2026-09-29.json). The runner
+is `python -m cvr.eval.run`, writing `eval/report.json` and `eval/report.md`.
+
+The baseline is three runs of all 48 documents on `claude-opus-5-5` at effort `medium`
+with prompt 1.1.0 ($9.80 in all, about $3.27 and four minutes a run). Every hard gate
+held in all three, and the spread is narrow: tunable precision 99.91–100.00%, tunable
+recall 99.65–99.82%, appendix rate 0.73–0.76%. The thresholds that follow:
+
+| Threshold | Worst of three | Headroom | Set to |
+|---|---|---|---|
+| `placement_accuracy.min` (tunable precision and recall, each) | 99.65% | −1, rounded down | **98%** |
+| `appendix_rate.max` | 0.76% | +1, rounded up | **2%** |
+| `punctuation_fidelity.hard` | 0 findings in every run | | **true** |
+
+The appendix rate is mostly by design: two Candidates carry lines no field can hold (a
+page number, a motto, a declaration), which go to the review appendix every time. The
+one repeated miss, a skill listed twice that the labeller quotes once, is a follow-up
+ticket rather than a reason to lower a threshold.
 
 ## The demo PR
 

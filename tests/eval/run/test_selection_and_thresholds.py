@@ -1,5 +1,7 @@
 """The ``--layout``/``--candidate`` filters and the thresholds file."""
 
+import json
+
 import pytest
 import yaml
 
@@ -28,11 +30,15 @@ def test_a_filter_matching_nothing_is_an_error(filters):
         select(STEMS, **filters)
 
 
-def test_the_committed_thresholds_are_the_placeholders():
+def test_the_committed_thresholds_are_the_ones_the_baseline_records():
+    (baseline,) = THRESHOLDS_FILE.parent.glob("baseline-*.json")
+    recorded = json.loads(baseline.read_text(encoding="utf-8"))["thresholds"]
     assert load_thresholds() == Thresholds(
-        placement_min=0, appendix_max=100, punctuation_hard=False
+        placement_min=recorded["placement_accuracy"]["min"],
+        appendix_max=recorded["appendix_rate"]["max"],
+        punctuation_hard=recorded["punctuation_fidelity"]["hard"],
     )
-    assert "ticket 10" in THRESHOLDS_FILE.read_text(encoding="utf-8")
+    assert baseline.name in THRESHOLDS_FILE.read_text(encoding="utf-8")
 
 
 def _write(tmp_path, data):

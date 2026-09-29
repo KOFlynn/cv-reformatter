@@ -121,8 +121,12 @@ def test_an_omitted_leaf_under_a_placement_minimum_of_100_fails_naming_it(
 ONE = ("--layout", "single-column")
 
 
-def test_the_same_omission_passes_the_placeholder_thresholds(tmp_path):
-    assert _main(tmp_path, imperfect(omit_first_bullet), *ONE) == 0
+def test_the_same_omission_passes_thresholds_that_admit_it(tmp_path):
+    thresholds = thresholds_file(tmp_path)
+    code = _main(
+        tmp_path, imperfect(omit_first_bullet), *ONE, "--thresholds", str(thresholds)
+    )
+    assert code == 0
 
 
 def test_a_structural_miss_fails_whatever_the_thresholds(tmp_path, capsys):
@@ -135,9 +139,12 @@ def test_a_structural_miss_fails_whatever_the_thresholds(tmp_path, capsys):
 def test_a_content_line_removed_under_a_pii_rule_fails_naming_rule_and_text(
     tmp_path, capsys
 ):
-    # The placeholder thresholds tolerate the lost bullet's recall, as they
-    # tolerated c07's lost line in the first real run; the removal gate does not.
-    assert _main(tmp_path, imperfect(remove_first_bullet_as_personal), *ONE) == 1
+    # Thresholds that admit everything tolerate the lost bullet's recall, as the
+    # placeholders tolerated c07's lost line in the first real run; the removal
+    # gate does not.
+    thresholds = thresholds_file(tmp_path)
+    labeller = imperfect(remove_first_bullet_as_personal)
+    assert _main(tmp_path, labeller, *ONE, "--thresholds", str(thresholds)) == 1
     report = _report(tmp_path)
     (failure,) = report["gate"]["failures"]
     assert failure["metric"] == "removal_precision"
