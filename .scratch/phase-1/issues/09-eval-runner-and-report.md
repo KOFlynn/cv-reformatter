@@ -12,7 +12,7 @@
 - [x] `report.json` schema: totals, per layout, per tag, per candidate, config, versions (label and hash), tokens, cost, wall time; `report.md` renders the same with the totals table first
 - [x] With the oracle labeller over four documents: exit code 0, every breakdown present; with an oracle that omits a leaf and a placement threshold of 100: exit code 1 and the summary names the failing metric and candidate
 - [x] Hard gates (added, dropped, provenance, PII, image, ordering, structural leaves) fail the run irrespective of thresholds; `punctuation_fidelity` fails the run only when `hard: true`
-- [ ] First real run over all 48 documents completed locally; the markdown summary and cost pasted into the PR description
+- [x] First real run over all 48 documents completed locally; the markdown summary and cost pasted into the PR description
 - [x] `thresholds.yaml` committed with placeholders and a comment pointing at ticket 10
 
 ## Comments

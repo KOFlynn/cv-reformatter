@@ -12,7 +12,7 @@ The rule is reworded so `RM_PERSONAL` covers a bare personal attribute stated ab
 - [x] Before the change, with ticket 17's gate: the cached ticket 09 run fails on c07 (all four Layouts) and `c11__single-column` under the new gate (the evidence that the gate sees both defects) — already shown by ticket 17's replay comment ("Replay of ticket 09's first real run"), not rerun here
 - [x] After the change: a live eval run over all 48 documents; c07's `additional` recall back to 3/3 in every Layout, c11's referees heading removed under `RM_HEADING` in every Layout, and the removal-precision gate clean; no other metric worse than ticket 09's run. Report diff against ticket 09's first run and the cost in the PR description, per the eval-run rule
 - [x] If any other Candidate's genuine `personal` values (nationality, marital status) stop being removed, that is a PII leak and fails the ticket; the wording is revised, not the gate
-- [ ] Ticket 10's baseline runs are taken after this ticket merges, so the thresholds are set against the prompt that ships
+- [x] Ticket 10's baseline runs are taken after this ticket merges, so the thresholds are set against the prompt that ships
 
 ## Comments
 
