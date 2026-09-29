@@ -82,8 +82,13 @@ done
 curl -si "http://127.0.0.1:$PORT/health"; echo
 
 if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-  status=$(curl -s -o "$work/out.docx" -D "$work/headers" -w '%{http_code}' \
-    -F "file=@$DOC" "http://127.0.0.1:$PORT/reformat")
+  # Git Bash's curl is a Windows program and MSYS_NO_PATHCONV stops the
+  # /tmp path being translated for it, so it gets a Windows form of the path.
+  out=$work
+  if command -v cygpath >/dev/null 2>&1; then out=$(cygpath -m "$work"); fi
+  status=$(curl -s -o "$out/out.docx" -D "$out/headers" -w '%{http_code}' \
+    -F "file=@$DOC" "http://127.0.0.1:$PORT/reformat") \
+    || fail "curl exited $? posting $DOC"
   cat "$work/headers"
   echo "status $status, $(wc -c < "$work/out.docx") bytes"
   [ "$status" = 200 ] || fail "/reformat answered $status"
