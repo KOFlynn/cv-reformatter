@@ -6,11 +6,11 @@
 
 **Status:** in-review
 
-- [ ] `Dockerfile` and `.dockerignore` at the repo root; image builds locally with `docker build`
-- [ ] The image contains neither `cvr.golden` nor `cvr.eval`, nor `fixtures/`, `tests/`, `.git`, `.env` or the cache directory (asserted by listing the final layer)
-- [ ] Runs as a non-root user; exposes the service port; `docker run` with the key as `-e` serves `/health` and reformats a document
-- [ ] No build argument carries a key; a layer inspection (history plus filesystem grep for the key prefix) finds nothing; the command and its output are in the PR description
-- [ ] Image size recorded in the PR description
+- [x] `Dockerfile` and `.dockerignore` at the repo root; image builds locally with `docker build`
+- [x] The image contains neither `cvr.golden` nor `cvr.eval`, nor `fixtures/`, `tests/`, `.git`, `.env` or the cache directory (asserted by listing the final layer)
+- [x] Runs as a non-root user; exposes the service port; `docker run` with the key as `-e` serves `/health` and reformats a document
+- [x] No build argument carries a key; a layer inspection (history plus filesystem grep for the key prefix) finds nothing; the command and its output are in the PR description
+- [x] Image size recorded in the PR description
 - [x] `docs/development.md` gains build and run instructions
 
 ## Comments
@@ -97,3 +97,15 @@ Spec: no missing requirement beyond the Docker-dependent boxes. Fixed:
 Recorded above: the key-shaped pattern rather than the bare prefix, the filesystem listing rather than a per-layer listing, and the test's own matcher standing in for Docker's until a real build runs. Scope: `.gitattributes` and `tests/docker/` were judged justified.
 
 **Tests.** Default suite: 1107 passed, 1 skipped (the labeller spike, no key), about 25s; `tests/docker/` is 51 of them. Slow suite: 865 passed, about 36s. Ruff check and format check clean. All figures are from the feature branch before merging.
+
+### 2026-09-29: built and checked on the dev machine
+
+Docker Desktop (WSL2 engine) on Windows 11. `sh scripts/check-image.sh` run twice from Git Bash, without and with `ANTHROPIC_API_KEY`. The first five boxes are ticked on that evidence; the full output goes in the release PR description.
+
+- **Build:** `cvr:local` builds; **image size 325 MB**.
+- **User:** uid 10001 (`cvr`), not root.
+- **Absent paths:** none present. `/app` lists only `.venv`, `src/cvr/{api,label,models,parse,pipeline,render,template,text,transform,verify}` and `templates/fictitious_recruitment.docx`. `cvr.golden` and `cvr.eval` are not importable.
+- **Key inspection:** `docker history --no-trunc cvr:local | grep -cE 'sk-ant-[A-Za-z0-9]+-[A-Za-z0-9_-]{20,}'`: **0**. `docker export | grep -acE` (same pattern): **0**. The key itself, grepped from a private file: **0**.
+- **Run:** `/health` 200 with `X-Run-Id`. `/reformat` with `c04__single-column.docx`: 200, `Content-Disposition: attachment; filename="c04__single-column-reformatted.docx"`, `X-Run-Id`, 39,164 bytes. The summary line has `"label_failed":false` (`claude-opus-5-5`, effort medium, prompt 1.0.0, 5,221 in / 2,302 out tokens, $0.0669). `== ok`.
+
+**A bug found and fixed in the script (`ff6cd32`).** The first keyed run stopped silently after `/health`. `MSYS_NO_PATHCONV=1`, set so Git Bash leaves container paths alone, also stops the `mktemp` path being translated for Git Bash's curl, which is a Windows program. curl exited 23 (write error) on `-o "$work/out.docx"`, and `set -e` ended the script without a `FAIL:` line. Reproduced outside Docker, and confirmed by the same request succeeding by hand with relative paths. curl now gets the directory in its Windows form (`cygpath -m` when present), and a curl failure fails with its exit code. `tests/docker/` still passes (51).
