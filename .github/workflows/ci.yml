@@ -4,6 +4,19 @@ on:
   push:
   pull_request:
 
+# Least privilege for every job; `eval` alone adds pull-requests: write, for its report comment.
+permissions:
+  contents: read
+
+# One run per event and ref: a newer push cancels the older run still going, so
+# two quick pushes to a PR branch never pay for two full eval runs. The event
+# is in the group because a push to a PR branch starts a `push` run and a
+# `pull_request` run together; without it they would cancel each other.
+# Pushes to main are never cancelled: each merge gets its own verdict.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -35,3 +48,108 @@ jobs:
       # run by the marker; still run on every push.
       - name: Slow tests (all 48 generated documents)
         run: uv run pytest -m slow
+
+  # The gate in front of every merge: the real labeller over all 48 generated
+  # documents against eval/thresholds.yaml. Needs the repository secret
+  # ANTHROPIC_API_KEY (Settings > Secrets and variables > Actions).
+  eval:
+    needs: check
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install Python
+        run: uv python install
+
+      - name: Sync
+        run: uv sync --locked
+
+      # The response cache is keyed inside on the labeller config, the prompt
+      # and schema hashes and each source document's sha256, so a restored
+      # entry can only answer the exact question it was made for; a changed
+      # prompt, schema, model or document misses and pays for a live call.
+      # Saved only when the job succeeds, so a failed run's answers are never
+      # replayed to make the re-run fail the same way.
+      - name: Eval response cache
+        uses: actions/cache@v4
+        with:
+          path: .cache/eval-responses
+          key: eval-responses-${{ github.sha }}
+          restore-keys: eval-responses-
+
+      - name: Check the API key is present
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error title=ANTHROPIC_API_KEY is not set::The eval gate needs the repository secret ANTHROPIC_API_KEY. Add it under Settings > Secrets and variables > Actions. Pull requests from forks never receive secrets, so they cannot pass this gate."
+            exit 1
+          fi
+
+      # Exit 1 on any hard-gate breach or missed threshold; the steps after
+      # this one run regardless (if: always()) because the report matters most
+      # when the gate fails. A push to main is the authoritative live run:
+      # every document is labelled afresh (--no-cache) and the cache refreshed.
+      - name: Eval
+        env:
+          EVAL_ARGS: ${{ github.event_name == 'push' && '--no-cache' || '' }}
+        run: uv run python -m cvr.eval.run $EVAL_ARGS
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report
+          path: |
+            eval/report.json
+            eval/report.md
+          if-no-files-found: warn
+
+      - name: Job summary
+        if: always()
+        run: |
+          if [ -f eval/report.md ]; then
+            cat eval/report.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "The eval wrote no report; see the Eval step log." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # One comment per PR, found by its hidden marker and edited on re-runs.
+      # Skipped for PRs from forks, whose token is read-only.
+      - name: PR comment
+        if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          marker='<!-- cvr-eval-report -->'
+          {
+            echo "$marker"
+            if [ -f eval/report.md ]; then
+              head -c 60000 eval/report.md
+            else
+              echo "# Eval report"
+              echo
+              echo "**No report was written**; the eval failed before scoring."
+            fi
+            echo
+            echo "[Run $GITHUB_RUN_ID]($RUN_URL) at ${GITHUB_SHA::7}; the full report.json is the eval-report artifact."
+          } > comment.md
+          id=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR/comments" \
+            --jq '.[] | select(.body | startswith("<!-- cvr-eval-report -->")) | .id' | sed -n 1p)
+          if [ -n "$id" ]; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@comment.md > /dev/null
+          else
+            gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F body=@comment.md > /dev/null
+          fi
