@@ -4,7 +4,7 @@
 
 **Blocked by:** 11 (The API)
 
-**Status:** in-review
+**Status:** done
 
 - [x] `Dockerfile` and `.dockerignore` at the repo root; image builds locally with `docker build`
 - [x] The image contains neither `cvr.golden` nor `cvr.eval`, nor `fixtures/`, `tests/`, `.git`, `.env` or the cache directory (asserted by listing the final layer)

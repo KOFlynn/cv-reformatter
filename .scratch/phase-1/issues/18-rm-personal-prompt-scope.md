@@ -6,7 +6,7 @@ The rule is reworded so `RM_PERSONAL` covers a bare personal attribute stated ab
 
 **Blocked by:** 17 (Removal precision hard gate)
 
-**Status:** in-review
+**Status:** done
 
 - [x] `prompt.md`'s `RM_PERSONAL` wording narrowed and a referees section's heading placed under `RM_HEADING`, as above; no other prompt change; `versions.json` bumped and the import-time version check passing
 - [x] Before the change, with ticket 17's gate: the cached ticket 09 run fails on c07 (all four Layouts) and `c11__single-column` under the new gate (the evidence that the gate sees both defects) — already shown by ticket 17's replay comment ("Replay of ticket 09's first real run"), not rerun here
