@@ -8,10 +8,10 @@
 
 - [x] `eval` job defined as specified; the key is a repository secret with a documented name; no key in the workflow file
 - [x] The eval job runs on pull requests and pushes to main only; `check` still runs on every push
-- [ ] Artifacts uploaded; job summary shows the markdown; the PR comment is created on first run and updated on subsequent runs
-- [ ] Workflow concurrency group with cancel-in-progress; verified by two rapid pushes with the first run cancelled
+- [x] Artifacts uploaded; job summary shows the markdown; the PR comment is created on first run and updated on subsequent runs
+- [x] Workflow concurrency group with cancel-in-progress; verified by two rapid pushes with the first run cancelled
 - [ ] Branch protection on `main` requires `check` and `eval`; recorded in the PR description with a screenshot or the `gh api` output
-- [ ] The ticket's own PR goes green through the new gate, with the report comment visible; tokens and cost for the run are in the comment
+- [x] The ticket's own PR goes green through the new gate, with the report comment visible; tokens and cost for the run are in the comment
 - [x] `CLAUDE.md` CI section updated
 
 ## Comments
@@ -53,3 +53,11 @@ gh api --method PUT repos/KOFlynn/cv-reformatter/branches/main/protection --inpu
 }
 JSON
 ```
+
+### 2026-09-30: through the gate on #29
+
+The release PR (#29, `release/phase-1-13` → `main`) is the first through the gate, with the secret set. Branch protection is the one box left, and it waits for ticket 16 (the repo is private on a free plan).
+
+- **Concurrency.** The PR's first run (36768319947, `84b5e85`) was cancelled after 3m06s, mid-`eval`, by a push of a one-line comment change two minutes later (`f0b1457`, merged as `bdace06`). The new run sat queued for about 40 seconds before GitHub cancelled the old one, so the handover is not instant. The `push` run of the same commit ran `check` alone beside it and cancelled nothing, as the event in the group intends. The live calls the cancelled run had made were paid for and not cached: part of a run's cost.
+- **Green.** The second run (36768558946) passed `check` and `eval`: every gate held, 48 documents, 48 live calls and 0 cache hits (the CI cache was empty), 263,398 tokens in and 111,341 out, **$3.2804**, 234.9 s. Tunable placement recall is 99.91%; the only miss is c06's repeated skill in `single-column` (ticket 19).
+- **Report.** Artifact `eval-report` (report.json and report.md), the job summary, and one PR comment carrying tokens and cost. The comment was created by the cancelled run (its comment step runs under `always()`, which includes cancellation, and said no report was written), then edited in place by the green run: one comment, created then updated, as the box asks. The cache was saved as `eval-responses-<merge sha>` under `refs/pull/29/merge`, so the next push to this PR should replay all 48 answers at no cost. The link line names the PR's merge commit (`60392fc`), not the head, because that is what `GITHUB_SHA` is on `pull_request`.
