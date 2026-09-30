@@ -4,7 +4,7 @@ on:
   push:
   pull_request:
 
-# Least privilege for every job; `eval` alone adds pull-requests: write.
+# Least privilege for every job; `eval` alone adds pull-requests: write, for its report comment.
 permissions:
   contents: read
 
