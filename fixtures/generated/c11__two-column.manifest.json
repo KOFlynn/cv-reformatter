@@ -3,7 +3,7 @@
   "layout": "two-column",
   "seed": 0,
   "generator_version": "0.2.0",
-  "manifest_version": 2,
+  "manifest_version": 3,
   "dates": [
     {
       "section": "experience",
@@ -79,5 +79,15 @@
     }
   ],
   "pii_in_bullet": null,
+  "headings": [
+    "Contact",
+    "Academic Background",
+    "Referees",
+    "Summary",
+    "Skills",
+    "Work History",
+    "Certifications",
+    "Other Information"
+  ],
   "document_sha256": "a5a5794929ca50122570ab2622838d48b0172f85e0454877ae607d50cbd582db"
 }

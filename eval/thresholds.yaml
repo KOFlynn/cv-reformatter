@@ -1,0 +1,30 @@
+# The eval gate's soft thresholds, read by `python -m cvr.eval.run`.
+#
+# Set by ticket 10 from three baseline runs on the default LabellerConfig
+# (claude-opus-5-5, effort medium, prompt 1.1.0); the runs, their spread and
+# the arithmetic are in baseline-2026-09-29.json beside this file.
+#
+# The hard gates are not here and cannot be loosened: added, dropped,
+# wrongful removals, provenance, PII and image leaks at zero, ordering
+# exactly right, and structural leaves (name, title, employer, location,
+# dates, institution, qualification) at 100% precision and recall. Any
+# labelling that errors fails the run too.
+#
+# Percentages, applied to the run's totals.
+
+placement_accuracy:
+  # Tunable leaves (profile, skills, bullets, details, certifications,
+  # additional): precision and recall each at least this, never their F1.
+  # Worst of the three runs 99.65 (recall), less 1, rounded down.
+  min: 98
+
+appendix_rate:
+  # Appendix tokens over source content tokens (the source less what was
+  # removed), token-weighted over every document: at most this.
+  # Worst of the three runs 0.76, plus 1, rounded up.
+  max: 2
+
+punctuation_fidelity:
+  # Whether any punctuation finding fails the run. Hard: all three
+  # baseline runs had no punctuation findings.
+  hard: true

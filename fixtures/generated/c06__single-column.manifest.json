@@ -3,7 +3,7 @@
   "layout": "single-column",
   "seed": 0,
   "generator_version": "0.2.0",
-  "manifest_version": 2,
+  "manifest_version": 3,
   "dates": [
     {
       "section": "experience",
@@ -67,5 +67,13 @@
   "photo": false,
   "fragments": [],
   "pii_in_bullet": null,
+  "headings": [
+    "Profile",
+    "Key Skills",
+    "Education",
+    "Experience",
+    "Certifications",
+    "Additional Information"
+  ],
   "document_sha256": "e9bfdf0ebc877ca8dda7dd506fc3804d65294c2e2819692f82d0ac0d4194d69b"
 }

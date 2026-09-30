@@ -3,7 +3,7 @@
   "layout": "header-footer",
   "seed": 0,
   "generator_version": "0.2.0",
-  "manifest_version": 2,
+  "manifest_version": 3,
   "dates": [
     {
       "section": "experience",
@@ -79,5 +79,14 @@
     }
   ],
   "pii_in_bullet": null,
+  "headings": [
+    "Personal Statement",
+    "Technical Skills",
+    "Employment",
+    "Certifications",
+    "Further Information",
+    "Referees",
+    "Qualifications"
+  ],
   "document_sha256": "f725ccbdb5afae3183c62243cf8db657b5dee3baece92787efeacea483222e84"
 }

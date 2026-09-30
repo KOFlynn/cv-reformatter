@@ -134,7 +134,7 @@ Candidate text that belongs in no field and matches no removal rule (a declarati
 A label on a Candidate naming a content trap it carries ("year-only-date", "no-profile", "typo"), so eval results can be broken down by failure mode rather than by candidate. Every tag is a claim checked by a predicate over the Candidate, and every tag is carried by at least one Candidate. Layout decisions (photo, text boxes, date style) are never tags; they live in the manifest.
 
 **Manifest**:
-The generator's own record of the layout decisions it made for one source document: date strings printed, entry order, contact-block location, confusables injected, photo, fragment placement. Read by generator tests and humans; never by a metric.
+The generator's own record of the layout decisions it made for one source document: date strings printed, entry order, contact-block location, confusables injected, photo, fragment placement, the section headings written. Read by generator tests, humans and the oracle labeller; the eval runner hands one decision to a metric, the headings, as `removal_precision`'s allowlist for RM_HEADING. Never Candidate content.
 _Avoid_: sidecar, metadata file
 
 **Source coverage**:

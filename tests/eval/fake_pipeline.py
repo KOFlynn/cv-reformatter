@@ -4,16 +4,23 @@ Candidate and a pipeline result to every metric input.
 There is no document anywhere here: the source side is reconstructed from the
 Candidate (content leaves, PII values and unplaceable fragments are everything
 a Layout would have printed), and the output side from whatever the pipeline
-returned. Row 0 runs the honest pipeline; the corruption rows run a damaged
-one through the same map, so a metric sees exactly what it would see in
-Phase 1 with the document and LLM taken out.
+returned, its removal log included. Row 0 runs the honest pipeline; the
+corruption rows run a damaged one through the same map, so a metric sees
+exactly what it would see in Phase 1 with the document and LLM taken out.
 """
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from cvr.golden import PII, Candidate
-from cvr.models import CVContent, EducationEntry, ExperienceEntry
+from cvr.models import (
+    CVContent,
+    EducationEntry,
+    ExperienceEntry,
+    Removal,
+    RemovalRule,
+    Span,
+)
 from cvr.template import template_text, template_tokens
 from cvr.text import canonicalise, tokenise
 
@@ -24,7 +31,9 @@ __all__ = [
     "leaves",
     "locate",
     "metric_inputs",
+    "pii_removals",
     "pii_values",
+    "removal",
     "unplaceable_share",
 ]
 
@@ -39,6 +48,9 @@ class PipelineResult:
     mapped to its ordered raw slices: only a removal clipping a claim around
     the middle of a block produces one, so the honest pipeline's is always
     empty.
+
+    ``removals`` is the removal log: what the pipeline says it deleted and
+    under which rule. What it logs is accounted for as removed, not dropped.
     """
 
     content: CVContent
@@ -46,12 +58,25 @@ class PipelineResult:
     header: list[str] = field(default_factory=list)
     image_hashes: list[str] = field(default_factory=list)
     split_map: dict[str, list[str]] = field(default_factory=dict)
+    removals: list[Removal] = field(default_factory=list)
+
+
+def removal(rule: RemovalRule, text: str) -> Removal:
+    """A logged removal of ``text`` under ``rule``. There are no blocks
+    here, so each removal is its own whole block, named by its text."""
+    span = Span(block_id=f"source:{text}", start=0, end=len(text), text=text)
+    return Removal(rule=rule, subject=span)
 
 
 def fake_pipeline(candidate: Candidate) -> PipelineResult:
     """The honest pipeline: the Candidate's content and its unplaceable
-    fragments, nothing of its own in the header, and no images."""
-    return PipelineResult(candidate.content, list(candidate.unplaceable))
+    fragments, every PII value removed under its own rule, nothing of its own
+    in the header, and no images."""
+    return PipelineResult(
+        candidate.content,
+        list(candidate.unplaceable),
+        removals=[removal(rule, value) for rule, value in pii_removals(candidate.pii)],
+    )
 
 
 def _entry_dates(entry: ExperienceEntry | EducationEntry) -> list[str]:
@@ -72,13 +97,27 @@ def leaves(content: CVContent) -> list[str]:
     return [*out, *content.certifications, *content.additional]
 
 
+def pii_removals(pii: PII) -> list[tuple[RemovalRule, str]]:
+    """Every string a removal rule must delete, with that rule, in PII field
+    order (the ``PII`` docstring's one rule per key)."""
+    values = [
+        (RemovalRule.PHONE, pii.phone),
+        (RemovalRule.EMAIL, pii.email),
+        *((RemovalRule.ADDRESS, line) for line in pii.address),
+        *((RemovalRule.URL, url) for url in pii.urls),
+        (RemovalRule.DOB, pii.dob),
+        (RemovalRule.PERSONAL, pii.personal.nationality),
+        (RemovalRule.PERSONAL, pii.personal.marital_status),
+    ]
+    for referee in pii.referees:
+        details = (referee.name, referee.role, *referee.contact)
+        values += [(RemovalRule.REFEREE, detail) for detail in details]
+    return [(rule, value) for rule, value in values if value is not None]
+
+
 def pii_values(pii: PII) -> list[str]:
     """Every string a removal rule must delete, in PII field order."""
-    values = [pii.phone, pii.email, *pii.address, *pii.urls, pii.dob]
-    values += [pii.personal.nationality, pii.personal.marital_status]
-    for referee in pii.referees:
-        values += [referee.name, referee.role, *referee.contact]
-    return [value for value in values if value is not None]
+    return [value for _, value in pii_removals(pii)]
 
 
 def _tokens(texts: Iterable[str]) -> list[str]:
@@ -90,7 +129,8 @@ class MetricInputs:
     """Everything the metrics take, as the Phase 1 runner will assemble it."""
 
     source_tokens: list[str]
-    source_content_tokens: list[str]  # source minus rule-removed
+    # The source minus the PII values, as the Candidate says.
+    source_content_tokens: list[str]
     source_blocks: list[str]  # the leaves themselves, since there is no document
     output_content: CVContent  # the placed content; the Candidate's is expected
     output_units: list[str]
@@ -99,7 +139,9 @@ class MetricInputs:
     template_units: list[str]
     date_map: list[tuple[str, str]]
     split_map: list[tuple[str, list[str]]]
-    removed_tokens: list[str]
+    removed_tokens: list[str]  # the removal log's text, tokenised
+    removals: list[Removal]  # the removal log itself
+    headings: list[str]  # the source's headings: none, since there is no document
     appendix_tokens: list[str]
     output_text: dict[str, str]  # part name (body, header) to its text
     output_image_hashes: list[str]
@@ -153,8 +195,8 @@ def _pairs_for_unit(
 
 def metric_inputs(candidate: Candidate, result: PipelineResult) -> MetricInputs:
     source_leaves = leaves(candidate.content)
-    removed = pii_values(candidate.pii)
-    source_blocks = [*source_leaves, *removed, *candidate.unplaceable]
+    pii = pii_values(candidate.pii)
+    source_blocks = [*source_leaves, *pii, *candidate.unplaceable]
     output_units = leaves(result.content)
     pairs = [
         pair
@@ -182,7 +224,9 @@ def metric_inputs(candidate: Candidate, result: PipelineResult) -> MetricInputs:
             for date in _entry_dates(entry)
         ],
         split_map=list(result.split_map.items()),
-        removed_tokens=_tokens(removed),
+        removed_tokens=_tokens(removal.subject.text for removal in result.removals),
+        removals=list(result.removals),
+        headings=[],
         appendix_tokens=_tokens(result.unplaced),
         output_text={
             "body": "\n".join([*output_units, *result.unplaced]),

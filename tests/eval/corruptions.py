@@ -15,7 +15,13 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from typing import Literal
 
-from fake_pipeline import MetricInputs, PipelineResult, leaves, unplaceable_share
+from fake_pipeline import (
+    MetricInputs,
+    PipelineResult,
+    leaves,
+    removal,
+    unplaceable_share,
+)
 
 from cvr.eval import (
     PlacementReport,
@@ -28,9 +34,10 @@ from cvr.eval import (
     placement_accuracy,
     provenance_violations,
     punctuation_fidelity,
+    removal_precision,
 )
 from cvr.golden import Candidate
-from cvr.models import CVContent
+from cvr.models import CVContent, RemovalRule
 
 __all__ = [
     "CHECKS",
@@ -79,6 +86,7 @@ CHECKS: dict[str, Check] = {
     # Reported, not gated, until the Phase 1 baseline; here it must be clean
     # all the same, or the corruption that targets it proves nothing.
     "punctuation": lambda _, i: not punctuation_fidelity(i.pairs),
+    "removal": lambda c, i: not removal_precision(i.removals, c.pii, i.headings),
 }
 
 
@@ -153,6 +161,20 @@ def bullets_to_appendix(_: Candidate, result: PipelineResult) -> PipelineResult:
     bullets = result.content.experience[index].bullets
     damaged = _with_bullets(result, index, [])
     return replace(damaged, unplaced=[*result.unplaced, *bullets])
+
+
+def remove_a_content_line_under_a_pii_rule(
+    _: Candidate, result: PipelineResult
+) -> PipelineResult:
+    """The first bulleted job's first bullet deleted and logged under
+    RM_PERSONAL, as the first real run did with c07's right-to-work line:
+    the text is accounted for as removed, so no token goes missing."""
+    index = _first_job_with_bullets(result)
+    first, *rest = result.content.experience[index].bullets
+    damaged = _with_bullets(result, index, rest)
+    return replace(
+        damaged, removals=[*result.removals, removal(RemovalRule.PERSONAL, first)]
+    )
 
 
 def swap_two_words(_: Candidate, result: PipelineResult) -> PipelineResult:
@@ -279,28 +301,28 @@ CORRUPTIONS: list[Corruption] = [
         "insert a word into a bullet",
         insert_a_word,
         "added placement provenance",
-        "dropped appendix ordering punctuation pii image",
+        "dropped appendix ordering punctuation pii image removal",
         Direction(precision="down", recall="down"),
     ),
     _row(
         "drop a bullet",
         drop_a_bullet,
         "dropped placement",
-        "added appendix ordering provenance punctuation pii image",
+        "added appendix ordering provenance punctuation pii image removal",
         Direction(precision="unchanged", recall="down"),
     ),
     _row(
         "move one job's bullets into the appendix",
         bullets_to_appendix,
         "appendix placement",
-        "added dropped ordering provenance punctuation pii image",
+        "added dropped ordering provenance punctuation pii image removal",
         Direction(precision="unchanged", recall="down"),
     ),
     _row(
         "reverse experience order",
         reverse_experience,
         "ordering",
-        "added dropped appendix placement pii image provenance punctuation",
+        "added dropped appendix placement pii image provenance punctuation removal",
     ),
     # A leak is correctly copied source text: the multisets and placement
     # see nothing, because the email is in the source and outside the body.
@@ -308,13 +330,13 @@ CORRUPTIONS: list[Corruption] = [
         "re-emit the source email in the header",
         reemit_the_email,
         "pii",
-        "added dropped appendix placement ordering image provenance punctuation",
+        "added dropped appendix placement ordering image provenance punctuation removal",
     ),
     _row(
         "leave the photo in",
         leave_the_photo_in,
         "image",
-        "added dropped appendix placement ordering pii provenance punctuation",
+        "added dropped appendix placement ordering pii provenance punctuation removal",
     ),
     # The two rows that prove no single check would have been enough
     # (ADR-0007). Swapped words: the same bag of words, so added and dropped
@@ -326,7 +348,7 @@ CORRUPTIONS: list[Corruption] = [
         "swap two words inside a bullet",
         swap_two_words,
         "provenance placement",
-        "added dropped appendix ordering punctuation pii image",
+        "added dropped appendix ordering punctuation pii image removal",
         Direction(precision="down", recall="down"),
     ),
     # A changed apostrophe: every canonicalised metric, provenance included,
@@ -335,7 +357,7 @@ CORRUPTIONS: list[Corruption] = [
         "straighten a curly apostrophe",
         swap_a_confusable,
         "punctuation",
-        "added dropped appendix ordering placement provenance pii image",
+        "added dropped appendix ordering placement provenance pii image removal",
     ),
     # Nothing printed moves: the bullet reads exactly as row 0's. Only the
     # transform log's split_map claims the two halves in the wrong order,
@@ -344,6 +366,18 @@ CORRUPTIONS: list[Corruption] = [
         "join two slices out of source order",
         join_slices_out_of_source_order,
         "provenance",
-        "added dropped appendix ordering placement pii image punctuation",
+        "added dropped appendix ordering placement pii image punctuation removal",
+    ),
+    # A content line deleted under a PII rule is logged, so every token of
+    # it is accounted for: added, dropped, provenance and PII all stay clean,
+    # and the appendix is untouched. Only the removal log, judged against
+    # what each rule may remove, sees it; placement loses the bullet as it
+    # would for any omission (ticket 17).
+    _row(
+        "remove a content line under a PII rule",
+        remove_a_content_line_under_a_pii_rule,
+        "removal placement",
+        "added dropped appendix ordering provenance punctuation pii image",
+        Direction(precision="unchanged", recall="down"),
     ),
 ]

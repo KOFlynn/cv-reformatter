@@ -74,35 +74,35 @@ class HeaderFooterLayout(Layout):
         )
 
         if content.profile:
-            body.add_heading("Personal Statement", level=1)
+            body.add_heading(decisions.heading("Personal Statement"), level=1)
             _lines(body, content.profile, decisions)
 
         if content.skills:
-            body.add_heading("Technical Skills", level=1)
+            body.add_heading(decisions.heading("Technical Skills"), level=1)
             _bullets(body, content.skills, decisions)
 
         if plan.experience:
-            body.add_heading("Employment", level=1)
+            body.add_heading(decisions.heading("Employment"), level=1)
             for planned in plan.experience:
                 _experience(body, planned, decisions)
 
         if content.certifications:
-            body.add_heading("Certifications", level=1)
+            body.add_heading(decisions.heading("Certifications"), level=1)
             _bullets(body, content.certifications, decisions)
 
         if content.additional:
-            body.add_heading("Further Information", level=1)
+            body.add_heading(decisions.heading("Further Information"), level=1)
             _lines(body, content.additional, decisions)
 
         if pii.referees:
-            body.add_heading("Referees", level=1)
+            body.add_heading(decisions.heading("Referees"), level=1)
             for referee in pii.referees:
                 _line(body, referee.name, decisions, bold=True)
                 _lines(body, [referee.role, *referee.contact], decisions)
 
         # Education at the very bottom of the body, after everything else.
         if plan.education:
-            body.add_heading("Qualifications", level=1)
+            body.add_heading(decisions.heading("Qualifications"), level=1)
             for planned in plan.education:
                 _education(body, planned, decisions)
 

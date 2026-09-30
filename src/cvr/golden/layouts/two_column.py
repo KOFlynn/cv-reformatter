@@ -66,18 +66,18 @@ class TwoColumnLayout(Layout):
         )
         decisions.photo = True
 
-        _heading(left, "Contact")
+        _heading(left, "Contact", decisions)
         contact = [pii.phone, pii.email, *pii.address, *pii.urls, pii.dob]
         _lines(left, contact, decisions)
         _lines(left, [pii.personal.nationality, pii.personal.marital_status], decisions)
 
         if plan.education:
-            _heading(left, "Academic Background")
+            _heading(left, "Academic Background", decisions)
             for planned in plan.education:
                 _education(left, planned, decisions)
 
         if pii.referees:
-            _heading(left, "Referees")
+            _heading(left, "Referees", decisions)
             for referee in pii.referees:
                 _line(left, referee.name, decisions, bold=True)
                 _lines(left, [referee.role, *referee.contact], decisions)
@@ -88,24 +88,24 @@ class TwoColumnLayout(Layout):
         name.add_run(_curl(content.name, decisions))
 
         if content.profile:
-            _heading(right, "Summary")
+            _heading(right, "Summary", decisions)
             _lines(right, content.profile, decisions)
 
         if content.skills:
-            _heading(right, "Skills")
+            _heading(right, "Skills", decisions)
             _bullets(right, content.skills, decisions)
 
         if plan.experience:
-            _heading(right, "Work History")
+            _heading(right, "Work History", decisions)
             for planned in plan.experience:
                 _experience(right, planned, decisions)
 
         if content.certifications:
-            _heading(right, "Certifications")
+            _heading(right, "Certifications", decisions)
             _bullets(right, content.certifications, decisions)
 
         if content.additional:
-            _heading(right, "Other Information")
+            _heading(right, "Other Information", decisions)
             _lines(right, content.additional, decisions)
 
         # Unplaceable fragments trail the left column, under the referees.
@@ -118,8 +118,8 @@ class TwoColumnLayout(Layout):
         return document
 
 
-def _heading(cell: _Cell, text: str) -> None:
-    cell.add_paragraph(text, style="Heading 1")
+def _heading(cell: _Cell, text: str, decisions: Decisions) -> None:
+    cell.add_paragraph(decisions.heading(text), style="Heading 1")
 
 
 def _curl(text: str, decisions: Decisions) -> str:

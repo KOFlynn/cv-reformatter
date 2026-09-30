@@ -158,6 +158,83 @@ def test_manifest_records_every_entry_and_every_date_once(candidate, layout):
 
 @pytest.mark.slow
 @pytest.mark.parametrize(("candidate", "layout"), PAIRS, ids=PAIR_IDS)
+def test_every_heading_the_manifest_records_is_printed_whole(candidate, layout):
+    # The eval's RM_HEADING allowlist (removal_precision): a heading
+    # recorded but never printed would allow a removal of nothing real.
+    generated = layout.generate(candidate)
+    texts = all_text(generated.document)
+    assert generated.manifest.headings
+    for heading in generated.manifest.headings:
+        assert heading in texts, heading
+
+
+# The headings each Layout writes for c01, which has every section but
+# referees, in document order; c11 adds the referees heading.
+C01_HEADINGS = {
+    "single-column": [
+        "Profile",
+        "Key Skills",
+        "Education",
+        "Experience",
+        "Certifications",
+        "Additional Information",
+    ],
+    "two-column": [
+        "Contact",
+        "Academic Background",
+        "Summary",
+        "Skills",
+        "Work History",
+        "Certifications",
+        "Other Information",
+    ],
+    "text-box": [
+        "About Me",
+        "Core Competencies",
+        "Professional Experience",
+        "Education & Training",
+        "Certifications",
+        "Additional Information",
+    ],
+    "header-footer": [
+        "Personal Statement",
+        "Technical Skills",
+        "Employment",
+        "Certifications",
+        "Further Information",
+        "Qualifications",
+    ],
+}
+C11_REFEREES_HEADING = {
+    "single-column": "References",
+    "two-column": "Referees",
+    "text-box": "References",
+    "header-footer": "Referees",
+}
+PROFILE_HEADING = {
+    "single-column": "Profile",
+    "two-column": "Summary",
+    "text-box": "About Me",
+    "header-footer": "Personal Statement",
+}
+
+
+@pytest.mark.parametrize("layout", LAYOUTS, ids=LAYOUT_IDS)
+def test_the_manifest_records_the_headings_the_layout_wrote_in_order(layout):
+    assert layout.generate(c01()).manifest.headings == C01_HEADINGS[layout.name]
+
+
+@pytest.mark.parametrize("layout", LAYOUTS, ids=LAYOUT_IDS)
+def test_a_section_the_candidate_lacks_gets_no_heading_recorded(layout):
+    (c11,) = [c for c in CANDIDATES if c.id == "c11"]
+    (c02,) = [c for c in CANDIDATES if c.id == "c02"]  # no profile
+    assert C11_REFEREES_HEADING[layout.name] in layout.generate(c11).manifest.headings
+    headings = layout.generate(c02).manifest.headings
+    assert PROFILE_HEADING[layout.name] not in headings
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize(("candidate", "layout"), PAIRS, ids=PAIR_IDS)
 def test_generating_twice_in_memory_gives_identical_bytes(candidate, layout):
     first = layout.generate(candidate)
     second = layout.generate(candidate)

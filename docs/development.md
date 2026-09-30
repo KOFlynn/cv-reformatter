@@ -53,6 +53,63 @@ uv run python -m cvr.template.build              # rebuild templates/fictitious_
 
 The template is built by script and never hand-edited (ADR-0006): Word splits docxtpl tags across runs as you type them. After any change to `src/cvr/template/build.py`, rebuild and commit the result; `tests/template/test_build.py` fails if the committed file's text and tags differ from a fresh build. `cvr.template.fill(content, unplaced)` renders it, and `cvr.template.template_tokens()` reads its fixed words back out for the eval whitelist.
 
+## Running the API locally
+
+```
+uv run python -m cvr.api                         # serve on http://127.0.0.1:8000
+curl http://127.0.0.1:8000/health                # liveness: {"status":"ok"}; never touches the labeller
+curl -F "file=@fixtures/generated/c04__single-column.docx" -OJ http://127.0.0.1:8000/reformat
+                                                 # saves c04__single-column-reformatted.docx; -i to see X-Run-Id
+```
+
+In PowerShell use `curl.exe`, not the `curl` alias. `POST /reformat` takes one multipart field, `file`, a `.docx`; anything else is a 415. Every response carries `X-Run-Id`; each `/reformat` request writes its transform log to standard output as one summary JSON line and one line per block, all with that run id. There are no other routes (no `/docs`, no `/openapi.json`).
+
+The real labeller is built on the first document, not at startup, so `/health` works without a key; `/reformat` without one answers 500. `/reformat` calls the real model and costs money: for anything but a deliberate check, use the tests, which inject the oracle labeller.
+
+| Variable | Read by | Default | |
+|---|---|---|---|
+| `CVR_API_HOST` | `python -m cvr.api` | `127.0.0.1` | interface to bind; a container sets `0.0.0.0` |
+| `CVR_API_PORT` | `python -m cvr.api` | `8000` | port to listen on |
+| `ANTHROPIC_API_KEY` | the labeller | (none) | required for `/reformat`, not for `/health` |
+| `CVR_LABEL_PROVIDER` | the labeller | `anthropic` | LangChain provider id |
+| `CVR_LABEL_MODEL` | the labeller | `claude-opus-5-5` | model name |
+| `CVR_LABEL_EFFORT` | the labeller | `medium` | `low`, `medium`, `high`, `xhigh` or `max` |
+| `CVR_LABEL_TEMPERATURE` | the labeller | unset | sent only when set |
+| `CVR_LABEL_EXTRA` | the labeller | unset | JSON object of any other sampling kwarg |
+
+A change to any `CVR_LABEL_*` value counts as a model change: run the eval.
+
+## Eval
+
+```
+uv run python -m cvr.eval.run                          # every generated document, real labeller, through the cache
+uv run python -m cvr.eval.run --layout text-box        # one Layout (repeatable)
+uv run python -m cvr.eval.run --candidate c04          # one Candidate (repeatable); combines with --layout
+uv run python -m cvr.eval.run --no-cache               # a live call for every document (the baseline runs); still refreshes the cache
+```
+
+Each document goes through `cvr.pipeline.reformat` with the real labeller (`CVR_LABEL_*` configure it; `ANTHROPIC_API_KEY` is needed only on a cache miss), out through the adapter and into every metric. The run writes `eval/report.json` and `eval/report.md` (both gitignored), prints a one-line verdict plus one line per failure naming the metric and the candidates, and exits 1 on any hard-gate breach (errors, added, dropped, provenance, PII, image, ordering, structural leaves) or missed threshold in `eval/thresholds.yaml` (placeholders until ticket 10). `--thresholds`, `--out` and `--cache-dir` point it elsewhere.
+
+The response cache is `.cache/eval-responses/`, one JSON file per answer, keyed on the whole `LabellerConfig`, the prompt and schema hashes and the source document's sha256: a second run over unchanged inputs makes no LLM call, and a change to any of them misses. It is gitignored and must stay out of the Docker image (ticket 12's `.dockerignore`). Delete the directory to clear it. Four documents are labelled at once (parse, render and scoring run one document at a time: python-docx shares one lxml parser, which is not thread-safe); a provider still unavailable after the client's own two retries (a 429, an overload) is retried up to five more times with exponential backoff and jitter, and the report counts every retry.
+
+## Running the API in a container
+
+Needs Docker Desktop (WSL2 backend). From the repo root:
+
+```
+docker build -t cvr:local .
+docker run --rm -p 8000:8000 -e ANTHROPIC_API_KEY cvr:local
+                                                 # -e NAME with no value passes the key from your shell
+curl http://127.0.0.1:8000/health
+curl -F "file=@fixtures/generated/c04__single-column.docx" -OJ http://127.0.0.1:8000/reformat
+sh scripts/check-image.sh                        # build and check the image: size, user, absent paths,
+                                                 # no key in history or filesystem, /health, one /reformat
+```
+
+The image is `python:3.12-slim` (the version in `.python-version`) in two stages: the builder runs `uv sync --locked --no-dev`, dependencies first so a source change reuses that layer; the runtime stage copies the virtual environment, `src/` and the template, and runs `python -m cvr.api` as the non-root user `cvr` with `CVR_API_HOST=0.0.0.0` and `CVR_API_PORT=8000`. The project is installed editable, because `cvr.template.paths` finds the template beside `src/`, so `/app` keeps the repo's layout. Every variable in the table above can be passed with `-e`.
+
+The key is a runtime `-e` only: never a `--build-arg`, never in the Dockerfile, never in a file in the build context. `.dockerignore` is an allowlist (`pyproject.toml`, `uv.lock`, `.python-version`, `src/` without `cvr/golden` and `cvr/eval`, the template); anything else, including `.env`, `.cache/`, `eval/`, `fixtures/`, `tests/` and `.git`, never reaches the build. `tests/docker/` checks the Dockerfile, the allowlist and that the service imports neither `cvr.golden` nor `cvr.eval` without Docker; `scripts/check-image.sh` checks a built image. `/reformat` in the container calls the real model, like the local server.
+
 ## Lint and format
 
 ```
@@ -86,10 +143,12 @@ uv run ruff format . && uv run ruff check . && uv run pytest && uv run pytest -m
 
 | | |
 |---|---|
-| Package | `src/cvr/` (`text`, `models`, `eval`, `golden`, `template`, `parse`, `label`, `verify`, `transform`, `render`) |
+| Package | `src/cvr/` (`text`, `models`, `eval`, `golden`, `template`, `parse`, `label`, `verify`, `transform`, `render`, `pipeline`, `api`) |
+| Eval | `eval/thresholds.yaml` (committed), `eval/report.{json,md}` (generated, gitignored), `.cache/eval-responses/` (gitignored) |
 | Tests | `tests/`, mirroring the package (`tests/text/`, `tests/eval/`, ...) |
 | Golden set | `fixtures/candidates/*.json` (ground truth), `fixtures/generated/` (documents and manifests, committed) |
 | Template | `templates/fictitious_recruitment.docx`, built by `src/cvr/template/build.py` and committed |
+| Image | `Dockerfile`, `.dockerignore`, `scripts/check-image.sh` |
 | Specs and tickets | `.scratch/<feature>/spec.md`, `.scratch/<feature>/issues/NN-*.md` |
 | Glossary | `CONTEXT.md` |
 | Decisions | `docs/adr/` |

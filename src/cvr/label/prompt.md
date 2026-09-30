@@ -27,11 +27,15 @@ left empty. When in doubt, quote less rather than paraphrase more.
 - **Referees go under `RM_REFEREE`.** A referee's name, title, employer,
   contact details or the boilerplate line offering them ("References
   available on request") are removals under the `RM_REFEREE` rule, never
-  content fields.
+  content fields. The heading that introduces the referees section itself
+  ("References", "Referees") is not a referee's own detail: it is a source
+  heading like any other, and goes under `RM_HEADING`, never under
+  `RM_REFEREE`.
 - **The source's own headings go under `RM_HEADING`.** A heading the
   candidate's own document uses to introduce a section ("Experience",
-  "Work History", "Education") is a removal under `RM_HEADING`. It is not
-  content and must not be quoted into a content field.
+  "Work History", "Education", "References", "Referees") is a removal
+  under `RM_HEADING`. It is not content and must not be quoted into a
+  content field.
 - **Sub-headings inside Additional Information are content.** A short
   heading-like line inside an "Additional Information" style section
   (for example "Languages" or "Interests" introducing a list under it) is
@@ -45,9 +49,12 @@ left empty. When in doubt, quote less rather than paraphrase more.
 - **PII removals besides referees.** Quote the candidate's own phone number
   under `RM_PHONE`, email under `RM_EMAIL`, postal address under
   `RM_ADDRESS`, personal website or portfolio link under `RM_URL`, date of
-  birth under `RM_DOB`, and any other personal detail that is not part of
-  the CV content proper (marital status, nationality, a photo caption)
-  under `RM_PERSONAL`.
+  birth under `RM_DOB`, and a bare personal attribute stated about the
+  candidate (nationality as such, marital status, a photo caption) under
+  `RM_PERSONAL`. A statement of work authorisation, right to work, visa or
+  permit status, availability or notice period is CV content, not a
+  personal detail: place it (typically in the `additional` field), never
+  remove it under `RM_PERSONAL` or any other rule.
 - **Leave the rest unreferenced.** Anything that fits no field and no
   removal rule is left out of your answer entirely. Never force a stray
   fragment into a field just to give it a home, and never invent a removal

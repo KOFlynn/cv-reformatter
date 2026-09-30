@@ -53,7 +53,7 @@ __all__ = [
 # Bump when a Layout's output changes, so a manifest says which generator wrote it.
 GENERATOR_VERSION = "0.2.0"
 # Bump when the manifest schema changes.
-MANIFEST_VERSION = 2
+MANIFEST_VERSION = 3
 
 Section = Literal["experience", "education"]
 
@@ -100,8 +100,10 @@ class BulletPlacement(StrictModel):
 
 
 class Manifest(StrictModel):
-    """The generator's own account of one document. Read by generator tests and
-    humans, never by a metric."""
+    """The generator's own account of one document. Read by generator tests,
+    humans and the eval runner, which hands a metric what the Layout decided
+    (the headings it wrote, as ``removal_precision``'s allowlist for
+    RM_HEADING), never Candidate content."""
 
     candidate_id: str
     layout: str
@@ -122,6 +124,9 @@ class Manifest(StrictModel):
     photo: bool
     fragments: list[FragmentPlacement]
     pii_in_bullet: BulletPlacement | None
+    headings: list[str] = Field(
+        description="The section headings the Layout wrote, in document order."
+    )
     document_sha256: str
 
 
@@ -158,6 +163,12 @@ class Decisions:
     photo: bool = False
     confusables: set[str] = field(default_factory=set)
     fragments: list[FragmentPlacement] = field(default_factory=list)
+    headings: list[str] = field(default_factory=list)
+
+    def heading(self, text: str) -> str:
+        """Record a section heading as written, and hand it back to print."""
+        self.headings.append(text)
+        return text
 
     def injected(self, char: str) -> None:
         """Record a confusable from the shared table as injected."""
@@ -228,6 +239,7 @@ class Layout(ABC):
                 decisions.fragments, key=lambda placement: placement.index
             ),
             pii_in_bullet=plan.pii_in_bullet,
+            headings=list(decisions.headings),
             document_sha256=hashlib.sha256(data).hexdigest(),
         )
         return Generated(document=data, manifest=manifest)

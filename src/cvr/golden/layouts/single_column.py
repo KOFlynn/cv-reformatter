@@ -58,33 +58,33 @@ class SingleColumnLayout(Layout):
         _lines(document, [pii.personal.nationality, pii.personal.marital_status])
 
         if content.profile:
-            document.add_heading("Profile", level=1)
+            document.add_heading(decisions.heading("Profile"), level=1)
             _lines(document, content.profile)
 
         if content.skills:
-            document.add_heading("Key Skills", level=1)
+            document.add_heading(decisions.heading("Key Skills"), level=1)
             _bullets(document, content.skills)
 
         if plan.education:
-            document.add_heading("Education", level=1)
+            document.add_heading(decisions.heading("Education"), level=1)
             for planned in plan.education:
                 _education(document, planned)
 
         if plan.experience:
-            document.add_heading("Experience", level=1)
+            document.add_heading(decisions.heading("Experience"), level=1)
             for planned in plan.experience:
                 _experience(document, planned)
 
         if content.certifications:
-            document.add_heading("Certifications", level=1)
+            document.add_heading(decisions.heading("Certifications"), level=1)
             _bullets(document, content.certifications)
 
         if content.additional:
-            document.add_heading("Additional Information", level=1)
+            document.add_heading(decisions.heading("Additional Information"), level=1)
             _lines(document, content.additional)
 
         if pii.referees:
-            document.add_heading("References", level=1)
+            document.add_heading(decisions.heading("References"), level=1)
             for referee in pii.referees:
                 _line(document, referee.name, bold=True)
                 _lines(document, [referee.role, *referee.contact])

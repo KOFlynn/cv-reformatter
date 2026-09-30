@@ -3,7 +3,7 @@
   "layout": "two-column",
   "seed": 0,
   "generator_version": "0.2.0",
-  "manifest_version": 2,
+  "manifest_version": 3,
   "dates": [
     {
       "section": "experience",
@@ -73,5 +73,14 @@
     "experience": 0,
     "bullet": 1
   },
+  "headings": [
+    "Contact",
+    "Academic Background",
+    "Summary",
+    "Skills",
+    "Work History",
+    "Certifications",
+    "Other Information"
+  ],
   "document_sha256": "248e5cea67a114d36df8abba963daf565a01df8b0f8c83c1d595fa8e59ba34bf"
 }
