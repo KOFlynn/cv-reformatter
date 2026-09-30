@@ -4,7 +4,7 @@
 
 **Blocked by:** 06 (Pipeline function), 07 (The real labeller)
 
-**Status:** in-review
+**Status:** done
 
 - [x] `fastapi`, `uvicorn` runtime dependencies; `httpx` dev dependency; a `python -m cvr.api` entry that serves on the configured port
 - [x] Test client with the oracle labeller: a golden-set document returns 200, a `.docx` body, the derived filename, and an `X-Run-Id` that matches the `Run`

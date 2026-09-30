@@ -6,7 +6,7 @@ A new pure metric, `removal_precision` (name open), checks every logged text rem
 
 **Blocked by:** 09 (Eval runner and report)
 
-**Status:** in-review
+**Status:** done
 
 - [x] The metric in `cvr.eval` as a pure function over the removal log and the ground truth, with sorted `Finding`s and unit tests: an allowed removal passes under each rule, a content line removed under `RM_PERSONAL` fails, a removal under the wrong rule fails, a partial removal of an allowed value passes
 - [x] The heading allowlist comes from the Layout or Manifest, not a hard-coded list in the metric; the generated fixtures regenerated and committed if the Manifest changes

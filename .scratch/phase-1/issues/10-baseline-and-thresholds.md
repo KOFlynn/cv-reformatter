@@ -4,7 +4,7 @@
 
 **Blocked by:** 09 (Eval runner and report), 17 (Removal precision hard gate), 18 (Narrow RM_PERSONAL in the prompt)
 
-**Status:** in-review
+**Status:** done
 
 - [x] Three runs completed with `--no-cache`; each report kept
 - [x] `eval/baseline-YYYY-MM-DD.json` committed holding the three reports' totals and breakdowns, the spread per metric, the `LabellerConfig` and versions, total cost, and notes

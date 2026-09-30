@@ -4,7 +4,7 @@
 
 **Blocked by:** 06 (Pipeline function), 07 (The real labeller)
 
-**Status:** in-review
+**Status:** done
 
 - [x] `cvr.eval.run` module and `__main__` entry; the `eval/` directory holds only `thresholds.yaml`, the gitignored report and (later) the dated baseline
 - [x] Cache: second run with identical key makes zero LLM calls; `--no-cache` bypasses it; the cache directory is gitignored and excluded from the image
