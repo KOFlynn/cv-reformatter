@@ -1,6 +1,6 @@
 # Development
 
-Day-to-day commands for working on this repo. CI (`.github/workflows/ci.yml`) runs exactly these, so if they pass locally they pass there.
+Day-to-day commands for working on this repo. The `check` job of CI (`.github/workflows/ci.yml`) runs exactly these, so if they pass locally they pass there; the `eval` job is described under Eval.
 
 ## Setup
 
@@ -89,6 +89,8 @@ uv run python -m cvr.eval.run --no-cache               # a live call for every d
 ```
 
 Each document goes through `cvr.pipeline.reformat` with the real labeller (`CVR_LABEL_*` configure it; `ANTHROPIC_API_KEY` is needed only on a cache miss), out through the adapter and into every metric. The run writes `eval/report.json` and `eval/report.md` (both gitignored), prints a one-line verdict plus one line per failure naming the metric and the candidates, and exits 1 on any hard-gate breach (errors, added, dropped, provenance, PII, image, ordering, structural leaves) or missed threshold in `eval/thresholds.yaml` (placeholders until ticket 10). `--thresholds`, `--out` and `--cache-dir` point it elsewhere.
+
+In CI the `eval` job (after `check`, on pull requests and pushes to `main` only) runs this command with `ANTHROPIC_API_KEY` from the repository secret of that name (set it with `gh secret set ANTHROPIC_API_KEY`; the workflow never holds a key, and a missing one fails the job with a message saying so; a pull request from a fork gets no secrets, so it cannot pass). It restores `.cache/eval-responses/` from `actions/cache`, so a pull request that changes nothing the answers depend on replays them for free while one that changes the prompt, schema, `CVR_LABEL_*` or a document pays for live calls (a full uncached run is about $3.3 and four minutes); a push to `main` runs `--no-cache`. Whatever the verdict, the job uploads `report.json` and `report.md` as the `eval-report` artifact, appends the markdown to the job summary and, on a pull request, posts it as a comment that later runs edit in place. Runs of one workflow, event and ref cancel each other, except on `main`.
 
 The response cache is `.cache/eval-responses/`, one JSON file per answer, keyed on the whole `LabellerConfig`, the prompt and schema hashes and the source document's sha256: a second run over unchanged inputs makes no LLM call, and a change to any of them misses. It is gitignored and must stay out of the Docker image (ticket 12's `.dockerignore`). Delete the directory to clear it. Four documents are labelled at once (parse, render and scoring run one document at a time: python-docx shares one lxml parser, which is not thread-safe); a provider still unavailable after the client's own two retries (a 429, an overload) is retried up to five more times with exponential backoff and jitter, and the report counts every retry.
 

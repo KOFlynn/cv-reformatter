@@ -4,12 +4,52 @@
 
 **Blocked by:** 10 (Baseline and thresholds)
 
-**Status:** ready-for-agent
+**Status:** in-review
 
-- [ ] `eval` job defined as specified; the key is a repository secret with a documented name; no key in the workflow file
-- [ ] The eval job runs on pull requests and pushes to main only; `check` still runs on every push
+- [x] `eval` job defined as specified; the key is a repository secret with a documented name; no key in the workflow file
+- [x] The eval job runs on pull requests and pushes to main only; `check` still runs on every push
 - [ ] Artifacts uploaded; job summary shows the markdown; the PR comment is created on first run and updated on subsequent runs
 - [ ] Workflow concurrency group with cancel-in-progress; verified by two rapid pushes with the first run cancelled
 - [ ] Branch protection on `main` requires `check` and `eval`; recorded in the PR description with a screenshot or the `gh api` output
 - [ ] The ticket's own PR goes green through the new gate, with the report comment visible; tokens and cost for the run are in the comment
-- [ ] `CLAUDE.md` CI section updated
+- [x] `CLAUDE.md` CI section updated
+
+## Comments
+
+### 2026-09-30: built, in review (branch `phase-1/13-ci-eval-gate`)
+
+Only what can be checked without GitHub is ticked: the job definition, its triggers and the `CLAUDE.md` section. The artifact/summary/comment box, the concurrency box, branch protection and the green PR all need the workflow to run on GitHub and stay unticked; they are the release PR's job, once the secret is set. `actionlint` is not installed here and was not run; the YAML parses with PyYAML and its structure was read back (two jobs, `needs`, `if`, concurrency, permissions).
+
+**What was built.** `.github/workflows/ci.yml`:
+- top-level `permissions: contents: read`; `check` is unchanged in content and still runs on every push and pull request;
+- `eval`: `needs: check`, job-level `if:` for `pull_request` or `push` to `main`, `timeout-minutes: 20` (a run is about four minutes, so a hang cannot spend much), `permissions: contents: read, pull-requests: write` (the only job with write), `ANTHROPIC_API_KEY` from `secrets.ANTHROPIC_API_KEY`;
+- steps: checkout, uv, Python, `uv sync --locked`, cache, key check, `uv run python -m cvr.eval.run`, then three `if: always()` steps: upload `eval/report.json` and `eval/report.md` as artifact `eval-report`, append `report.md` to `$GITHUB_STEP_SUMMARY`, and the PR comment. The eval step fails the job on the runner's own exit code; nothing captures or masks it;
+- the comment is `<!-- cvr-eval-report -->` plus `report.md` (which has the verdict, every table, tokens, cost, wall time, cache use and each gate failure) plus a link to the run, written with `gh api`: the first run POSTs, later runs find the comment by the marker and PATCH it. If no report was written the comment says so. `report.md` is cut at 60,000 bytes to stay under GitHub's comment limit.
+
+**Decisions beyond the ticket text.**
+- **Cache: used, with a live run on `main`.** The runner's cache key is the whole labeller config, the prompt and schema hashes and each source sha256, so a hit can only replay the answer to the identical question; any prompt, schema, model, `CVR_LABEL_*` or document change misses and pays. Parse, verify, transform, render, the adapter, the metrics and the thresholds still run in full on every PR, so a code change is gated for free. What a replay does not re-prove is the model's behaviour, which is what a prompt/model change exists to test, and those miss. Always calling would cost about $3.3 per PR push for an answer that cannot differ from the last one in any way the code can see. `actions/cache` keys `eval-responses-<sha>` with restore prefix `eval-responses-`; it is saved only when the job passes, so a failed run's answers are not replayed to make a re-run fail identically. A push to `main` runs `--no-cache`: each merge gets one live, authoritative run, and it refreshes the cache that later PRs restore. The cost is that the first PR through the gate, and any PR after a cache eviction, is fully live. GitHub scopes caches by ref: a PR reads `main`'s cache and its own, not another PR's.
+- **Concurrency group** is `workflow-event-ref` (`head_ref` for PRs, else `ref`), not workflow and ref alone. A push to a PR branch starts a `push` run and a `pull_request` run at once; with a shared group they cancel each other and the PR could be left with no `eval`. `cancel-in-progress` is `github.ref != 'refs/heads/main'`: **pushes to `main` are not cancelled.** A cancelled main run leaves a merge with no verdict, merges are rare, and the cost of not cancelling is one extra run. PR and feature-branch pushes cancel as the ticket asks.
+- **Missing secret:** a step before the eval fails with an `::error::` annotation naming `ANTHROPIC_API_KEY` and where to set it, rather than a provider stack trace. It fails even on a fully cached run, so a misconfigured repository never looks green.
+- **Fork PRs** get no secrets and a read-only token, so `eval` fails at that step and the comment step is skipped (`head.repo.full_name == github.repository`). The repo has no outside contributors; a fork PR cannot pass this gate by design.
+- **Permissions:** only `eval` has `pull-requests: write`; the comment uses the job's own `github.token` through `gh`, no PAT.
+- Action versions follow the existing file (`checkout@v4`, `setup-uv@v6`) plus `cache@v4` and `upload-artifact@v4`.
+- Docs: `CLAUDE.md`'s CI paragraph and `docs/development.md` (intro line and the Eval section) describe the two jobs, the secret and the gate.
+
+**Cost of one full uncached run.** `eval/baseline-2026-09-29.json`: three runs, $9.8047 in all, so about **$3.27 a run** ($3.2736 for the last), 48 documents, 223 to 228 s of wall time on the dev machine.
+
+**Pending (maintainer).**
+1. Set the secret (the repo has none): `gh secret set ANTHROPIC_API_KEY` (paste at the prompt; never commit it).
+2. Open the release PR `release/phase-1-13` into `main`. It is the first PR through the gate: expect a fully live run (about $3.3), the report comment, the job summary and the `eval-report` artifact; tick the third and sixth boxes from that.
+3. Push twice in quick succession to a PR branch and confirm the first run shows `Cancelled`; tick the fourth.
+4. Branch protection on `main`, with the `gh api` output in the PR description. The repo is private: on a free personal plan branch protection and rulesets are unavailable for private repositories, so this waits for ticket 16 (going public) or GitHub Pro. Once available:
+
+```
+gh api --method PUT repos/KOFlynn/cv-reformatter/branches/main/protection --input - <<'JSON'
+{
+  "required_status_checks": {"strict": false, "contexts": ["check", "eval"]},
+  "enforce_admins": false,
+  "required_pull_request_reviews": null,
+  "restrictions": null
+}
+JSON
+```
