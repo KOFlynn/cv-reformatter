@@ -21,3 +21,8 @@ eval/report.md
 
 # Claude Code worktrees, created by the Agent tool, never committed
 .claude/worktrees/
+
+# Local environment files: the provisioning wizard remembers its (non-secret)
+# values in .env.azure; no .env of any kind is ever committed
+.env
+.env.*
