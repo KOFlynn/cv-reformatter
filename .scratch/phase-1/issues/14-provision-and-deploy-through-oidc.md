@@ -6,13 +6,13 @@
 
 **Status:** in-review
 
-- [ ] Wizard script committed under the docs or scripts area, with the human-only steps and the values it asks for; the resulting resource names and the federated credential subject recorded in the ADR
+- [x] Wizard script committed under the docs or scripts area, with the human-only steps and the values it asks for; the resulting resource names and the federated credential subject recorded in the ADR
 - [x] `deploy` job defined as specified; `id-token: write` at job level only; no Azure secret in GitHub
-- [ ] GHCR package public; the image pulls anonymously; the ticket 12 secret inspection repeated on the pushed image
+- [x] GHCR package public; the image pulls anonymously; the ticket 12 secret inspection repeated on the pushed image
 - [ ] Container Apps configured as specified; the app scales to zero when idle and serves `/health` on wake
 - [ ] Post-deploy smoke step green: `.docx` returned with `X-Run-Id`; the header value appears in a Log Analytics query for the summary line
 - [ ] Deployment blocked when `eval` fails (proven in ticket 15, referenced here)
-- [ ] ADR-0010 written under `docs/adr/`; README item 7 (ticket 08) updated from plan to fact
+- [x] ADR-0010 written under `docs/adr/`; README item 7 (ticket 08) updated from plan to fact
 - [ ] Cost check after the first day recorded in the PR description
 
 ## Comments
@@ -115,3 +115,21 @@ Stages 1–6 ran on the maintainer's machine against the new subscription `cvr_s
 - Git Bash needed a restart to pick up the new `az` on its PATH.
 
 Stage 7 then failed with `Bad Request ... The JSON value could not be converted to System.Boolean. Path: $ | BytePositionInLine: 4`. The cause is a known Azure CLI behaviour: `az containerapp create --yaml` deserialises the YAML into the SDK's model and re-serialises every attribute, so fields the file never sets reach ARM as `null` (four bytes) where a boolean is required. The flag-based create avoids that but takes the secret as `--secrets name=value`, on the command line. Stage 7 now `PUT`s the same spec as JSON to the ARM API with `az rest --method PUT --body @<file>` (`api-version=2024-03-01`). It then polls `provisioningState` until it reads `Succeeded`. The key still goes through the private temp file only.
+
+### 2026-10-02: provisioned
+
+The wizard completed on its third run, after the two stage 7 fixes (`ecc4b5e`, then `Content-Type: application/json` on the `az rest` PUT). It created:
+- the resource group `cvr-rg`, Log Analytics `cvr-log`, environment `cvr-cae` and app `cvr-ca`, all in `northeurope`, on the subscription `cvr_sub`;
+- the Entra app `cvr-github-deploy`, with the OIDC subject `repo:KOFlynn/cv-reformatter:ref:refs/heads/main`;
+- the image `ghcr.io/koflynn/cv-reformatter` (public);
+- a budget of 5 a month.
+
+All of these match ADR-0010's table. The app is at `https://cvr-ca.orangewave-5499e0c7.northeurope.azurecontainerapps.io`. The full record from stage 12 goes in the release PR.
+
+Checked afterwards from the dev machine:
+- `gh variable list` shows the five `AZURE_*` variables;
+- `gh secret list` shows `ANTHROPIC_API_KEY` alone, so there is no Azure secret in GitHub;
+- `GET /health` on the live URL returned 200 with `X-Run-Id` (warm, 0.07 s), so the header survives ingress on a GET;
+- GHCR issues an anonymous pull token for the package.
+
+Boxes 1, 3 and 7 are ticked on this run: the names and subject are now confirmed against the ADR, and stage 6's anonymous pull and inspection passed (the wizard stops on a failed check, and it reached stage 12). Boxes 4 and 5 wait for the first deploy from `main` and the Log Analytics query, box 6 for ticket 15, and box 8 for a day of billing.
