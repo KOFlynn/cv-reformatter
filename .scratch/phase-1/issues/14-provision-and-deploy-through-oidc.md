@@ -124,7 +124,7 @@ The wizard completed on its third run, after the two stage 7 fixes (`ecc4b5e`, t
 - the image `ghcr.io/koflynn/cv-reformatter` (public);
 - a budget of 5 a month.
 
-All of these match ADR-0010's table. The app is at `https://cvr-ca.orangewave-5499e0c7.northeurope.azurecontainerapps.io`. The full record from stage 12 goes in the release PR.
+All of these match ADR-0010's table. The app is at `https://cvr-ca.orangewave-5499e0c7.northeurope.azurecontainerapps.io`. The full record from stage 12 goes in the release PR, #30.
 
 Checked afterwards from the dev machine:
 - `gh variable list` shows the five `AZURE_*` variables;
