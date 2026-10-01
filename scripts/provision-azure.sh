@@ -252,8 +252,12 @@ else
   az login --output none
 fi
 az account list --query "[].{name:name, id:id, default:isDefault}" --output table
-ask_default AZURE_SUBSCRIPTION_ID "Subscription id to use" "$(azq account show --query id -o tsv)"
+ask_default AZURE_SUBSCRIPTION_ID "Subscription to use (name or id)" "$(azq account show --query id -o tsv)"
 az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+# A name was accepted above; from here on (and in GitHub) it is the id.
+AZURE_SUBSCRIPTION_ID=$(azq account show --query id -o tsv)
+write_env AZURE_SUBSCRIPTION_ID "$AZURE_SUBSCRIPTION_ID"
+note "Using $(azq account show --query name -o tsv) ($AZURE_SUBSCRIPTION_ID)."
 AZURE_TENANT_ID=$(azq account show --query tenantId -o tsv)
 write_env AZURE_TENANT_ID "$AZURE_TENANT_ID"
 say "Registering the resource providers Container Apps needs (a minute or two the first time)."
