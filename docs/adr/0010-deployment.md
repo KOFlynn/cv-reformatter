@@ -62,7 +62,7 @@ One replica at most suits the API, which serialises documents anyway because the
 4. create the environment;
 5. push the bootstrap image;
 6. make the package public and grant the repo's Actions write access, then pull it anonymously and inspect it;
-7. create the app (the key is typed hidden, written into a private temp YAML spec and deleted after; it never appears on a command line);
+7. create the app with an ARM `PUT` through `az rest`, from a JSON spec in a private temp file (the key is typed hidden, written into the spec and deleted after; it never appears on a command line). `az containerapp create --yaml` is not used: the CLI re-serialises a YAML spec through its SDK model and sends unset fields as `null`, which ARM rejects, and the flag-based create would put the key on the command line;
 8. smoke test;
 9. create the Entra app, its service principal, role assignment and federated credential;
 10. set the GitHub variables;
