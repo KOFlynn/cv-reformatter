@@ -1,6 +1,6 @@
 # Development
 
-Day-to-day commands for working on this repo. The `check` job of CI (`.github/workflows/ci.yml`) runs exactly these, so if they pass locally they pass there; the `eval` job is described under Eval.
+Day-to-day commands for working on this repo. The `check` job of CI (`.github/workflows/ci.yml`) runs exactly these, so if they pass locally they pass there; the `eval` job is described under Eval, and the `deploy` job under Deployment.
 
 ## Setup
 
@@ -112,6 +112,53 @@ The image is `python:3.12-slim` (the version in `.python-version`) in two stages
 
 The key is a runtime `-e` only: never a `--build-arg`, never in the Dockerfile, never in a file in the build context. `.dockerignore` is an allowlist (`pyproject.toml`, `uv.lock`, `.python-version`, `src/` without `cvr/golden` and `cvr/eval`, the template); anything else, including `.env`, `.cache/`, `eval/`, `fixtures/`, `tests/` and `.git`, never reaches the build. `tests/docker/` checks the Dockerfile, the allowlist and that the service imports neither `cvr.golden` nor `cvr.eval` without Docker; `scripts/check-image.sh` checks a built image. `/reformat` in the container calls the real model, like the local server.
 
+## Deployment
+
+A push to `main` that passes `eval` is deployed by the `deploy` job of `ci.yml` (ADR-0010):
+
+1. Build the image and push it to `ghcr.io/koflynn/cv-reformatter:<sha>`.
+2. Log out of GHCR and run `PULL=1 sh scripts/check-image.sh` on an anonymous pull.
+3. Sign in to Azure through OIDC (`azure/login`, with the repository variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID`).
+4. Run `az containerapp update --image` on `AZURE_CONTAINER_APP` in `AZURE_RESOURCE_GROUP`.
+5. Run `sh scripts/smoke-deploy.sh <app url>`.
+
+No Azure secret is stored in GitHub, and the job is the only one with `id-token: write`.
+
+The Azure resources are provisioned once, by hand:
+
+```
+bash scripts/provision-azure.sh                  # the wizard, from the repo root in Git Bash
+sh scripts/smoke-deploy.sh https://<app url>     # wake the app, post one document, check .docx + X-Run-Id
+IMAGE=ghcr.io/koflynn/cv-reformatter:<tag> PULL=1 sh scripts/check-image.sh   # inspect a published image
+```
+
+The wizard needs the Azure CLI (`winget install -e --id Microsoft.AzureCLI`), Docker Desktop and `gh`. It walks through twelve stages:
+
+1. Sign in to Azure.
+2. Names and region (defaults `cvr-rg`, `cvr-log`, `cvr-cae`, `cvr-ca`, `cvr-github-deploy`, `northeurope`).
+3. Create the resource group and the Log Analytics workspace.
+4. Create the Container Apps environment.
+5. Push the `:bootstrap` image.
+6. Make the GHCR package public and give the repo's Actions write access to it (in the browser).
+7. Create the container app, with the Anthropic key typed hidden.
+8. Run the smoke test.
+9. Create the Entra app registration with its federated credential for `repo:KOFlynn/cv-reformatter:ref:refs/heads/main`.
+10. Set the repository variables.
+11. Set a cost budget (in the portal).
+12. Print the record for ADR-0010.
+
+It remembers its values in `.env.azure` (gitignored, no secret in it) and skips what already exists, so it can be re-run.
+
+Day-to-day operations:
+
+```
+curl https://<app url>/health                    # warm the endpoint before a demo (scaled to zero, it cold-starts)
+az containerapp secret set -n cvr-ca -g cvr-rg --secrets anthropic-api-key=<key>   # rotate the app's key
+az containerapp revision list -n cvr-ca -g cvr-rg -o table
+az monitor log-analytics query --workspace <workspace id> --analytics-query "ContainerAppConsoleLogs_CL | where Log_s has '<run id>'"
+az group delete -n cvr-rg                        # the kill switch: removes every billable resource
+```
+
 ## Lint and format
 
 ```
@@ -151,6 +198,7 @@ uv run ruff format . && uv run ruff check . && uv run pytest && uv run pytest -m
 | Golden set | `fixtures/candidates/*.json` (ground truth), `fixtures/generated/` (documents and manifests, committed) |
 | Template | `templates/fictitious_recruitment.docx`, built by `src/cvr/template/build.py` and committed |
 | Image | `Dockerfile`, `.dockerignore`, `scripts/check-image.sh` |
+| Deployment | the `deploy` job in `.github/workflows/ci.yml`, `scripts/provision-azure.sh`, `scripts/smoke-deploy.sh`, ADR-0010 |
 | Specs and tickets | `.scratch/<feature>/spec.md`, `.scratch/<feature>/issues/NN-*.md` |
 | Glossary | `CONTEXT.md` |
 | Decisions | `docs/adr/` |
