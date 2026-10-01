@@ -30,7 +30,7 @@ The cost of that choice is that anyone can pull the image, so the image must be 
 - the key is a runtime environment variable only, never a build argument and never in a layer;
 - the deploy job repeats the secret inspection on every pushed image, after an anonymous pull. A pull that needs credentials fails the job, so a package that has gone private stops the deploy instead of breaking the app.
 
-The first image, `:bootstrap`, was pushed from the maintainer's machine by the provisioning wizard, because the app cannot be created before an image exists, and the package was made public by hand: GitHub offers no API for package visibility.
+The first image, `:bootstrap`, is pushed from the maintainer's machine by the provisioning wizard, because the app cannot be created before an image exists. The wizard then has the maintainer make the package public by hand, because GitHub offers no API for package visibility.
 
 **Container Apps, configured once.** The resources, all in `northeurope` (Dublin):
 
@@ -69,7 +69,7 @@ One replica at most suits the API, which serialises documents anyway because the
 11. set a cost budget;
 12. print the record.
 
-Every Azure call is a plain `az` command in that script, so the script is the record of what exists. It is re-runnable: names are remembered in the gitignored `.env.azure`, which holds no secret, and every create step skips what is already there.
+Every Azure call is a plain `az` command in that script, so the script is the record of what exists. It is re-runnable: names are remembered in the gitignored `.env.azure`, which holds no secret; the environment, the app and the Entra pieces are skipped when they exist, and every other stage is safe to repeat.
 
 Manual provisioning is a shortcut. For one app in one region with one maintainer, a script someone reads before running is cheaper than a Bicep or Terraform module, its state and the CI identity it would need. At scale it is the first thing to change (README item 9): infrastructure as code, applied by the pipeline under its own federated identity. Drift would then be a diff instead of a surprise, a second environment would cost one parameter file, and review of an infrastructure change would be a pull request.
 

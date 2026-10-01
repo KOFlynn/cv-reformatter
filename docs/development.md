@@ -147,16 +147,22 @@ The wizard needs the Azure CLI (`winget install -e --id Microsoft.AzureCLI`), Do
 11. Set a cost budget (in the portal).
 12. Print the record for ADR-0010.
 
-It remembers its values in `.env.azure` (gitignored, no secret in it) and skips what already exists, so it can be re-run.
+It remembers its values in `.env.azure` (gitignored, no secret in it) and can be re-run: the environment, the app and the Entra pieces are skipped when they exist, and the other stages are safe to repeat.
 
 Day-to-day operations:
 
 ```
 curl https://<app url>/health                    # warm the endpoint before a demo (scaled to zero, it cold-starts)
-az containerapp secret set -n cvr-ca -g cvr-rg --secrets anthropic-api-key=<key>   # rotate the app's key
 az containerapp revision list -n cvr-ca -g cvr-rg -o table
 az monitor log-analytics query --workspace <workspace id> --analytics-query "ContainerAppConsoleLogs_CL | where Log_s has '<run id>'"
 az group delete -n cvr-rg                        # the kill switch: removes every billable resource
+```
+
+Rotating the app's key, with the key read hidden so it never reaches the shell history (it is on `az`'s command line for the moment it runs), then a restart so the running revision reads it:
+
+```
+read -rs KEY && az containerapp secret set -n cvr-ca -g cvr-rg --secrets "anthropic-api-key=$KEY" -o none; unset KEY
+az containerapp revision restart -n cvr-ca -g cvr-rg --revision "$(az containerapp show -n cvr-ca -g cvr-rg --query properties.latestRevisionName -o tsv)"
 ```
 
 ## Lint and format

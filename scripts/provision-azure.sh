@@ -191,8 +191,11 @@ finish() {
 # GitHub Actions signs in as through OIDC, the repository variables the
 # deploy job reads, and a cost budget. Every Azure call is the Azure CLI's,
 # so the commands below are the record of what exists. Re-runnable: values
-# are remembered in .env.azure (gitignored, no secret in it) and every
-# create stage skips what is already there.
+# are remembered in .env.azure (gitignored, no secret in it); the
+# environment, the app, the Entra app, its role and its credential are
+# skipped when they exist, and the rest is safe to repeat (az create on an
+# existing group or workspace changes nothing; stage 5 pushes :bootstrap
+# again).
 #
 #   bash scripts/provision-azure.sh        # from the repo root, in Git Bash
 #
@@ -342,8 +345,8 @@ pause
 # ── 7 ─────────────────────────────────────────────────────────────────────
 stage "The container app"
 if az containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" >/dev/null 2>&1; then
-  say "$AZURE_CONTAINER_APP already exists; skipping. To replace the key later:"
-  note "  az containerapp secret set -n $AZURE_CONTAINER_APP -g $AZURE_RESOURCE_GROUP --secrets anthropic-api-key=<key>"
+  say "$AZURE_CONTAINER_APP already exists; skipping. To rotate its key, see"
+  note "  docs/development.md, Deployment (read hidden, never typed into the history)."
 else
   say "Creates $AZURE_CONTAINER_APP on $IMAGE:bootstrap: external ingress on 8000,"
   say "0 to 1 replicas, liveness and readiness probes on /health, 0.5 vCPU and 1 GiB,"
@@ -354,12 +357,18 @@ else
   ask_secret ANTHROPIC_API_KEY "Paste the key (hidden):"
   [[ -n "$ANTHROPIC_API_KEY" ]] || { warn "no key entered"; exit 1; }
   confirm "Create the app?" || { warn "stopped"; exit 1; }
-  # The spec holds the key, so it is private to this user and deleted at once;
-  # the key never appears on a command line.
+  # The spec holds the key, so the key never appears on a command line; the
+  # file is deleted as soon as az has read it, and by the trap if the wizard
+  # is interrupted. (chmod is best effort: on NTFS the user's temp directory
+  # is what keeps it private.)
+  env_id=$(azq containerapp env show --name "$CONTAINERAPPS_ENV" --resource-group "$AZURE_RESOURCE_GROUP" --query id -o tsv)
   spec=$(mktemp)
+  trap 'rm -f "$spec"' EXIT
   chmod 600 "$spec"
   cat > "$spec" <<YAML
+location: $AZURE_LOCATION
 properties:
+  environmentId: $env_id
   configuration:
     activeRevisionsMode: Single
     ingress:
@@ -400,6 +409,7 @@ YAML
   az containerapp create --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
     --environment "$CONTAINERAPPS_ENV" --yaml "$(winpath "$spec")" --output none && created=1
   rm -f "$spec"
+  trap - EXIT
   unset ANTHROPIC_API_KEY
   [[ "$created" == 1 ]] || { warn "create failed; the spec file is deleted"; exit 1; }
   say "Done; the spec file that held the key is deleted."
@@ -415,7 +425,9 @@ stage "Smoke test the live app"
 say "Wakes the app from zero (timing the cold start), posts one golden-set"
 say "document and checks for a .docx with X-Run-Id. Calls the model once (cents)."
 if confirm "Run it?"; then
-  sh scripts/smoke-deploy.sh "$APP_URL" || warn "the smoke test failed; see above"
+  # The smoke script relies on Git Bash's path translation for curl's temp
+  # files, which this wizard's MSYS_NO_PATHCONV would switch off.
+  env -u MSYS_NO_PATHCONV sh scripts/smoke-deploy.sh "$APP_URL" || warn "the smoke test failed; see above"
 fi
 pause
 

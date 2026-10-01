@@ -166,7 +166,7 @@ always-on replica. Neither survives the "no secret in GitHub" evidence goal or t
 free-grant budget. The price of scaling to zero is a cold start, so the endpoint is
 warmed before a demo.
 
-The resources were provisioned once by hand through `scripts/provision-azure.sh`, a
+The resources are provisioned once by hand through `scripts/provision-azure.sh`, a
 wizard whose `az` commands are the record of what exists.
 [ADR-0010](docs/adr/0010-deployment.md) records the resource names, the federated
 credential's subject, the budget and its "kill anything that costs money" rule.

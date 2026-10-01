@@ -160,12 +160,17 @@ jobs:
   # through an OIDC federated credential whose subject is this repository's
   # main branch, so GitHub holds no Azure secret: the three ids it logs in
   # with are repository variables, identifiers rather than credentials. The
-  # resources were provisioned once by scripts/provision-azure.sh (ADR-0010).
+  # resources are provisioned once by scripts/provision-azure.sh (ADR-0010).
   deploy:
     needs: eval
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # One deploy at a time, never cancelled: a second merge's deploy waits,
+    # so an older commit can never land after a newer one.
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
     # id-token only here, at job level: the one job that talks to Azure.
     permissions:
       contents: read
@@ -228,10 +233,13 @@ jobs:
             --image "$IMAGE" --only-show-errors --output none
           fqdn=$(az containerapp show --name "$APP" --resource-group "$RG" \
             --query properties.configuration.ingress.fqdn --output tsv)
+          [ -n "$fqdn" ] || { echo "::error::$APP has no ingress FQDN"; exit 1; }
           echo "url=https://$fqdn" >> "$GITHUB_OUTPUT"
 
       # One golden-set document through the live endpoint, through the cold
       # start: a .docx back with X-Run-Id, so the header survives ingress.
       # Calls the real model once (a few cents).
       - name: Smoke test the live endpoint
-        run: sh scripts/smoke-deploy.sh "${{ steps.deploy.outputs.url }}"
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+        run: sh scripts/smoke-deploy.sh "$URL"

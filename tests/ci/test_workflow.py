@@ -29,8 +29,16 @@ def deploy(workflow: dict) -> dict:
     return workflow["jobs"]["deploy"]
 
 
-def steps_using(job: dict, action: str) -> list[dict]:
-    return [s for s in job["steps"] if s.get("uses", "").split("@")[0] == action]
+def is_step(step: dict, *, uses: str | None = None, runs: str | None = None) -> bool:
+    """The step calls the action ``uses`` (any version), or its script
+    contains ``runs``."""
+    if uses is not None:
+        return step.get("uses", "").split("@")[0] == uses
+    return runs in step.get("run", "")
+
+
+def steps(job: dict, **match: str) -> list[dict]:
+    return [s for s in job["steps"] if is_step(s, **match)]
 
 
 def run_text(job: dict) -> str:
@@ -70,12 +78,19 @@ def test_no_azure_secret_anywhere_in_the_workflow(text: str):
     assert "creds:" not in text
 
 
-def test_deploy_reads_no_secret_but_the_job_token(deploy: dict):
+def test_deploy_reads_no_repository_secret(deploy: dict):
+    # The job token is github.token, not secrets.GITHUB_TOKEN.
     assert "secrets." not in yaml.safe_dump(deploy)
 
 
+def test_deploys_never_overlap_and_never_cancel_midway(deploy: dict):
+    # Two quick merges: the second waits, so the older sha is never deployed
+    # last, and a deploy is never cut off between update and smoke.
+    assert deploy["concurrency"] == {"group": "deploy", "cancel-in-progress": False}
+
+
 def test_azure_login_is_oidc_through_repository_variables(deploy: dict):
-    (login,) = steps_using(deploy, "azure/login")
+    (login,) = steps(deploy, uses="azure/login")
     assert login["with"] == {
         "client-id": "${{ vars.AZURE_CLIENT_ID }}",
         "tenant-id": "${{ vars.AZURE_TENANT_ID }}",
@@ -84,10 +99,10 @@ def test_azure_login_is_oidc_through_repository_variables(deploy: dict):
 
 
 def test_image_is_pushed_to_ghcr_with_the_job_token(deploy: dict):
-    (login,) = steps_using(deploy, "docker/login-action")
+    (login,) = steps(deploy, uses="docker/login-action")
     assert login["with"]["registry"] == "ghcr.io"
     assert login["with"]["password"] == "${{ github.token }}"
-    (build,) = steps_using(deploy, "docker/build-push-action")
+    (build,) = steps(deploy, uses="docker/build-push-action")
     assert build["with"]["push"] is True
     assert "github.sha" in build["with"]["tags"]
     assert not build["with"].get("build-args")
@@ -101,22 +116,28 @@ def test_pushed_image_is_pulled_anonymously_and_inspected(deploy: dict):
 
 
 def test_steps_are_in_deploy_order(deploy: dict):
-    def index(predicate) -> int:
-        return next(i for i, s in enumerate(deploy["steps"]) if predicate(s))
+    def index(**match: str) -> int:
+        return next(i for i, s in enumerate(deploy["steps"]) if is_step(s, **match))
 
-    push = index(lambda s: s.get("uses", "").startswith("docker/build-push-action"))
-    inspect = index(lambda s: "check-image.sh" in s.get("run", ""))
-    login = index(lambda s: s.get("uses", "").startswith("azure/login"))
-    update = index(lambda s: "az containerapp update" in s.get("run", ""))
-    smoke = index(lambda s: "smoke-deploy.sh" in s.get("run", ""))
-    assert push < inspect < login < update < smoke
+    assert (
+        index(uses="docker/build-push-action")
+        < index(runs="check-image.sh")
+        < index(uses="azure/login")
+        < index(runs="az containerapp update")
+        < index(runs="smoke-deploy.sh")
+    )
 
 
 def test_deploy_updates_the_app_named_by_variables_to_this_commit(deploy: dict):
-    (step,) = [
-        s for s in deploy["steps"] if "az containerapp update" in s.get("run", "")
-    ]
+    (step,) = steps(deploy, runs="az containerapp update")
     joined = yaml.safe_dump(step)
     assert "vars.AZURE_CONTAINER_APP" in joined
     assert "vars.AZURE_RESOURCE_GROUP" in joined
     assert "github.sha" in joined
+
+
+def test_expressions_reach_scripts_through_env_only(deploy: dict):
+    # A ${{ }} inside a script is spliced into the shell source; through env
+    # it is a value.
+    for step in deploy["steps"]:
+        assert "${{" not in step.get("run", ""), step.get("name")
