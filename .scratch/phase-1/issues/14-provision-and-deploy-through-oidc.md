@@ -49,7 +49,7 @@
   4. the environment: consumption only (`--enable-workload-profiles false`), logs to the workspace;
   5. build and push `:bootstrap` from the dev machine (`gh auth refresh -s write:packages`, `gh auth token | docker login`, then logout);
   6. in the browser: the package public, the repository's Actions given Write. Then an anonymous pull plus the inspection;
-  7. the app, from a YAML spec in a temp file: `environmentId`, `location`, external ingress 8000, single revision, 0.5 vCPU / 1 GiB, liveness (30 s) and readiness (10 s) on `/health`, min 0 / max 1, the secret `anthropic-api-key` read as `ANTHROPIC_API_KEY`. The key is typed hidden and never put on a command line; the file is removed after `az` reads it, or by a trap on interrupt;
+  7. the app, by an ARM `PUT` through `az rest` from a JSON spec in a temp file (see the 2026-10-02 comment): `environmentId`, `location`, external ingress 8000, single revision, 0.5 vCPU / 1 GiB, liveness (30 s) and readiness (10 s) on `/health`, min 0 / max 1, the secret `anthropic-api-key` read as `ANTHROPIC_API_KEY`. The key is typed hidden and never put on a command line; the file is removed after `az` reads it, or by a trap on interrupt;
   8. smoke test;
   9. Entra app `cvr-github-deploy`, its service principal, Contributor on `cvr-rg` only, and federated credential `github-main` with subject `repo:KOFlynn/cv-reformatter:ref:refs/heads/main`. No client secret;
   10. `gh variable set` for the five variables, then `gh secret list` to show nothing Azure;
@@ -107,3 +107,11 @@ Left as judgement calls:
 5. Leave the app idle for about ten minutes, then time a `/health` request. A multi-second first answer shows it scaled to zero and woke. Tick box 4.
 6. After a day, check Cost Management for the subscription and record it in the PR. Tick box 8.
 7. Box 6 (a red `eval` blocks `deploy`) is proven by ticket 15's demo PR.
+
+### 2026-10-02: the wizard's first run, stage 7 fixed
+
+Stages 1–6 ran on the maintainer's machine against the new subscription `cvr_sub`. Two snags came up before stage 7:
+- `az login`'s Windows account-broker popup failed silently. `az config set core.enable_broker_on_windows=false` switched it to the browser sign-in.
+- Git Bash needed a restart to pick up the new `az` on its PATH.
+
+Stage 7 then failed with `Bad Request ... The JSON value could not be converted to System.Boolean. Path: $ | BytePositionInLine: 4`. The cause is a known Azure CLI behaviour: `az containerapp create --yaml` deserialises the YAML into the SDK's model and re-serialises every attribute, so fields the file never sets reach ARM as `null` (four bytes) where a boolean is required. The flag-based create avoids that but takes the secret as `--secrets name=value`, on the command line. Stage 7 now `PUT`s the same spec as JSON to the ARM API with `az rest --method PUT --body @<file>` (`api-version=2024-03-01`). It then polls `provisioningState` until it reads `Succeeded`. The key still goes through the private temp file only.

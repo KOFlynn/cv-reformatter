@@ -248,6 +248,8 @@ if az account show >/dev/null 2>&1; then
   note "Already signed in to Azure as $(azq account show --query user.name -o tsv)."
 else
   step "A browser opens for the Azure sign-in; pick your personal account."
+  note "(If a Windows sign-in popup appears instead and fails silently, stop and run"
+  note " az config set core.enable_broker_on_windows=false, then re-run the wizard.)"
   pause "Press Enter to run az login"
   az login --output none
 fi
@@ -361,62 +363,63 @@ else
   ask_secret ANTHROPIC_API_KEY "Paste the key (hidden):"
   [[ -n "$ANTHROPIC_API_KEY" ]] || { warn "no key entered"; exit 1; }
   confirm "Create the app?" || { warn "stopped"; exit 1; }
-  # The spec holds the key, so the key never appears on a command line; the
-  # file is deleted as soon as az has read it, and by the trap if the wizard
-  # is interrupted. (chmod is best effort: on NTFS the user's temp directory
-  # is what keeps it private.)
+  # The app is PUT to the ARM API as JSON with az rest, not through
+  # `az containerapp create --yaml`: the CLI re-serialises a YAML spec through
+  # its SDK model and sends every unset field as null, which ARM rejects ("The
+  # JSON value could not be converted to System.Boolean"). The flag-based
+  # create would put the key on the command line. Here the spec holds the
+  # key, so the key never appears on a command line; the file is deleted as
+  # soon as az has read it, and by the trap if the wizard is interrupted.
+  # (chmod is best effort: on NTFS the user's temp directory is what keeps it
+  # private.)
   env_id=$(azq containerapp env show --name "$CONTAINERAPPS_ENV" --resource-group "$AZURE_RESOURCE_GROUP" --query id -o tsv)
+  app_uri="https://management.azure.com/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$AZURE_RESOURCE_GROUP/providers/Microsoft.App/containerApps/$AZURE_CONTAINER_APP?api-version=2024-03-01"
   spec=$(mktemp)
   trap 'rm -f "$spec"' EXIT
   chmod 600 "$spec"
-  cat > "$spec" <<YAML
-location: $AZURE_LOCATION
-properties:
-  environmentId: $env_id
-  configuration:
-    activeRevisionsMode: Single
-    ingress:
-      external: true
-      targetPort: 8000
-      transport: auto
-    secrets:
-      - name: anthropic-api-key
-        value: "$ANTHROPIC_API_KEY"
-  template:
-    containers:
-      - name: cvr
-        image: $IMAGE:bootstrap
-        resources:
-          cpu: 0.5
-          memory: 1Gi
-        env:
-          - name: ANTHROPIC_API_KEY
-            secretRef: anthropic-api-key
-        probes:
-          - type: Liveness
-            httpGet:
-              path: /health
-              port: 8000
-            initialDelaySeconds: 5
-            periodSeconds: 30
-          - type: Readiness
-            httpGet:
-              path: /health
-              port: 8000
-            initialDelaySeconds: 5
-            periodSeconds: 10
-    scale:
-      minReplicas: 0
-      maxReplicas: 1
-YAML
+  cat > "$spec" <<JSON
+{
+  "location": "$AZURE_LOCATION",
+  "properties": {
+    "environmentId": "$env_id",
+    "configuration": {
+      "activeRevisionsMode": "Single",
+      "ingress": {"external": true, "targetPort": 8000, "transport": "auto"},
+      "secrets": [{"name": "anthropic-api-key", "value": "$ANTHROPIC_API_KEY"}]
+    },
+    "template": {
+      "containers": [{
+        "name": "cvr",
+        "image": "$IMAGE:bootstrap",
+        "resources": {"cpu": 0.5, "memory": "1Gi"},
+        "env": [{"name": "ANTHROPIC_API_KEY", "secretRef": "anthropic-api-key"}],
+        "probes": [
+          {"type": "Liveness", "httpGet": {"path": "/health", "port": 8000},
+           "initialDelaySeconds": 5, "periodSeconds": 30},
+          {"type": "Readiness", "httpGet": {"path": "/health", "port": 8000},
+           "initialDelaySeconds": 5, "periodSeconds": 10}
+        ]
+      }],
+      "scale": {"minReplicas": 0, "maxReplicas": 1}
+    }
+  }
+}
+JSON
   created=0
-  az containerapp create --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
-    --environment "$CONTAINERAPPS_ENV" --yaml "$(winpath "$spec")" --output none && created=1
+  az rest --method PUT --uri "$app_uri" --body "@$(winpath "$spec")" --output none && created=1
   rm -f "$spec"
   trap - EXIT
   unset ANTHROPIC_API_KEY
   [[ "$created" == 1 ]] || { warn "create failed; the spec file is deleted"; exit 1; }
-  say "Done; the spec file that held the key is deleted."
+  say "Accepted; the spec file that held the key is deleted. Waiting for provisioning."
+  for _ in $(seq 60); do
+    state=$(azq containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+      --query properties.provisioningState -o tsv)
+    [[ "$state" == Succeeded || "$state" == Failed ]] && break
+    sleep 5
+  done
+  [[ "$state" == Succeeded ]] || { warn "provisioning ended as '$state'; see the app in the portal"; exit 1; }
+  say "Done: $AZURE_CONTAINER_APP is provisioned."
 fi
 APP_URL="https://$(azq containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
   --query properties.configuration.ingress.fqdn -o tsv)"
