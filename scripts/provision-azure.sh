@@ -406,7 +406,9 @@ else
 }
 JSON
   created=0
-  az rest --method PUT --uri "$app_uri" --body "@$(winpath "$spec")" --output none && created=1
+  # A body read from a file gets no Content-Type of its own; ARM requires one.
+  az rest --method PUT --uri "$app_uri" --headers "Content-Type=application/json" \
+    --body "@$(winpath "$spec")" --output none && created=1
   rm -f "$spec"
   trap - EXIT
   unset ANTHROPIC_API_KEY
