@@ -146,16 +146,30 @@ gap-list table above. [ADR-0005](docs/adr/0005-no-scoring-no-rag.md).
 
 ### 7. Container Apps scaled to zero; OIDC for CI; managed identity at runtime
 
-**Still to come.** The plan: Azure Container Apps on the consumption plan, scaled to
-zero when idle; GitHub Actions authenticates to Azure via an OIDC federated credential,
-so no Azure secret is ever stored in GitHub; and, in Phase 2, the running service
-reaches the LLM through a managed identity rather than a key. The alternative rejected
-by this plan is a stored Azure service-principal secret in GitHub and an always-on
-plan, neither of which the free-grant budget or the "no secret in GitHub" evidence goal
-would survive. Provisioning, the `deploy` job and the ADR that records the resource
-names and the federated credential's subject all land in ticket 14, which writes
-ADR-0010; that file does not exist yet, so it is not linked here until it does. This
-section is updated from plan to fact when ticket 14 lands.
+A merge to `main` that passes the eval is deployed by the `deploy` job of
+`.github/workflows/ci.yml`, which needs `eval` and runs on pushes to `main` only. It
+pushes the image to a public GHCR package, pulls it back anonymously and repeats the
+image's secret inspection, then moves the Azure Container Apps app `cvr-ca` to it. It
+ends with a smoke test that posts a golden-set document to the live endpoint and checks
+that a `.docx` comes back with its `X-Run-Id`.
+
+The app runs on the consumption plan in `northeurope`: zero replicas when idle, one at
+most, probes on `/health`, and logs to Log Analytics. GitHub Actions signs in to Azure
+through an OIDC federated credential whose subject is this repository's `main` branch,
+so no Azure secret is stored in GitHub: the job's `id-token: write` is granted to
+`deploy` alone, and the three ids it logs in with are repository variables, not
+secrets. The one runtime credential, the LLM key, is a Container Apps secret. In Phase 2
+the LLM path moves to a managed identity, so that key goes too.
+
+The alternatives rejected are a stored service-principal secret in GitHub and an
+always-on replica. Neither survives the "no secret in GitHub" evidence goal or the
+free-grant budget. The price of scaling to zero is a cold start, so the endpoint is
+warmed before a demo.
+
+The resources are provisioned once by hand through `scripts/provision-azure.sh`, a
+wizard whose `az` commands are the record of what exists.
+[ADR-0010](docs/adr/0010-deployment.md) records the resource names, the federated
+credential's subject, the budget and its "kill anything that costs money" rule.
 
 ### 8. Why no RAG
 
@@ -177,9 +191,9 @@ second template means the `template` package growing past one committed file and
 script; the review appendix (decision 4) would need to become an actual review queue
 with the endpoint decision 4 currently rules out; and real CVs would need data
 residency guarantees and a DPA that synthetic fixtures never require. The deployment
-half of this — infrastructure as code, a container registry with managed-identity
-pull — is recorded as part of ADR-0010, written in ticket 14; that ADR does not exist
-yet, so it is referenced here as forthcoming rather than linked. The `.docx`-only and
+half of this, infrastructure as code and a container registry with managed-identity
+pull in place of the public GHCR package, is recorded in
+[ADR-0010](docs/adr/0010-deployment.md). The `.docx`-only and
 review-by-exception halves are already recorded: [ADR-0003](docs/adr/0003-docx-only.md),
 [ADR-0004](docs/adr/0004-review-by-exception.md).
 
@@ -253,7 +267,7 @@ a hard gate, that one-line prompt change is expected to turn the `eval` job red 
 `check` stays green, `deploy` never runs, and branch protection makes the PR
 mechanically impossible to merge. **Not yet built:** the branch, the PR and the three
 `--no-cache` runs that prove the failure before the demo relies on it are ticket 15,
-which itself is blocked on provisioning and deployment (ticket 14). A reviewer looking
+which follows provisioning and deployment (ticket 14). A reviewer looking
 at this repository today should start with `docs/project-brief.md` §11 for the intended
 demo script, and with the decisions above for the reasoning; once ticket 15 lands, this
 section links the PR directly and names the CI run and the provenance-violation count to

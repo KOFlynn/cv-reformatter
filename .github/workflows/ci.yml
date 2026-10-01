@@ -4,7 +4,8 @@ on:
   push:
   pull_request:
 
-# Least privilege for every job; `eval` alone adds pull-requests: write, for its report comment.
+# Least privilege for every job; `eval` adds pull-requests: write, for its report
+# comment, and `deploy` adds packages: write and id-token: write, for GHCR and OIDC.
 permissions:
   contents: read
 
@@ -153,3 +154,92 @@ jobs:
           else
             gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F body=@comment.md > /dev/null
           fi
+
+  # Ships what the gate passed: on a push to main, after eval, the image goes
+  # to GHCR and the container app is moved to it. Azure trusts this job
+  # through an OIDC federated credential whose subject is this repository's
+  # main branch, so GitHub holds no Azure secret: the three ids it logs in
+  # with are repository variables, identifiers rather than credentials. The
+  # resources are provisioned once by scripts/provision-azure.sh (ADR-0010).
+  deploy:
+    needs: eval
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # One deploy at a time, never cancelled: a second merge's deploy waits,
+    # so an older commit can never land after a newer one.
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
+    # id-token only here, at job level: the one job that talks to Azure.
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # GHCR names must be lower case; the repository's owner is not.
+      - name: Image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Tagged by commit only: every revision names the exact source it runs.
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.image.outputs.name }}:${{ github.sha }}
+          labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+      # The package is public (no registry secret on the Container Apps side),
+      # so the pushed image must pull with no credentials at all; then ticket
+      # 12's inspection runs again on what was actually published: no key in
+      # its history or filesystem, no golden or eval package, /health answers.
+      - name: Pull anonymously and inspect the published image
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}:${{ github.sha }}
+        run: |
+          docker logout ghcr.io
+          PULL=1 sh scripts/check-image.sh
+
+      - name: Log in to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # A new revision on the new image; everything else (ingress, probes,
+      # scale, the key as a Container Apps secret) is as provisioned.
+      - name: Deploy
+        id: deploy
+        env:
+          APP: ${{ vars.AZURE_CONTAINER_APP }}
+          RG: ${{ vars.AZURE_RESOURCE_GROUP }}
+          IMAGE: ${{ steps.image.outputs.name }}:${{ github.sha }}
+        run: |
+          az containerapp update --name "$APP" --resource-group "$RG" \
+            --image "$IMAGE" --only-show-errors --output none
+          fqdn=$(az containerapp show --name "$APP" --resource-group "$RG" \
+            --query properties.configuration.ingress.fqdn --output tsv)
+          [ -n "$fqdn" ] || { echo "::error::$APP has no ingress FQDN"; exit 1; }
+          echo "url=https://$fqdn" >> "$GITHUB_OUTPUT"
+
+      # One golden-set document through the live endpoint, through the cold
+      # start: a .docx back with X-Run-Id, so the header survives ingress.
+      # Calls the real model once (a few cents).
+      - name: Smoke test the live endpoint
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+        run: sh scripts/smoke-deploy.sh "$URL"

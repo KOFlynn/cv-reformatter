@@ -6,6 +6,11 @@
 #
 #   sh scripts/check-image.sh              # /reformat skipped without a key
 #   ANTHROPIC_API_KEY=... sh scripts/check-image.sh
+#   IMAGE=ghcr.io/koflynn/cv-reformatter:<tag> PULL=1 sh scripts/check-image.sh
+#
+# PULL=1 checks a published image instead of building one: it is pulled with
+# whatever registry login the shell has (none, after `docker logout ghcr.io`,
+# which is how the deploy job proves the package is public).
 #
 # The /reformat step calls the real model once (one document, a few cents).
 # Paste the output into the PR description; it never prints the key.
@@ -20,8 +25,13 @@ DOC=fixtures/generated/c04__single-column.docx
 NAME=cvr-check-$$
 fail() { echo "FAIL: $*"; exit 1; }
 
-echo "== build"
-docker build -t "$IMAGE" .
+if [ "${PULL:-}" = 1 ]; then
+  echo "== pull"
+  docker pull "$IMAGE" || fail "$IMAGE does not pull (is the package public?)"
+else
+  echo "== build"
+  docker build -t "$IMAGE" .
+fi
 
 echo "== size"
 docker image ls "$IMAGE" --format '{{.Repository}}:{{.Tag}} {{.Size}}'
