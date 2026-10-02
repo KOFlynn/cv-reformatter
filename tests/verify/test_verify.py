@@ -70,6 +70,35 @@ def test_two_identical_quotes_place_at_two_occurrences():
     assert result.rejections == []
 
 
+def test_the_same_quote_in_two_blocks_places_once_in_each():
+    blocks = [
+        _block("body:13", "Microsoft Excel"),
+        _block("body:17", "Microsoft Excel"),
+    ]
+    labelling = _labelling(
+        skills=[_ref("body:13", "Microsoft Excel"), _ref("body:17", "Microsoft Excel")]
+    )
+    result = verify(blocks, labelling)
+    assert [unit.spans[0].block_id for unit in result.content.skills] == [
+        "body:13",
+        "body:17",
+    ]
+    assert result.rejections == []
+    assert result.unplaced == []
+
+
+def test_a_repeat_left_unreferenced_is_unplaced():
+    blocks = [
+        _block("body:13", "Microsoft Excel"),
+        _block("body:17", "Microsoft Excel"),
+    ]
+    labelling = _labelling(skills=[_ref("body:13", "Microsoft Excel")])
+    result = verify(blocks, labelling)
+    assert result.unplaced == [
+        Span(block_id="body:17", start=0, end=15, text="Microsoft Excel")
+    ]
+
+
 def test_a_third_identical_quote_against_two_occurrences_is_rejected():
     blocks = [_block("body:0", "QGIS, Microsoft Excel, R, Microsoft Excel")]
     labelling = _labelling(skills=[_ref("body:0", "Microsoft Excel")] * 3)
