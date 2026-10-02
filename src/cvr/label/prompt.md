@@ -46,6 +46,12 @@ left empty. When in doubt, quote less rather than paraphrase more.
   matches how the source actually separates them; a parenthetical
   qualifying a skill (for example "SQL (PostgreSQL, MySQL)") stays with the
   skill it qualifies in the same quote.
+- **Every occurrence is its own reference, repeats included.** If an item
+  appears more than once (the same skill listed twice, the same bullet
+  under two jobs), reference every occurrence, each with the block id it
+  appears in. Never skip a repeat as a duplicate: keeping the candidate's
+  wording as written includes their repeats. Two occurrences inside the
+  same block get two references with the same block id and the same quote.
 - **PII removals besides referees.** Quote the candidate's own phone number
   under `RM_PHONE`, email under `RM_EMAIL`, postal address under
   `RM_ADDRESS`, personal website or portfolio link under `RM_URL`, date of
