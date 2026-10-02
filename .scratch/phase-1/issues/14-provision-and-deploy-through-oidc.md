@@ -9,8 +9,8 @@
 - [x] Wizard script committed under the docs or scripts area, with the human-only steps and the values it asks for; the resulting resource names and the federated credential subject recorded in the ADR
 - [x] `deploy` job defined as specified; `id-token: write` at job level only; no Azure secret in GitHub
 - [x] GHCR package public; the image pulls anonymously; the ticket 12 secret inspection repeated on the pushed image
-- [ ] Container Apps configured as specified; the app scales to zero when idle and serves `/health` on wake
-- [ ] Post-deploy smoke step green: `.docx` returned with `X-Run-Id`; the header value appears in a Log Analytics query for the summary line
+- [x] Container Apps configured as specified; the app scales to zero when idle and serves `/health` on wake
+- [x] Post-deploy smoke step green: `.docx` returned with `X-Run-Id`; the header value appears in a Log Analytics query for the summary line
 - [ ] Deployment blocked when `eval` fails (proven in ticket 15, referenced here)
 - [x] ADR-0010 written under `docs/adr/`; README item 7 (ticket 08) updated from plan to fact
 - [ ] Cost check after the first day recorded in the PR description
@@ -133,3 +133,40 @@ Checked afterwards from the dev machine:
 - GHCR issues an anonymous pull token for the package.
 
 Boxes 1, 3 and 7 are ticked on this run: the names and subject are now confirmed against the ADR, and stage 6's anonymous pull and inspection passed (the wizard stops on a failed check, and it reached stage 12). Boxes 4 and 5 wait for the first deploy from `main` and the Log Analytics query, box 6 for ticket 15, and box 8 for a day of billing.
+
+### 2026-10-02: first deploy, OIDC subject fixed
+
+The first deploy from `main` (CI run 37052388148, job `deploy`) failed at `azure/login` with `AADSTS700213: No matching federated identity record found for presented assertion subject 'repo:KOFlynn@6141875/cv-reformatter@1367290670:ref:refs/heads/main'`. This repository uses GitHub's immutable OIDC subject format (`gh api repos/KOFlynn/cv-reformatter/actions/oidc/customization/sub` returns `use_immutable_subject: true` and the prefix `repo:KOFlynn@6141875/cv-reformatter@1367290670`), and the wizard had built the legacy name-only subject.
+
+The maintainer fixed Azure by hand: the federated credential `github-main` on `cvr-github-deploy` now has the immutable subject. The decision is to keep the immutable format and make Azure match it: the owner and repo ids pin the trust to this account and repository, so a renamed account or a recreated repository cannot inherit deploy rights.
+
+The `deploy` job was re-run and passed: the image for `666adae` was deployed, the app woke in 22 s on a new revision, `/reformat` returned 200 with a 39,164-byte `.docx`, and `X-Run-Id` was `93a1193cc39f444584be845e4de92f4b`.
+
+Repo change (branch `phase-1/14-oidc-immutable-subject`): `scripts/provision-azure.sh` reads `sub_claim_prefix` from GitHub in stage 2 (legacy fallback with a warning, recomputed every run so a remembered `.env.azure` value never wins) and stage 9 updates an existing `github-main` whose subject differs instead of skipping it. ADR-0010, `docs/development.md` and `CLAUDE.md` record the immutable subject; `tests/ci/test_provision_script.py` pins the wizard's behaviour.
+
+### 2026-10-02: scale to zero and Log Analytics, boxes 4 and 5
+
+**Box 4, scale to zero and wake.** The maintainer left the app idle after the deploy, then timed two `/health` requests from the dev machine:
+
+```
+$ time curl -s https://cvr-ca.orangewave-5499e0c7.northeurope.azurecontainerapps.io/health
+{"status":"ok"}
+real    0m25.883s
+$ time curl -s https://cvr-ca.orangewave-5499e0c7.northeurope.azurecontainerapps.io/health
+{"status":"ok"}
+real    0m0.194s
+```
+
+The first answer took 25.9 s, a cold start from zero replicas; the second, 0.19 s, warm. That is the cold start ADR-0010 tells a presenter to warm before a demo.
+
+**Box 5, the run id in Log Analytics.** The query the smoke step printed, run against `cvr-log` through the Log Analytics REST API (`az rest`, since `az monitor log-analytics query` needs an extension), returned one row:
+
+| TimeGenerated | RevisionName_s |
+|---|---|
+| 2026-10-02T19:25:15.947Z | `cvr-ca--1to8q6e` |
+
+```json
+{"run_id":"93a1193cc39f444584be845e4de92f4b","line":"summary","status":200,"label":{"config":{"provider":"anthropic","model":"claude-opus-5-5","effort":"medium","temperature":null,"extra":{}},"prompt_version":"1.1.0","prompt_hash":"9b688aca3f8c5fa0","schema_version":"1.0.0","schema_hash":"3ee02723787bc1ee","content_hash":"0aa170e08b7ff5ca","input_tokens":5386,"output_tokens":2439,"cost_usd":0.070324,"label_failed":false,"failure_reason":null},"label_failed":false,"blocks":54,"images":[],"removals":14,"normalisations":0,"residue":3,"unplaced":0,"dates":10,"splits":0}
+```
+
+The `X-Run-Id` the smoke step received through ingress is the run id of the app's summary line. Boxes 4 and 5 are ticked. Box 6 waits for ticket 15, box 8 for a day of billing.

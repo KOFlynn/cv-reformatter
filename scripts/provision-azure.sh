@@ -192,8 +192,9 @@ finish() {
 # deploy job reads, and a cost budget. Every Azure call is the Azure CLI's,
 # so the commands below are the record of what exists. Re-runnable: values
 # are remembered in .env.azure (gitignored, no secret in it); the
-# environment, the app, the Entra app, its role and its credential are
-# skipped when they exist, and the rest is safe to repeat (az create on an
+# environment, the app, the Entra app and its role are skipped when they
+# exist, the credential is skipped when its subject is already right (and
+# updated when it is not), and the rest is safe to repeat (az create on an
 # existing group or workspace changes nothing; stage 5 pushes :bootstrap
 # again).
 #
@@ -279,7 +280,18 @@ ask_default ENTRA_APP "Entra app registration GitHub Actions signs in as" cvr-gi
 ask_default GITHUB_REPO "GitHub repository (owner/name)" "$(gh repo view --json nameWithOwner -q .nameWithOwner)"
 IMAGE="ghcr.io/${GITHUB_REPO,,}"
 write_env IMAGE "$IMAGE"
-FED_SUBJECT="repo:$GITHUB_REPO:ref:refs/heads/main"
+# The subject GitHub puts in the OIDC token is not always the repo name: a
+# repository on the immutable format (this one) carries the owner and repo ids,
+# so the trust follows the repository itself and not whoever holds the name
+# later. Ask GitHub for the prefix instead of guessing. Always recomputed, so
+# a subject remembered in .env.azure from an earlier run never wins.
+sub_prefix=$(gh api "repos/$GITHUB_REPO/actions/oidc/customization/sub" --jq '.sub_claim_prefix // empty' 2>/dev/null | tr -d '\r' || true)
+if [[ -z "$sub_prefix" ]]; then
+  warn "GitHub gave no OIDC subject prefix for $GITHUB_REPO; assuming the legacy repo:$GITHUB_REPO."
+  note "If the deploy job later fails with AADSTS700213, compare its subject with the credential."
+  sub_prefix="repo:$GITHUB_REPO"
+fi
+FED_SUBJECT="$sub_prefix:ref:refs/heads/main"
 write_env FED_SUBJECT "$FED_SUBJECT"
 note "Image: $IMAGE    OIDC subject: $FED_SUBJECT"
 pause
@@ -459,8 +471,17 @@ if [[ "$assigned" == 0 ]]; then
   az role assignment create --assignee-object-id "$sp_object_id" --assignee-principal-type ServicePrincipal \
     --role Contributor --scope "$rg_id" --output none
 fi
-existing=$(azq ad app federated-credential list --id "$AZURE_CLIENT_ID" --query "[?name=='github-main'].name" -o tsv)
-if [[ -z "$existing" ]]; then
+# Create the credential, or bring an existing one's subject into line (an
+# earlier run, or a hand edit, may have left a different one).
+read -r cred_id cred_subject < <(azq ad app federated-credential list --id "$AZURE_CLIENT_ID" \
+  --query "[?name=='github-main'].[id,subject] | [0]" -o tsv) || true
+[[ "$cred_id" != None ]] || cred_id=
+if [[ -n "$cred_id" && "$cred_subject" == "$FED_SUBJECT" ]]; then
+  say "Credential github-main already trusts $FED_SUBJECT; leaving it."
+else
+  if [[ -n "$cred_id" ]]; then
+    warn "github-main trusts '$cred_subject', not '$FED_SUBJECT'; updating it."
+  fi
   cred=$(mktemp)
   cat > "$cred" <<JSON
 {
@@ -471,7 +492,12 @@ if [[ -z "$existing" ]]; then
   "audiences": ["api://AzureADTokenExchange"]
 }
 JSON
-  az ad app federated-credential create --id "$AZURE_CLIENT_ID" --parameters "$(winpath "$cred")" --output none
+  if [[ -n "$cred_id" ]]; then
+    az ad app federated-credential update --id "$AZURE_CLIENT_ID" --federated-credential-id "$cred_id" \
+      --parameters "$(winpath "$cred")" --output none
+  else
+    az ad app federated-credential create --id "$AZURE_CLIENT_ID" --parameters "$(winpath "$cred")" --output none
+  fi
   rm -f "$cred"
 fi
 az ad app federated-credential list --id "$AZURE_CLIENT_ID" --query "[].{name:name, subject:subject}" --output table

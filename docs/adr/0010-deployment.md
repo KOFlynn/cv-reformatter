@@ -14,9 +14,11 @@ The brief (§9) asks for a real deployment behind a real gate: a merge to `main`
 
 - issuer `https://token.actions.githubusercontent.com`;
 - audience `api://AzureADTokenExchange`;
-- subject `repo:KOFlynn/cv-reformatter:ref:refs/heads/main`.
+- subject `repo:KOFlynn@6141875/cv-reformatter@1367290670:ref:refs/heads/main`.
 
 A token from any other branch, from a pull request or from a fork has a different subject and is refused. The registration has no client secret and no certificate.
+
+**The subject is GitHub's immutable one.** This repository uses the immutable OIDC subject format: `gh api repos/KOFlynn/cv-reformatter/actions/oidc/customization/sub` returns `use_immutable_subject: true` and the prefix `repo:KOFlynn@6141875/cv-reformatter@1367290670`, where the numbers are the owner's and the repository's ids. The format is kept, and Azure is made to match it, because the ids pin the trust to this exact account and repository: a renamed account, or a repository deleted and recreated under the same name, gets a different subject and cannot inherit deploy rights. The first deploy from `main` failed at `azure/login` with `AADSTS700213: No matching federated identity record found`, because the wizard had built the legacy name-only subject, `repo:KOFlynn/cv-reformatter:ref:refs/heads/main`. The maintainer corrected the credential by hand and the re-run deployed. The wizard now reads `sub_claim_prefix` from GitHub (falling back to the legacy form, with a warning, only if the field is absent) and updates an existing `github-main` whose subject differs; `tests/ci/test_provision_script.py` pins both.
 
 The three ids `azure/login` reads (client, tenant, subscription) are **repository variables, not secrets**. Microsoft's guide suggests secrets. They are identifiers, not credentials: knowing them opens nothing without a token whose subject is this repository's `main`. Storing them as variables keeps "no Azure secret in GitHub" literally true and checkable: `gh secret list` shows `ANTHROPIC_API_KEY` alone. `tests/ci/test_workflow.py` pins the rest of this paragraph: no `secrets.*AZURE*` reference anywhere, no `client-secret` or `creds`, `id-token` on `deploy` only, and `azure/login` fed from `vars.*`.
 

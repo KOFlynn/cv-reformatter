@@ -142,12 +142,12 @@ The wizard needs the Azure CLI (`winget install -e --id Microsoft.AzureCLI`), Do
 6. Make the GHCR package public and give the repo's Actions write access to it (in the browser).
 7. Create the container app, with the Anthropic key typed hidden.
 8. Run the smoke test.
-9. Create the Entra app registration with its federated credential for `repo:KOFlynn/cv-reformatter:ref:refs/heads/main`.
+9. Create the Entra app registration with its federated credential for `repo:KOFlynn@6141875/cv-reformatter@1367290670:ref:refs/heads/main` (GitHub's immutable subject format; the wizard reads the prefix from `gh api repos/<repo>/actions/oidc/customization/sub`).
 10. Set the repository variables.
 11. Set a cost budget (in the portal).
 12. Print the record for ADR-0010.
 
-It remembers its values in `.env.azure` (gitignored, no secret in it) and can be re-run: the environment, the app and the Entra pieces are skipped when they exist, and the other stages are safe to repeat.
+It remembers its values in `.env.azure` (gitignored, no secret in it) and can be re-run: the environment, the app and the Entra pieces are skipped when they exist (a federated credential with a different subject is updated), and the other stages are safe to repeat.
 
 Day-to-day operations:
 
