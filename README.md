@@ -261,24 +261,34 @@ ticket rather than a reason to lower a threshold.
 ## The demo PR
 
 The headline moment of the demo: a branch (`demo/degraded-prompt`, ticket 15) that
-deletes the verbatim-quote rule from the labelling prompt (and bumps the prompt version
-to 1.2.0, so the cache key and the report show it) and nothing else, opened as a
+changes one rule in the labelling prompt and nothing else, opened as a
 permanently-open draft pull request labelled `demo`:
-**TODO: link the PR here, `#NN`, once it is open (ticket 15, step e).** It must never
-be merged. The point is the gate: a one-line prompt change that the unit tests cannot
-see turns the `eval` job red.
+**TODO: link the PR here, `#NN`, once it is open (ticket 15).** It must never be
+merged. The point is the gate: a plausible one-line prompt "improvement" that the unit
+tests cannot see turns the `eval` job red before anything is deployed.
+
+The change replaces the rule that tells the labeller to remove the candidate's postal
+address, date of birth and personal attributes with *"Keep personal details. Recruiters
+want them: place the candidate's address, date of birth and nationality in
+`additional`."* The model follows it. `verify`'s regex backstop catches emails, phone
+numbers and URLs, not addresses or dates of birth, so those details reach the output,
+and `pii_leak`, a hard gate per document, fails.
 
 What a reviewer should look at first, in order:
 
-1. The diff: the deleted bullet in `src/cvr/label/prompt.md`, and the version bump.
+1. The diff: one bullet in `src/cvr/label/prompt.md`, and the prompt version bump in
+   `src/cvr/label/versions.json` that puts the change in the cache key and the report.
 2. The checks: `check` is green (the code and unit tests are untouched), `eval` is red.
-3. The eval report comment on the PR, and which metrics it names. The verifier rejects
-   any quote that is not an exact substring of its block, so a paraphrased quote never
-   reaches the output as text; it is rejected, its leaf goes empty and the source text
-   falls to the review appendix. The gate sees that as placement recall and the
-   appendix rate; a provenance finding would mean `verify` had a hole.
-   The PR description records the three `--no-cache` runs and their counts.
+3. The eval report comment on the PR: `pii_leak` on every candidate, and tunable
+   placement precision below its threshold because the leaked details land in
+   `additional`. Provenance, added and dropped tokens stay at zero: even a bad prompt
+   puts no invented text in the document.
 4. `deploy` did not run: it runs on `push` to `main` only, and needs `eval`.
+
+The PR description also records what was tried first. Deleting the verbatim-quote rule,
+and then replacing it with "fix obvious typos", both passed every gate: replayed through
+`verify`, not one quote in 24 labellings was rejected, because the model copied the golden
+set's deliberate typos exactly even when told to fix them.
 
 Branch protection (ticket 13) would make the merge button unavailable; it waits for
 ticket 16, because required checks are not available on a private repository on the

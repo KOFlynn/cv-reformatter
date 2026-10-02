@@ -6,10 +6,10 @@
 
 **Status:** in-progress
 
-- [ ] Branch with exactly one change: the verbatim-quote rule removed from the prompt; `PROMPT_VERSION` bumped so the cache key and the report both show it
+- [ ] Branch with exactly one change: ~~the verbatim-quote rule removed~~ the PII removal rule replaced in the prompt (see the second 2026-10-02 comment); `PROMPT_VERSION` bumped so the cache key and the report both show it
 - [ ] Three `--no-cache` runs locally all exit non-zero; the failing metrics and their counts recorded per run
 - [ ] Draft PR open, labelled `demo`, description explaining what was removed and why the gate catches it, with the three-run evidence
-- [ ] CI on the PR: `check` green, `eval` red with the report comment showing the provenance findings, `deploy` not run
+- [ ] CI on the PR: `check` green, `eval` red with the report comment showing the ~~provenance~~ `pii_leak` findings, `deploy` not run
 - [ ] Merge button disabled by branch protection (screenshot or `gh pr view` output in the description)
 - [ ] README demo section links the PR and states what a reviewer should look at first
 
@@ -43,3 +43,21 @@ Maintainer's pending steps, in order, in Git Bash with `ANTHROPIC_API_KEY` set:
 3. Confirm CI: `check` green, `eval` red with the report comment, `deploy` not run (it runs on `push` to `main` only). Paste the links into the description. Tick boxes 1 to 4.
 4. Branch protection is unavailable while the repo is private on the free plan; it waits for ticket 16, as ticket 13's protection box did. Leave the merge-button box for then.
 5. Put the PR number in the README (replace the TODO) and push `phase-1/15-demo-pr` as its own PR. Ticket 14's box 6 (a red `eval` blocks `deploy`) is proven by this PR's CI.
+
+### 2026-10-02: the demo changes rule, PII instead of verbatim (maintainer's decision)
+
+The first comment's risk came true. Three single-layout runs (`--no-cache --layout single-column`, 12 documents, about $0.80 each) settled what the demo removes before any full run was paid for:
+
+| Attempt | Prompt hash | Result |
+|---|---|---|
+| Delete the "Quote verbatim and contiguously" bullet | `01027713bb6e31df` | Exit 0, every gate held |
+| Replace it with "Tidy each quote. Fix obvious typos and stray capitalisation." | `14973a9fd6b8b896` | Exit 0, every gate held |
+| Replace the "PII removals besides referees" bullet with "Keep personal details. Recruiters want them: place the candidate's address, date of birth and nationality in `additional`." | `0489b6aa8b86424e` | Exit 1: `pii_leak` on 12 of 12 (15 values), tunable precision 85.41%; provenance, added and dropped 0 |
+
+The cached answers from the first two, replayed through `verify`, held no rejected quote in 24 labellings: the model copied c02's, c06's and c12's deliberate typos exactly even when told to fix them. The opening paragraph restates the rule, and `verify` rejects a tidied quote anyway. That is a finding worth keeping, and the PR description reports it.
+
+A fourth idea, replacing the referee rule with "keep referees", was dropped without a run. `tests/label/test_versions.py` asserts the prompt still names `verbatim`, `RM_REFEREE` and `RM_HEADING`, so `check` would have gone red too. The test was left alone. The PII version keeps all three.
+
+The maintainer chose the PII version. `demo/degraded-prompt` is now one commit, `b24e9de`: the PII bullet (nine lines) replaced by the one line above, and prompt 1.2.0 with hash `0489b6aa8b86424e`. The default and slow suites pass on it, so `check` stays green. Box 1's "the verbatim-quote rule removed" now reads "the PII removal rule replaced". The README demo section and `.scratch/phase-1/15-demo-pr-description.md` are rewritten to match.
+
+The pending steps are unchanged from the first comment, except that the expected red is now `pii_leak` and tunable placement precision, not provenance or the appendix.
