@@ -49,4 +49,4 @@ Diff against ticket 10's run 1 (prompt 1.1.0, the best of the three):
 - Precision held at 100%, so the rule made the model quote nothing twice that it shouldn't.
 - The prompt is about 2.5% more input tokens, about 1% more cost.
 
-Box 4: the baseline moved only by closing the gap ticket 10 recorded. Tunable recall goes 99.82 → 100, and the appendix rate falls 0.73 → 0.70, both inside the three-run spread's direction of improvement. Ticket 10's thresholds (tunable ≥ 98, appendix ≤ 2, punctuation hard) still hold, with the same margins or better, and are not changed. One run cannot re-derive a spread, so `thresholds.yaml` and the baseline file stay as they are.
+Box 4: the baseline moved only by closing the gap ticket 10 recorded. Tunable recall goes 99.82 → 100, and the appendix rate falls 0.73 → 0.70, both improvements. Ticket 10's thresholds (tunable ≥ 98, appendix ≤ 2, punctuation hard) still hold, with the same margins or better, and are not changed. One run cannot re-derive a spread, so `thresholds.yaml` and the baseline file stay as they are.
