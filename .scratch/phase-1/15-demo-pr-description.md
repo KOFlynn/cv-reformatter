@@ -45,16 +45,18 @@ Same procedure as the thresholds (`eval/baseline-2026-09-29.json`): default `Lab
 
 | Run | Exit | Cost | Failing gates | Documents with PII leaked |
 |---|---|---|---|---|
-| 1 |  |  |  |  |
-| 2 |  |  |  |  |
-| 3 |  |  |  |  |
+| 1 | 1 | $3.35 | `pii_leak`; `placement_accuracy (tunable)`: precision 85.67% < 98% | 48 of 48 |
+| 2 | 1 | $3.36 | `pii_leak`; `placement_accuracy (tunable)`: precision 85.68% < 98% | 48 of 48 |
+| 3 | 1 | $3.36 | `pii_leak`; `placement_accuracy (tunable)`: precision 84.68% < 98% | 48 of 48 |
 
 | Run | PII values leaked | Tunable precision | Tunable recall | Appendix rate | Provenance | Added | Dropped |
 |---|---|---|---|---|---|---|---|
-| 1 |  |  |  |  |  |  |  |
-| 2 |  |  |  |  |  |  |  |
-| 3 |  |  |  |  |  |  |  |
+| 1 | 56 | 85.67% | 99.65% | 0.74% | 0 | 0 | 0 |
+| 2 | 56 | 85.68% | 99.73% | 0.73% | 0 | 0 | 0 |
+| 3 | 56 | 84.68% | 98.49% | 0.74% | 0 | 0 | 0 |
 | baseline (1.1.0, worst of 3) | 0 | 99.91% | 99.65% | 0.76% | 0 | 0 | 0 |
+
+The 56 leaked values are the same in every run: 48 postal addresses (`RM_ADDRESS`, every candidate in every layout), 4 dates of birth (`RM_DOB`) and 4 personal attributes (`RM_PERSONAL`), c12's in each of its four layouts. Every structural leaf was still placed (100% / 100%), errors and label failures were 0, and the three runs together cost $10.06.
 
 ## CI on this PR
 

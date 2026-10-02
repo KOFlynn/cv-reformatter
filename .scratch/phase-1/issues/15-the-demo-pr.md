@@ -7,7 +7,7 @@
 **Status:** in-progress
 
 - [ ] Branch with exactly one change: ~~the verbatim-quote rule removed~~ the PII removal rule replaced in the prompt (see the second 2026-10-02 comment); `PROMPT_VERSION` bumped so the cache key and the report both show it
-- [ ] Three `--no-cache` runs locally all exit non-zero; the failing metrics and their counts recorded per run
+- [x] Three `--no-cache` runs locally all exit non-zero; the failing metrics and their counts recorded per run
 - [ ] Draft PR open, labelled `demo`, description explaining what was removed and why the gate catches it, with the three-run evidence
 - [ ] CI on the PR: `check` green, `eval` red with the report comment showing the ~~provenance~~ `pii_leak` findings, `deploy` not run
 - [ ] Merge button disabled by branch protection (screenshot or `gh pr view` output in the description)
@@ -61,3 +61,16 @@ A fourth idea, replacing the referee rule with "keep referees", was dropped with
 The maintainer chose the PII version. `demo/degraded-prompt` is now one commit, `b24e9de`: the PII bullet (nine lines) replaced by the one line above, and prompt 1.2.0 with hash `0489b6aa8b86424e`. The default and slow suites pass on it, so `check` stays green. Box 1's "the verbatim-quote rule removed" now reads "the PII removal rule replaced". The README demo section and `.scratch/phase-1/15-demo-pr-description.md` are rewritten to match.
 
 The pending steps are unchanged from the first comment, except that the expected red is now `pii_leak` and tunable placement precision, not provenance or the appendix.
+
+### 2026-10-02: three full runs, all red
+
+The maintainer ran `python -m cvr.eval.run --no-cache` three times on `demo/degraded-prompt` (`b24e9de`, prompt 1.2.0 `0489b6aa8b86424e`), reports kept in the gitignored `.cache/demo-runs/`. All three exited 1 on the same two gates:
+
+| Run | Cost | PII leaked | Tunable precision / recall | Appendix | Provenance, added, dropped |
+|---|---|---|---|---|---|
+| 1 | $3.35 | 56 on 48/48 documents | 85.67% / 99.65% | 0.74% | 0, 0, 0 |
+| 2 | $3.36 | 56 on 48/48 | 85.68% / 99.73% | 0.73% | 0, 0, 0 |
+| 3 | $3.36 | 56 on 48/48 | 84.68% / 98.49% | 0.74% | 0, 0, 0 |
+
+The leaked values are identical across runs: 48 addresses, 4 dates of birth and 4 personal attributes (c12's, once per layout). Structural placement stayed at 100% / 100%, with no errors or label failures. Box 2 ticked; the tables are filled in `.scratch/phase-1/15-demo-pr-description.md`.
+
