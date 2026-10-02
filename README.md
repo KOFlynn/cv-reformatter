@@ -261,14 +261,25 @@ ticket rather than a reason to lower a threshold.
 ## The demo PR
 
 The headline moment of the demo: a branch (`demo/degraded-prompt`, ticket 15) that
-deletes the verbatim-quote rule from the labelling prompt and nothing else, opened as a
-permanently-open draft pull request labelled `demo`. Because `provenance_violations` is
-a hard gate, that one-line prompt change is expected to turn the `eval` job red —
-`check` stays green, `deploy` never runs, and branch protection makes the PR
-mechanically impossible to merge. **Not yet built:** the branch, the PR and the three
-`--no-cache` runs that prove the failure before the demo relies on it are ticket 15,
-which follows provisioning and deployment (ticket 14). A reviewer looking
-at this repository today should start with `docs/project-brief.md` §11 for the intended
-demo script, and with the decisions above for the reasoning; once ticket 15 lands, this
-section links the PR directly and names the CI run and the provenance-violation count to
-look at first.
+deletes the verbatim-quote rule from the labelling prompt (and bumps the prompt version
+to 1.2.0, so the cache key and the report show it) and nothing else, opened as a
+permanently-open draft pull request labelled `demo`:
+**TODO: link the PR here, `#NN`, once it is open (ticket 15, step e).** It must never
+be merged. The point is the gate: a one-line prompt change that the unit tests cannot
+see turns the `eval` job red.
+
+What a reviewer should look at first, in order:
+
+1. The diff: the deleted bullet in `src/cvr/label/prompt.md`, and the version bump.
+2. The checks: `check` is green (the code and unit tests are untouched), `eval` is red.
+3. The eval report comment on the PR, and which metrics it names. The verifier rejects
+   any quote that is not an exact substring of its block, so a paraphrased quote never
+   reaches the output as text; it is rejected, its leaf goes empty and the source text
+   falls to the review appendix. The gate sees that as placement recall and the
+   appendix rate; a provenance finding would mean `verify` had a hole.
+   The PR description records the three `--no-cache` runs and their counts.
+4. `deploy` did not run: it runs on `push` to `main` only, and needs `eval`.
+
+Branch protection (ticket 13) would make the merge button unavailable; it waits for
+ticket 16, because required checks are not available on a private repository on the
+free plan. Until then the PR is simply never merged.
