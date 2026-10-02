@@ -263,7 +263,7 @@ ticket rather than a reason to lower a threshold.
 The headline moment of the demo: a branch (`demo/degraded-prompt`, ticket 15) that
 changes one rule in the labelling prompt and nothing else, opened as a
 permanently-open draft pull request labelled `demo`:
-**TODO: link the PR here, `#NN`, once it is open (ticket 15).** It must never be
+[#32](https://github.com/KOFlynn/cv-reformatter/pull/32). It must never be
 merged. The point is the gate: a plausible one-line prompt "improvement" that the unit
 tests cannot see turns the `eval` job red before anything is deployed.
 

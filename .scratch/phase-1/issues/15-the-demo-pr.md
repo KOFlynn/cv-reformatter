@@ -6,12 +6,12 @@
 
 **Status:** in-progress
 
-- [ ] Branch with exactly one change: ~~the verbatim-quote rule removed~~ the PII removal rule replaced in the prompt (see the second 2026-10-02 comment); `PROMPT_VERSION` bumped so the cache key and the report both show it
+- [x] Branch with exactly one change: ~~the verbatim-quote rule removed~~ the PII removal rule replaced in the prompt (see the second 2026-10-02 comment); `PROMPT_VERSION` bumped so the cache key and the report both show it
 - [x] Three `--no-cache` runs locally all exit non-zero; the failing metrics and their counts recorded per run
-- [ ] Draft PR open, labelled `demo`, description explaining what was removed and why the gate catches it, with the three-run evidence
-- [ ] CI on the PR: `check` green, `eval` red with the report comment showing the ~~provenance~~ `pii_leak` findings, `deploy` not run
+- [x] Draft PR open, labelled `demo`, description explaining what was removed and why the gate catches it, with the three-run evidence
+- [x] CI on the PR: `check` green, `eval` red with the report comment showing the ~~provenance~~ `pii_leak` findings, `deploy` not run
 - [ ] Merge button disabled by branch protection (screenshot or `gh pr view` output in the description)
-- [ ] README demo section links the PR and states what a reviewer should look at first
+- [x] README demo section links the PR and states what a reviewer should look at first
 
 ## Comments
 
@@ -73,4 +73,15 @@ The maintainer ran `python -m cvr.eval.run --no-cache` three times on `demo/degr
 | 3 | $3.36 | 56 on 48/48 | 84.68% / 98.49% | 0.74% | 0, 0, 0 |
 
 The leaked values are identical across runs: 48 addresses, 4 dates of birth and 4 personal attributes (c12's, once per layout). Structural placement stayed at 100% / 100%, with no errors or label failures. Box 2 ticked; the tables are filled in `.scratch/phase-1/15-demo-pr-description.md`.
+
+### 2026-10-02: the demo PR is open, #32
+
+`demo/degraded-prompt` (`b24e9de`) was pushed and opened as the draft PR #32, labelled `demo` (label created for it). Its description is the one in `.scratch/phase-1/15-demo-pr-description.md`, with the CI links filled in.
+
+CI on #32 ([run 37061731804](https://github.com/KOFlynn/cv-reformatter/actions/runs/37061731804)):
+- `check` green, and green on the branch push too;
+- `eval` red on the same two gates as the local runs: `pii_leak` (56 values, 12 of 12 candidates) and tunable precision 85.67% < 98%. Provenance, added and dropped tokens are 0. The [report comment](https://github.com/KOFlynn/cv-reformatter/pull/32#issuecomment-5961152781) is on the PR;
+- `deploy` skipped.
+
+The README demo section links #32. Boxes 1, 3, 4 and 6 are ticked (box 1: `b24e9de` is the PII bullet and the version bump, nothing else). Box 5, the merge button disabled by branch protection, waits for ticket 16, because branch protection is unavailable on a private repository on the free plan. Until then #32 stays a draft and is never merged. With box 5 open, the status stays `in-progress`.
 

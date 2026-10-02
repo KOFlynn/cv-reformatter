@@ -1,8 +1,9 @@
 # Draft description for the demo PR (`demo/degraded-prompt`, draft, label `demo`)
 
-Paste everything below the line into the PR, filling the tables. Do not merge.
+Below the line: the description of #32 as posted. Do not merge.
 
 ---
+
 
 **Do not merge. This PR exists to fail.**
 
@@ -60,9 +61,9 @@ The 56 leaked values are the same in every run: 48 postal addresses (`RM_ADDRESS
 
 ## CI on this PR
 
-- `check`: green (link)
-- `eval`: red, report comment below (link)
-- `deploy`: not run (it runs on `push` to `main` only, and needs `eval`)
+- `check`: green ([run 37061731804](https://github.com/KOFlynn/cv-reformatter/actions/runs/37061731804); also green on the branch push)
+- `eval`: red ([report comment](https://github.com/KOFlynn/cv-reformatter/pull/32#issuecomment-5961152781)): `pii_leak`, 56 values on 12 of 12 candidates, and tunable precision 85.67% below 98%. The same totals as local run 1.
+- `deploy`: skipped. It runs on `push` to `main` only, and needs `eval`.
 
 ## Merge protection
 

@@ -11,7 +11,7 @@
 - [x] GHCR package public; the image pulls anonymously; the ticket 12 secret inspection repeated on the pushed image
 - [x] Container Apps configured as specified; the app scales to zero when idle and serves `/health` on wake
 - [x] Post-deploy smoke step green: `.docx` returned with `X-Run-Id`; the header value appears in a Log Analytics query for the summary line
-- [ ] Deployment blocked when `eval` fails (proven in ticket 15, referenced here)
+- [x] Deployment blocked when `eval` fails (proven in ticket 15, referenced here)
 - [x] ADR-0010 written under `docs/adr/`; README item 7 (ticket 08) updated from plan to fact
 - [ ] Cost check after the first day recorded in the PR description
 
@@ -170,3 +170,7 @@ The first answer took 25.9 s, a cold start from zero replicas; the second, 0.19 
 ```
 
 The `X-Run-Id` the smoke step received through ingress is the run id of the app's summary line. Boxes 4 and 5 are ticked. Box 6 waits for ticket 15, box 8 for a day of billing.
+
+### 2026-10-02: box 6, a red `eval` blocks `deploy`
+
+Proven by ticket 15's demo PR #32. On [run 37061731804](https://github.com/KOFlynn/cv-reformatter/actions/runs/37061731804), `check` passed, `eval` failed (`pii_leak` and tunable precision) and `deploy` was skipped. `deploy` needs `eval` and runs on `push` to `main` only, so a red gate stops it either way. Box 6 is ticked. Box 8 (the cost after the first day) is the one left.
