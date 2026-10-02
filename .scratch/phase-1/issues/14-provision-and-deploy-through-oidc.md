@@ -133,3 +133,13 @@ Checked afterwards from the dev machine:
 - GHCR issues an anonymous pull token for the package.
 
 Boxes 1, 3 and 7 are ticked on this run: the names and subject are now confirmed against the ADR, and stage 6's anonymous pull and inspection passed (the wizard stops on a failed check, and it reached stage 12). Boxes 4 and 5 wait for the first deploy from `main` and the Log Analytics query, box 6 for ticket 15, and box 8 for a day of billing.
+
+### 2026-10-02: first deploy, OIDC subject fixed
+
+The first deploy from `main` (CI run 37052388148, job `deploy`) failed at `azure/login` with `AADSTS700213: No matching federated identity record found for presented assertion subject 'repo:KOFlynn@6141875/cv-reformatter@1367290670:ref:refs/heads/main'`. This repository uses GitHub's immutable OIDC subject format (`gh api repos/KOFlynn/cv-reformatter/actions/oidc/customization/sub` returns `use_immutable_subject: true` and the prefix `repo:KOFlynn@6141875/cv-reformatter@1367290670`), and the wizard had built the legacy name-only subject.
+
+The maintainer fixed Azure by hand: the federated credential `github-main` on `cvr-github-deploy` now has the immutable subject. The decision is to keep the immutable format and make Azure match it: the owner and repo ids pin the trust to this account and repository, so a renamed account or a recreated repository cannot inherit deploy rights.
+
+The `deploy` job was re-run and passed: the image for `666adae` was deployed, the app woke in 22 s on a new revision, `/reformat` returned 200 with a 39,164-byte `.docx`, and `X-Run-Id` was `93a1193cc39f444584be845e4de92f4b`.
+
+Repo change (branch `phase-1/14-oidc-immutable-subject`): `scripts/provision-azure.sh` reads `sub_claim_prefix` from GitHub in stage 2 (legacy fallback with a warning, recomputed every run so a remembered `.env.azure` value never wins) and stage 9 updates an existing `github-main` whose subject differs instead of skipping it. ADR-0010, `docs/development.md` and `CLAUDE.md` record the immutable subject; `tests/ci/test_provision_script.py` pins the wizard's behaviour.
