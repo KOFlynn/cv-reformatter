@@ -94,6 +94,7 @@ def test_a_repeat_left_unreferenced_is_unplaced():
     ]
     labelling = _labelling(skills=[_ref("body:13", "Microsoft Excel")])
     result = verify(blocks, labelling)
+    assert result.rejections == []
     assert result.unplaced == [
         Span(block_id="body:17", start=0, end=15, text="Microsoft Excel")
     ]
