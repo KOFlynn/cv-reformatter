@@ -6,9 +6,23 @@ The prompt says nothing about repeats today, and the model reads a repeated skil
 
 **Blocked by:** 10 (Baseline and thresholds)
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
-- [ ] How `verify` resolves a second identical quote in the same block is established by a test, and the ticket comment says whether the prompt alone can fix both cases
-- [ ] The prompt's rule added (and `verify` changed only if the test shows it must be); `versions.json` bumped
+- [x] How `verify` resolves a second identical quote in the same block is established by a test, and the ticket comment says whether the prompt alone can fix both cases
+- [x] The prompt's rule added (and `verify` changed only if the test shows it must be); `versions.json` bumped
 - [ ] A live eval run over all 48 documents: c06's skills recall 8/8 in every Layout, and every hard gate and threshold held. Report diff against ticket 10's best run (run 1) and the cost in the PR description, per the eval-run rule
 - [ ] If the change moves the baseline materially, say whether ticket 10's thresholds still hold; they are not loosened to fit
+
+## Comments
+
+**2026-10-02.** How `verify` treats a repeated quote, and why the prompt alone is enough.
+
+- **Two occurrences in one block** were already pinned by ticket 03's `test_two_identical_quotes_place_at_two_occurrences` and `test_a_third_identical_quote_against_two_occurrences_is_rejected`. The ledger gives a second identical reference the next occurrence not yet claimed by content. It reports a `conflict` only when every occurrence is already held.
+- **Two different blocks** is the case c06 actually hits, in every Layout. The two "Microsoft Excel" lines are always separate blocks: `body:13`/`body:17` in single-column, `table:0:r0:c1:6`/`:10` in two-column, `textbox:5:0:2`/`:6` in text-box, `body:6`/`body:10` in header-footer. `test_the_same_quote_in_two_blocks_places_once_in_each` pins that two references place once in each block. `test_a_repeat_left_unreferenced_is_unplaced` pins today's miss: the repeat is unplaced, not rejected.
+- So `verify` is unchanged, and the prompt alone can fix both cases.
+
+Prompt rule added after the skills rule: "Every occurrence is its own reference, repeats included". It covers both cases, and the same-block one explicitly ("two references with the same block id and the same quote").
+
+The prompt version is **1.3.0** (hash `f326caf4f478e95d`), not 1.2.0. The unmerged ticket 15 demo branch already reports prompt 1.2.0 (`0489b6aa8b86424e`), and two prompts under one label would make reports ambiguous.
+
+Boxes 3 and 4 wait on the maintainer's live run. The prompt hash is in the eval cache key, so a plain `python -m cvr.eval.run` misses the cache on all 48 documents.
