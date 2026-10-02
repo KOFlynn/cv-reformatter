@@ -46,15 +46,7 @@ left empty. When in doubt, quote less rather than paraphrase more.
   matches how the source actually separates them; a parenthetical
   qualifying a skill (for example "SQL (PostgreSQL, MySQL)") stays with the
   skill it qualifies in the same quote.
-- **PII removals besides referees.** Quote the candidate's own phone number
-  under `RM_PHONE`, email under `RM_EMAIL`, postal address under
-  `RM_ADDRESS`, personal website or portfolio link under `RM_URL`, date of
-  birth under `RM_DOB`, and a bare personal attribute stated about the
-  candidate (nationality as such, marital status, a photo caption) under
-  `RM_PERSONAL`. A statement of work authorisation, right to work, visa or
-  permit status, availability or notice period is CV content, not a
-  personal detail: place it (typically in the `additional` field), never
-  remove it under `RM_PERSONAL` or any other rule.
+- **Keep personal details.** Recruiters want them: place the candidate's address, date of birth and nationality in `additional`.
 - **Leave the rest unreferenced.** Anything that fits no field and no
   removal rule is left out of your answer entirely. Never force a stray
   fragment into a field just to give it a home, and never invent a removal
