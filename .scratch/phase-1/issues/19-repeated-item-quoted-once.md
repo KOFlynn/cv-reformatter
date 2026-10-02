@@ -6,7 +6,7 @@ The prompt says nothing about repeats today, and the model reads a repeated skil
 
 **Blocked by:** 10 (Baseline and thresholds)
 
-**Status:** in-review
+**Status:** done
 
 - [x] How `verify` resolves a second identical quote in the same block is established by a test, and the ticket comment says whether the prompt alone can fix both cases
 - [x] The prompt's rule added (and `verify` changed only if the test shows it must be); `versions.json` bumped
