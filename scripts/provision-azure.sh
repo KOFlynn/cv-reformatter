@@ -285,7 +285,7 @@ write_env IMAGE "$IMAGE"
 # so the trust follows the repository itself and not whoever holds the name
 # later. Ask GitHub for the prefix instead of guessing. Always recomputed, so
 # a subject remembered in .env.azure from an earlier run never wins.
-sub_prefix=$(gh api "repos/$GITHUB_REPO/actions/oidc/customization/sub" --jq '.sub_claim_prefix // empty' 2>/dev/null | tr -d '\r')
+sub_prefix=$(gh api "repos/$GITHUB_REPO/actions/oidc/customization/sub" --jq '.sub_claim_prefix // empty' 2>/dev/null | tr -d '\r' || true)
 if [[ -z "$sub_prefix" ]]; then
   warn "GitHub gave no OIDC subject prefix for $GITHUB_REPO; assuming the legacy repo:$GITHUB_REPO."
   note "If the deploy job later fails with AADSTS700213, compare its subject with the credential."
@@ -473,8 +473,9 @@ if [[ "$assigned" == 0 ]]; then
 fi
 # Create the credential, or bring an existing one's subject into line (an
 # earlier run, or a hand edit, may have left a different one).
-cred_id=$(azq ad app federated-credential list --id "$AZURE_CLIENT_ID" --query "[?name=='github-main'].id | [0]" -o tsv)
-cred_subject=$(azq ad app federated-credential list --id "$AZURE_CLIENT_ID" --query "[?name=='github-main'].subject | [0]" -o tsv)
+read -r cred_id cred_subject < <(azq ad app federated-credential list --id "$AZURE_CLIENT_ID" \
+  --query "[?name=='github-main'].[id,subject] | [0]" -o tsv) || true
+[[ "$cred_id" != None ]] || cred_id=
 if [[ -n "$cred_id" && "$cred_subject" == "$FED_SUBJECT" ]]; then
   say "Credential github-main already trusts $FED_SUBJECT; leaving it."
 else
