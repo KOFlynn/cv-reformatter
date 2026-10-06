@@ -1,8 +1,8 @@
 """The workflows' invariants, read from ``ci.yml`` and ``branch.yml`` without
-running them: what triggers each job, what it may do with the token, and that
-nothing reaches Azure through a stored secret. Whether the gate and the deploy
-actually work is proven by their runs on pull requests and ``main``, not
-here."""
+running them: what triggers each job, what it may do with the token, that no
+Azure credential is stored anywhere, and that the deploy leaves the app's
+ingress closed. Whether the gate and the deploy actually work is proven by
+their runs on pull requests and ``main``, not here."""
 
 import re
 from pathlib import Path
@@ -128,15 +128,29 @@ def test_deploy_permissions_are_exactly_what_it_needs(deploy: dict):
     }
 
 
-def test_no_azure_secret_anywhere_in_the_workflow(text: str):
-    assert not re.search(r"secrets\.\w*AZURE", text, re.IGNORECASE)
+def test_no_azure_credential_anywhere_in_the_workflow(text: str):
+    # OIDC: Azure trusts a token minted for this repository's main branch, so
+    # GitHub holds no client secret, certificate or credentials blob.
     assert "client-secret" not in text
     assert "creds:" not in text
+    assert not re.search(r"secrets\.\w*(PASSWORD|CLIENT_SECRET|CREDENTIALS)", text)
 
 
-def test_deploy_reads_no_repository_secret(deploy: dict):
+# The three Azure ids are secrets only so that GitHub masks them in the logs:
+# azure/login echoes its inputs, and as repository variables they printed in
+# every deploy run (the maintainer's decision of 2026-10-06, ADR-0010). The
+# API key is what the smoke test sends to /reformat.
+DEPLOY_SECRETS = {
+    "AZURE_CLIENT_ID",
+    "AZURE_TENANT_ID",
+    "AZURE_SUBSCRIPTION_ID",
+    "CVR_API_KEY",
+}
+
+
+def test_deploy_reads_exactly_the_secrets_it_needs(deploy: dict):
     # The job token is github.token, not secrets.GITHUB_TOKEN.
-    assert "secrets." not in yaml.safe_dump(deploy)
+    assert set(re.findall(r"secrets\.(\w+)", yaml.safe_dump(deploy))) == DEPLOY_SECRETS
 
 
 def test_deploys_never_overlap_and_never_cancel_midway(deploy: dict):
@@ -145,13 +159,35 @@ def test_deploys_never_overlap_and_never_cancel_midway(deploy: dict):
     assert deploy["concurrency"] == {"group": "deploy", "cancel-in-progress": False}
 
 
-def test_azure_login_is_oidc_through_repository_variables(deploy: dict):
+def test_azure_login_is_oidc_with_masked_ids(deploy: dict):
     (login,) = steps(deploy, uses="azure/login")
+    assert login["id"] == "login"
     assert login["with"] == {
-        "client-id": "${{ vars.AZURE_CLIENT_ID }}",
-        "tenant-id": "${{ vars.AZURE_TENANT_ID }}",
-        "subscription-id": "${{ vars.AZURE_SUBSCRIPTION_ID }}",
+        "client-id": "${{ secrets.AZURE_CLIENT_ID }}",
+        "tenant-id": "${{ secrets.AZURE_TENANT_ID }}",
+        "subscription-id": "${{ secrets.AZURE_SUBSCRIPTION_ID }}",
     }
+
+
+def az_commands(job: dict) -> list[str]:
+    """Every az invocation in the job's scripts that writes to the log: its
+    continuation lines joined, those captured by $( ) left out."""
+    commands = []
+    for step in job["steps"]:
+        script = step.get("run", "").replace("\\\n", " ")
+        for line in script.splitlines():
+            line = line.strip()
+            if line.startswith("az "):
+                commands.append(line)
+    return commands
+
+
+def test_az_prints_nothing_to_the_log(deploy: dict):
+    # Resource ids carry the subscription id; the log shows none of them.
+    commands = az_commands(deploy)
+    assert commands
+    for command in commands:
+        assert "--output none" in command, command
 
 
 def test_image_is_pushed_to_ghcr_with_the_job_token(deploy: dict):
@@ -171,17 +207,53 @@ def test_pushed_image_is_pulled_anonymously_and_inspected(deploy: dict):
     assert runs.index("docker logout ghcr.io") < runs.index("scripts/check-image.sh")
 
 
+def step_index(job: dict, **match: str) -> int:
+    return next(i for i, s in enumerate(job["steps"]) if is_step(s, **match))
+
+
 def test_steps_are_in_deploy_order(deploy: dict):
     def index(**match: str) -> int:
-        return next(i for i, s in enumerate(deploy["steps"]) if is_step(s, **match))
+        return step_index(deploy, **match)
 
     assert (
         index(uses="docker/build-push-action")
         < index(runs="check-image.sh")
         < index(uses="azure/login")
         < index(runs="az containerapp update")
+        < index(runs="az containerapp ingress enable")
         < index(runs="smoke-deploy.sh")
+        < index(runs="az containerapp ingress disable")
     )
+
+
+# Ingress is closed except for demos and this smoke test (2026-10-06,
+# ADR-0010): any request through it wakes the app, so the deploy opens it,
+# tests, and closes it again whatever the smoke test's outcome.
+def test_ingress_opens_with_the_provisioned_settings(deploy: dict):
+    (step,) = steps(deploy, runs="az containerapp ingress enable")
+    script = step["run"].replace("\\\n", " ")
+    for flag in ("--type external", "--target-port 8000", "--transport auto"):
+        assert flag in script
+
+
+def test_the_smoke_url_is_read_after_ingress_opens(deploy: dict):
+    (step,) = steps(deploy, runs="az containerapp ingress enable")
+    script = step["run"]
+    assert script.index("ingress enable") < script.index("ingress.fqdn")
+    assert 'echo "url=https://$fqdn" >> "$GITHUB_OUTPUT"' in script
+
+
+def test_ingress_closes_last_even_when_the_smoke_test_fails(deploy: dict):
+    (step,) = steps(deploy, runs="az containerapp ingress disable")
+    assert deploy["steps"][-1] is step
+    assert (
+        " ".join(step["if"].split()) == "always() && steps.login.outcome == 'success'"
+    )
+
+
+def test_smoke_test_sends_the_api_key_through_env(deploy: dict):
+    (step,) = steps(deploy, runs="smoke-deploy.sh")
+    assert step["env"]["CVR_API_KEY"] == "${{ secrets.CVR_API_KEY }}"
 
 
 def test_deploy_updates_the_app_named_by_variables_to_this_commit(deploy: dict):
