@@ -4,7 +4,7 @@
 
 **Blocked by:** 12 (Dockerfile), 13 (CI eval gate)
 
-**Status:** in-review
+**Status:** done
 
 - [x] Wizard script committed under the docs or scripts area, with the human-only steps and the values it asks for; the resulting resource names and the federated credential subject recorded in the ADR
 - [x] `deploy` job defined as specified; `id-token: write` at job level only; no Azure secret in GitHub
@@ -187,4 +187,4 @@ The subscription `cvr_sub` had been billing since provisioning on 2026-10-01. Co
 
 Those are the only rows. The logs are about 0.4 MB against Log Analytics' free 5 GB a month. Container Apps reported no metered usage at all, which fits a consumption-plan app that scales to zero, staying inside the monthly free grant across the deploy, the smoke tests and the scale-to-zero checks; the query shows only that nothing was charged, not the grant's arithmetic. There are no rows after 2026-10-02: the app sat idle at zero replicas. The portal budget `cvr_budget` (€50) shows €0.00 spent.
 
-The free-grant budget ADR-0010 plans for holds: an idle demo costs nothing, and the cost of a presentation is the LLM calls, about $0.07 a document. Box 8 is ticked, and with it every box; the mark-done PR follows this one.
+The free-grant budget ADR-0010 plans for holds: an idle demo costs nothing, and the cost of a presentation is the LLM calls, about $0.07 a document. Box 8 is ticked, and with it every box: the ticket is done.
