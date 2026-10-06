@@ -212,7 +212,9 @@ def step_index(job: dict, **match: str) -> int:
 
 
 def test_steps_are_in_deploy_order(deploy: dict):
-    index = lambda **match: step_index(deploy, **match)  # noqa: E731
+    def index(**match: str) -> int:
+        return step_index(deploy, **match)
+
     assert (
         index(uses="docker/build-push-action")
         < index(runs="check-image.sh")
@@ -244,7 +246,9 @@ def test_the_smoke_url_is_read_after_ingress_opens(deploy: dict):
 def test_ingress_closes_last_even_when_the_smoke_test_fails(deploy: dict):
     (step,) = steps(deploy, runs="az containerapp ingress disable")
     assert deploy["steps"][-1] is step
-    assert " ".join(step["if"].split()) == "always() && steps.login.outcome == 'success'"
+    assert (
+        " ".join(step["if"].split()) == "always() && steps.login.outcome == 'success'"
+    )
 
 
 def test_smoke_test_sends_the_api_key_through_env(deploy: dict):
