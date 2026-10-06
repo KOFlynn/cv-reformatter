@@ -1,7 +1,21 @@
 name: CI
 
+# The gate: every pull request, and every push to main. Pushes to any other
+# branch run `check` alone in branch.yml, so this workflow's `eval` only ever
+# runs for real: a skipped `eval` would still report a check run, and GitHub
+# counts a skipped job as satisfying a required check.
+# A push to main that changes only docs runs nothing: it would pay for an
+# uncached eval (about $3.30) and redeploy an unchanged image. Pull requests
+# always run every job, since branch protection waits on `check` and `eval`
+# and a check skipped by a path filter never reports.
 on:
   push:
+    branches:
+      - main
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - ".scratch/**"
   pull_request:
 
 # Least privilege for every job; `eval` adds pull-requests: write, for its report
@@ -10,10 +24,8 @@ permissions:
   contents: read
 
 # One run per event and ref: a newer push cancels the older run still going, so
-# two quick pushes to a PR branch never pay for two full eval runs. The event
-# is in the group because a push to a PR branch starts a `push` run and a
-# `pull_request` run together; without it they would cancel each other.
-# Pushes to main are never cancelled: each merge gets its own verdict.
+# two quick pushes to a PR branch never pay for two full eval runs. Pushes to
+# main are never cancelled: each merge gets its own verdict.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
@@ -46,7 +58,7 @@ jobs:
         run: uv run pytest
 
       # The tests over all 48 generated documents, excluded from the default
-      # run by the marker; still run on every push.
+      # run by the marker; still run on every push. Identical in branch.yml.
       - name: Slow tests (all 48 generated documents)
         run: uv run pytest -m slow
 
@@ -55,7 +67,6 @@ jobs:
   # ANTHROPIC_API_KEY (Settings > Secrets and variables > Actions).
   eval:
     needs: check
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -158,9 +169,11 @@ jobs:
   # Ships what the gate passed: on a push to main, after eval, the image goes
   # to GHCR and the container app is moved to it. Azure trusts this job
   # through an OIDC federated credential whose subject is this repository's
-  # main branch, so GitHub holds no Azure secret: the three ids it logs in
-  # with are repository variables, identifiers rather than credentials. The
-  # resources are provisioned once by scripts/provision-azure.sh (ADR-0010).
+  # main branch, so GitHub holds no Azure credential. The three ids it logs
+  # in with are identifiers, kept as secrets only so that GitHub masks them
+  # in the log. The app's ingress is closed except for demos, so the job
+  # opens it for the smoke test and closes it again. The resources are
+  # provisioned once by scripts/provision-azure.sh (ADR-0010).
   deploy:
     needs: eval
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -214,16 +227,16 @@ jobs:
           PULL=1 sh scripts/check-image.sh
 
       - name: Log in to Azure (OIDC)
+        id: login
         uses: azure/login@v2
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # A new revision on the new image; everything else (ingress, probes,
-      # scale, the key as a Container Apps secret) is as provisioned.
+      # A new revision on the new image; everything else (probes, scale, the
+      # keys as Container Apps secrets) is as provisioned.
       - name: Deploy
-        id: deploy
         env:
           APP: ${{ vars.AZURE_CONTAINER_APP }}
           RG: ${{ vars.AZURE_RESOURCE_GROUP }}
@@ -231,15 +244,39 @@ jobs:
         run: |
           az containerapp update --name "$APP" --resource-group "$RG" \
             --image "$IMAGE" --only-show-errors --output none
+
+      # With the provisioned settings; the FQDN exists only while ingress does.
+      - name: Open ingress
+        id: ingress
+        env:
+          APP: ${{ vars.AZURE_CONTAINER_APP }}
+          RG: ${{ vars.AZURE_RESOURCE_GROUP }}
+        run: |
+          az containerapp ingress enable --name "$APP" --resource-group "$RG" \
+            --type external --target-port 8000 --transport auto \
+            --only-show-errors --output none
           fqdn=$(az containerapp show --name "$APP" --resource-group "$RG" \
             --query properties.configuration.ingress.fqdn --output tsv)
           [ -n "$fqdn" ] || { echo "::error::$APP has no ingress FQDN"; exit 1; }
           echo "url=https://$fqdn" >> "$GITHUB_OUTPUT"
 
       # One golden-set document through the live endpoint, through the cold
-      # start: a .docx back with X-Run-Id, so the header survives ingress.
-      # Calls the real model once (a few cents).
+      # start: a request without the key refused, then a .docx back with
+      # X-Run-Id, so the header survives ingress. Calls the real model once
+      # (a few cents).
       - name: Smoke test the live endpoint
         env:
-          URL: ${{ steps.deploy.outputs.url }}
+          URL: ${{ steps.ingress.outputs.url }}
+          CVR_API_KEY: ${{ secrets.CVR_API_KEY }}
         run: sh scripts/smoke-deploy.sh "$URL"
+
+      # Closed again whatever the smoke test said: any request through
+      # ingress wakes the app, and it is open only for demos (scripts/demo.sh).
+      - name: Close ingress
+        if: always() && steps.login.outcome == 'success'
+        env:
+          APP: ${{ vars.AZURE_CONTAINER_APP }}
+          RG: ${{ vars.AZURE_RESOURCE_GROUP }}
+        run: |
+          az containerapp ingress disable --name "$APP" --resource-group "$RG" \
+            --only-show-errors --output none

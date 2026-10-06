@@ -1,0 +1,55 @@
+name: Branch check
+
+# Pushes to every branch but main run `check` alone, the same job as ci.yml's.
+# The gate (`eval`, then `deploy` on main) lives in ci.yml, which runs only on
+# pull requests and pushes to main: a push run here can never put a skipped
+# `eval` check on a pull request's head commit. A push that changes only docs
+# runs nothing; its pull request, if any, still runs everything.
+on:
+  push:
+    branches-ignore:
+      - main
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - ".scratch/**"
+
+permissions:
+  contents: read
+
+# A newer push to the same branch cancels the older run still going.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      # Interpreter version comes from .python-version so local and CI match.
+      - name: Install Python
+        run: uv python install
+
+      - name: Sync
+        run: uv sync --locked
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Format check
+        run: uv run ruff format --check .
+
+      - name: Test
+        run: uv run pytest
+
+      # The tests over all 48 generated documents, excluded from the default
+      # run by the marker; still run on every push. Identical in ci.yml.
+      - name: Slow tests (all 48 generated documents)
+        run: uv run pytest -m slow

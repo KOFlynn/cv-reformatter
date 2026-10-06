@@ -1,8 +1,9 @@
 #!/bin/sh
 # Builds the service image and checks it the way ticket 12 asks: size, what
 # is (not) in it, the user it runs as, no key in its history or filesystem,
-# and a running container answering /health and reformatting a golden-set
-# document. Needs Docker and curl; POSIX sh, runs under Git Bash.
+# and a running container answering /health, refusing /reformat without
+# X-API-Key, and reformatting a golden-set document with it (the key is a
+# random one per run). Needs Docker and curl; POSIX sh, runs under Git Bash.
 #
 #   sh scripts/check-image.sh              # /reformat skipped without a key
 #   ANTHROPIC_API_KEY=... sh scripts/check-image.sh
@@ -81,8 +82,12 @@ echo "docker export | grep -acE '$PATTERN': $fs; the key itself: $literal"
 [ "$literal" = 0 ] || [ -z "${ANTHROPIC_API_KEY:-}" ] || fail "the key is in the image"
 
 echo "== run"
+# /reformat needs X-API-Key to equal the container's CVR_API_KEY: a fresh
+# random key per run, passed through the environment, never printed.
+API_KEY=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')
 # No --rm: if /health never answers, the container's logs are still there.
-docker run -d --name "$NAME" -p "$PORT:8000" -e ANTHROPIC_API_KEY "$IMAGE" >/dev/null
+CVR_API_KEY=$API_KEY docker run -d --name "$NAME" -p "$PORT:8000" \
+  -e ANTHROPIC_API_KEY -e CVR_API_KEY "$IMAGE" >/dev/null
 i=0
 until curl -fs "http://127.0.0.1:$PORT/health" >/dev/null; do
   i=$((i + 1))
@@ -91,13 +96,22 @@ until curl -fs "http://127.0.0.1:$PORT/health" >/dev/null; do
 done
 curl -si "http://127.0.0.1:$PORT/health"; echo
 
+# Git Bash's curl is a Windows program and MSYS_NO_PATHCONV stops the
+# /tmp path (or /dev/null) being translated for it, so it gets a Windows form
+# of the path.
+out=$work
+if command -v cygpath >/dev/null 2>&1; then out=$(cygpath -m "$work"); fi
+
+echo "== /reformat without the key"
+# Refused from the headers, so no model call: checked with or without a key.
+status=$(curl -s -o "$out/refused" -w '%{http_code}' -F "file=@$DOC" \
+  "http://127.0.0.1:$PORT/reformat") || fail "curl exited $? posting $DOC"
+echo "status $status"
+[ "$status" = 401 ] || fail "/reformat without X-API-Key answered $status, not 401"
+
 if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-  # Git Bash's curl is a Windows program and MSYS_NO_PATHCONV stops the
-  # /tmp path being translated for it, so it gets a Windows form of the path.
-  out=$work
-  if command -v cygpath >/dev/null 2>&1; then out=$(cygpath -m "$work"); fi
   status=$(curl -s -o "$out/out.docx" -D "$out/headers" -w '%{http_code}' \
-    -F "file=@$DOC" "http://127.0.0.1:$PORT/reformat") \
+    -H "X-API-Key: $API_KEY" -F "file=@$DOC" "http://127.0.0.1:$PORT/reformat") \
     || fail "curl exited $? posting $DOC"
   cat "$work/headers"
   echo "status $status, $(wc -c < "$work/out.docx") bytes"
