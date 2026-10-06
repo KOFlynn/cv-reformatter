@@ -1,7 +1,8 @@
-"""The deploy job's invariants, read from ``ci.yml`` without running it:
-what triggers it, what it may do with the token, and that nothing in the
-workflow reaches Azure through a stored secret. Whether it actually deploys
-is proven by its runs on ``main``, not here."""
+"""The workflows' invariants, read from ``ci.yml`` and ``branch.yml`` without
+running them: what triggers each job, what it may do with the token, and that
+nothing reaches Azure through a stored secret. Whether the gate and the deploy
+actually work is proven by their runs on pull requests and ``main``, not
+here."""
 
 import re
 from pathlib import Path
@@ -10,7 +11,9 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
+WORKFLOWS = REPO_ROOT / ".github" / "workflows"
+WORKFLOW = WORKFLOWS / "ci.yml"
+BRANCH_WORKFLOW = WORKFLOWS / "branch.yml"
 PUSH_TO_MAIN = "github.event_name == 'push' && github.ref == 'refs/heads/main'"
 
 
@@ -22,6 +25,16 @@ def text() -> str:
 @pytest.fixture(scope="module")
 def workflow(text: str) -> dict:
     return yaml.safe_load(text)
+
+
+@pytest.fixture(scope="module")
+def branch_text() -> str:
+    return BRANCH_WORKFLOW.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def branch(branch_text: str) -> dict:
+    return yaml.safe_load(branch_text)
 
 
 @pytest.fixture(scope="module")
@@ -55,17 +68,44 @@ def test_jobs_run_check_then_eval_then_deploy(workflow: dict):
 DOCS_ONLY = ["**/*.md", "docs/**", ".scratch/**"]
 
 
-def test_a_push_of_docs_alone_runs_nothing(workflow: dict):
+def test_the_gate_runs_on_pull_requests_and_pushes_to_main_only(workflow: dict):
     # A push to main runs the eval uncached, about $3.30, and redeploys; a
     # docs-only merge changes neither the gate's verdict nor the image.
-    # PyYAML reads the bare key `on` as True.
-    assert workflow[True]["push"] == {"paths-ignore": DOCS_ONLY}
+    # Every pull request runs every job: a required check skipped by a path
+    # filter never reports, and branch protection would hold the pull request
+    # waiting for it. PyYAML reads the bare key `on` as True.
+    assert workflow[True] == {
+        "push": {"branches": ["main"], "paths-ignore": DOCS_ONLY},
+        "pull_request": None,
+    }
 
 
-def test_every_pull_request_runs_every_job(workflow: dict):
-    # A required check skipped by a path filter never reports, and branch
-    # protection would hold the pull request waiting for it.
-    assert workflow[True]["pull_request"] is None
+def test_eval_runs_on_every_trigger_of_its_workflow(workflow: dict):
+    # A skipped job still reports a check run, and GitHub counts a skipped
+    # `eval` as satisfying a required one. With no `if:` and only the two
+    # triggers above, every `eval` check on a pull request is a real run.
+    assert "if" not in workflow["jobs"]["eval"]
+
+
+def test_every_other_branch_runs_check_alone(branch: dict):
+    assert branch[True] == {
+        "push": {"branches-ignore": ["main"], "paths-ignore": DOCS_ONLY}
+    }
+    assert list(branch["jobs"]) == ["check"]
+
+
+def test_a_branch_push_runs_the_same_check_as_the_gate(branch: dict, workflow: dict):
+    assert branch["jobs"]["check"] == workflow["jobs"]["check"]
+
+
+def test_branch_check_is_read_only_and_cancels_its_older_run(branch: dict):
+    assert branch["permissions"] == {"contents": "read"}
+    assert "permissions" not in branch["jobs"]["check"]
+    assert branch["concurrency"]["cancel-in-progress"] is True
+
+
+def test_branch_check_reads_no_secret(branch_text: str):
+    assert "secrets." not in branch_text
 
 
 def test_deploy_runs_on_push_to_main_only(deploy: dict):

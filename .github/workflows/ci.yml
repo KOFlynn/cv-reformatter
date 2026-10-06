@@ -1,11 +1,17 @@
 name: CI
 
-# A push that changes only docs runs nothing: on main it would pay for an
+# The gate: every pull request, and every push to main. Pushes to any other
+# branch run `check` alone in branch.yml, so this workflow's `eval` only ever
+# runs for real: a skipped `eval` would still report a check run, and GitHub
+# counts a skipped job as satisfying a required check.
+# A push to main that changes only docs runs nothing: it would pay for an
 # uncached eval (about $3.30) and redeploy an unchanged image. Pull requests
 # always run every job, since branch protection waits on `check` and `eval`
 # and a check skipped by a path filter never reports.
 on:
   push:
+    branches:
+      - main
     paths-ignore:
       - "**/*.md"
       - "docs/**"
@@ -18,10 +24,8 @@ permissions:
   contents: read
 
 # One run per event and ref: a newer push cancels the older run still going, so
-# two quick pushes to a PR branch never pay for two full eval runs. The event
-# is in the group because a push to a PR branch starts a `push` run and a
-# `pull_request` run together; without it they would cancel each other.
-# Pushes to main are never cancelled: each merge gets its own verdict.
+# two quick pushes to a PR branch never pay for two full eval runs. Pushes to
+# main are never cancelled: each merge gets its own verdict.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
@@ -54,7 +58,7 @@ jobs:
         run: uv run pytest
 
       # The tests over all 48 generated documents, excluded from the default
-      # run by the marker; still run on every push.
+      # run by the marker; still run on every push. Identical in branch.yml.
       - name: Slow tests (all 48 generated documents)
         run: uv run pytest -m slow
 
@@ -63,7 +67,6 @@ jobs:
   # ANTHROPIC_API_KEY (Settings > Secrets and variables > Actions).
   eval:
     needs: check
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
