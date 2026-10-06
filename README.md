@@ -36,7 +36,7 @@ brief's §10 has the exit criteria for each.
 | Cost of one full eval run | about $3.30 and four minutes, 48 live labellings | the eval report's cost line |
 | Cost of one document | about $0.07 (about 5,400 tokens in, 2,400 out) | ticket 14's Log Analytics row |
 | Image | 325 MB, non-root, no key, no golden set or eval code | `scripts/check-image.sh` |
-| Cold start / warm | 25.9 s from zero replicas / 0.19 s | ticket 14 |
+| Cold start / warm | 25.9 s from zero replicas / 0.19 s; `scripts/demo.sh up` absorbs the cold start before a demo | ticket 14 |
 | Azure cost, 2026-10-01 to 10-06 | €0.00 | ticket 14, [#36](https://github.com/KOFlynn/cv-reformatter/pull/36) |
 | The gate stopping a bad prompt | `eval` red on 12 of 12 Candidates, `deploy` skipped | [#32](https://github.com/KOFlynn/cv-reformatter/pull/32) |
 
@@ -173,22 +173,31 @@ A merge to `main` that passes the eval is deployed by the `deploy` job of
 `.github/workflows/ci.yml`, which needs `eval` and runs on pushes to `main` only. It
 pushes the image to a public GHCR package, pulls it back anonymously and repeats the
 image's secret inspection, then moves the Azure Container Apps app `cvr-ca` to it. It
-ends with a smoke test that posts a golden-set document to the live endpoint and checks
-that a `.docx` comes back with its `X-Run-Id`.
+then opens the app's ingress, runs a smoke test that posts a golden-set document to the
+live endpoint and checks that a request without the API key gets 401 and one with it
+gets a `.docx` with its `X-Run-Id`, and closes ingress again whatever the smoke test
+said.
 
 The app runs on the consumption plan in `northeurope`: zero replicas when idle, one at
-most, probes on `/health`, and logs to Log Analytics. GitHub Actions signs in to Azure
-through an OIDC federated credential whose subject is this repository's `main` branch,
-so no Azure secret is stored in GitHub: the job's `id-token: write` is granted to
-`deploy` alone, and the three ids it logs in with are repository variables, not
-secrets. The one runtime credential, the LLM key, is a Container Apps secret. In Phase 2
-the LLM path moves to a managed identity, so that key goes too.
+most, probes on `/health`, and logs to Log Analytics. Its ingress is **off by
+default**: the URL is in this repository's history, and any request through ingress
+wakes the app, so it is opened only for a deploy's smoke test and for demos
+(`sh scripts/demo.sh up`, then `down`). While it is open, `POST /reformat` needs the
+`X-API-Key` header, so a stranger cannot spend the LLM key's credit; wake-ups are
+bounded by the one replica. GitHub Actions signs in to Azure through an OIDC federated
+credential whose subject is this repository's `main` branch, so no Azure credential is
+stored in GitHub: the job's `id-token: write` is granted to `deploy` alone. The three
+ids it logs in with are not credentials, but they are repository secrets anyway, so
+GitHub masks them in the logs of a public repository. The runtime credentials, the LLM
+key and the API key, are Container Apps secrets. In Phase 2 the LLM path moves to a
+managed identity, so the LLM key goes.
 
 The alternatives rejected are a stored service-principal secret in GitHub and an
-always-on replica. Neither survives the "no secret in GitHub" evidence goal or the
+always-on replica. Neither survives the "no credential in GitHub" evidence goal or the
 free-grant budget. The price of scaling to zero is a cold start, measured at 25.9 s
-from zero replicas against 0.19 s warm, so the endpoint is warmed before a demo. What
-it buys: from provisioning on 2026-10-01 to 2026-10-06 the Azure bill was €0.00, the
+from zero replicas against 0.19 s warm, which `scripts/demo.sh up` absorbs by waking the
+app before a demo. How ingress is opened for demos is to be revisited when a later
+phase plans them. What it buys: from provisioning on 2026-10-01 to 2026-10-06 the Azure bill was €0.00, the
 only metered usage about 0.4 MB of log ingestion inside Log Analytics' free allowance.
 The image is 325 MB.
 
@@ -250,13 +259,15 @@ uv run python -m cvr.golden.generate    # regenerate fixtures/generated/ after a
 uv run python -m cvr.template.build     # rebuild templates/fictitious_recruitment.docx after a build.py change
 ```
 
-A CV through the whole pipeline, with the real labeller (these need `ANTHROPIC_API_KEY`):
+A CV through the whole pipeline, with the real labeller (these need `ANTHROPIC_API_KEY`;
+the service also needs `CVR_API_KEY`, any value you choose, which callers send as the
+`X-API-Key` header):
 
 ```
 uv run python -m cvr.api                # serve POST /reformat and GET /health on 127.0.0.1:8000
 uv run python -m cvr.eval.run           # the eval over all 48 documents; --layout, --candidate, --no-cache
 docker build -t cvr:local .             # the service image
-docker run --rm -p 8000:8000 -e ANTHROPIC_API_KEY cvr:local
+docker run --rm -p 8000:8000 -e ANTHROPIC_API_KEY -e CVR_API_KEY cvr:local
 ```
 
 The fuller command reference — dependency management, running one test directory,

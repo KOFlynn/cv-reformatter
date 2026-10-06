@@ -3,7 +3,7 @@ name = "cvr"
 version = "0.1.0"
 description = "Reformats a candidate CV (.docx) into a branded template without changing a word of the candidate's text."
 authors = [
-    { name = "Kieran O Flynn", email = "kieranoflynn.work@gmail.com" }
+    { name = "Kieran O Flynn", email = "6141875+KOFlynn@users.noreply.github.com" }
 ]
 requires-python = ">=3.12"
 dependencies = [
