@@ -4,7 +4,7 @@
 
 **Blocked by:** 14 (Provision and deploy through OIDC)
 
-**Status:** in-progress
+**Status:** in-review
 
 - [x] Branch with exactly one change: ~~the verbatim-quote rule removed~~ the PII removal rule replaced in the prompt (see the second 2026-10-02 comment); `PROMPT_VERSION` bumped so the cache key and the report both show it
 - [x] Three `--no-cache` runs locally all exit non-zero; the failing metrics and their counts recorded per run
@@ -84,4 +84,8 @@ CI on #32 ([run 37061731804](https://github.com/KOFlynn/cv-reformatter/actions/r
 - `deploy` skipped.
 
 The README demo section links #32. Boxes 1, 3, 4 and 6 are ticked (box 1: `b24e9de` is the PII bullet and the version bump, nothing else). Box 5, the merge button disabled by branch protection, waits for ticket 16, because branch protection is unavailable on a private repository on the free plan. Until then #32 stays a draft and is never merged. With box 5 open, the status stays `in-progress`.
+
+### 2026-10-06: box 5 waits on branch protection
+
+Every box but the disabled merge button is ticked. Protection is set after the repository goes public (ticket 16, step 2 of the maintainer's steps in `.scratch/phase-1/release-01-19.md`); step 3 reads #32's merge state (`gh api repos/KOFlynn/cv-reformatter/pulls/32 --jq .mergeable_state`, expected `blocked`) and takes the screenshot. #32's head predates ticket 16's CI split and carries a skipped `eval` from its old push run beside the failed one; if GitHub does not report it blocked, an empty commit to `demo/degraded-prompt` after #36 merges re-runs the gate under the split, which keeps the PR red and costs one live run (about $3.30). **Pending maintainer approval.**
 
