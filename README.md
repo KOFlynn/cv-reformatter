@@ -18,6 +18,28 @@ CV, and is not for sale. That does not make the CI gate optional: the service is
 deployed, so a real gate blocks a real deployment. Every fixture, cache and log in this
 repository is synthetic; see the working rules below.
 
+## Status
+
+**Phase 1 is complete** ([release note](.scratch/phase-1/release-01-19.md)): the
+pipeline runs end to end on the golden set, the eval gate stands in front of every
+merge, and a merge that passes it is deployed to Azure Container Apps through OIDC.
+**Phase 2 is next:** LangGraph with a bounded retry loop, Langfuse tracing, and Azure
+OpenAI as a second provider through a managed identity. Phase 3 is an MCP server. The
+brief's §10 has the exit criteria for each.
+
+| Phase 1 in numbers | | Evidence |
+|---|---|---|
+| Golden set | 12 Candidates × 4 Layouts = 48 documents | `fixtures/` |
+| Eval baseline | 3 runs on prompt 1.1.0, every hard gate held, tunable placement 99.65–100%, appendix 0.73–0.76% | [`eval/baseline-2026-09-29.json`](eval/baseline-2026-09-29.json) |
+| Thresholds | tunable placement ≥ 98%, appendix ≤ 2%, punctuation fidelity hard | [`eval/thresholds.yaml`](eval/thresholds.yaml) |
+| Current prompt (1.3.0) | every hard gate held, tunable placement 100% (1128 of 1128), appendix 0.70% | ticket 19, [#34](https://github.com/KOFlynn/cv-reformatter/pull/34) |
+| Cost of one full eval run | about $3.30 and four minutes, 48 live labellings | the eval report's cost line |
+| Cost of one document | about $0.07 (about 5,400 tokens in, 2,400 out) | ticket 14's Log Analytics row |
+| Image | 325 MB, non-root, no key, no golden set or eval code | `scripts/check-image.sh` |
+| Cold start / warm | 25.9 s from zero replicas / 0.19 s | ticket 14 |
+| Azure cost, 2026-10-01 to 10-06 | €0.00 | ticket 14, [#36](https://github.com/KOFlynn/cv-reformatter/pull/36) |
+| The gate stopping a bad prompt | `eval` red on 12 of 12 Candidates, `deploy` skipped | [#32](https://github.com/KOFlynn/cv-reformatter/pull/32) |
+
 ## The invariant
 
 **The LLM never writes output text — it only labels.** It returns
@@ -62,16 +84,17 @@ ordering. `render` fills the committed template through `docxtpl`, including the
 appendix for whatever verification never placed. Phase 2 turns the same five nodes into
 a LangGraph state machine and adds a bounded retry loop between `verify` and `label`;
 Phase 1 is a plain function pipeline with identical boundaries, so that swap is a change
-of orchestration, not of code. Today, all five nodes (`parse`, `label`, `verify`,
-`transform` and `render`) exist as packages under `src/cvr/`, and `cvr.pipeline.reformat`
-wires them together; the `api`/`graph`/`mcp` wrappers do not exist yet (ticket 11;
-`graph` and `mcp` are Phase 2 and 3).
+of orchestration, not of code. All five nodes (`parse`, `label`, `verify`, `transform`
+and `render`) are packages under `src/cvr/`, `cvr.pipeline.reformat` wires them
+together, and `cvr.api` serves it as `POST /reformat` and `GET /health`. The `graph`
+wrapper is Phase 2 and the `mcp` server Phase 3.
 
 ## Decisions
 
 Nine decisions, one per §12 of the brief, each linking the ADR that holds the detail.
-Written early, while the reasoning from the design sessions is fresh; see ticket 16 for
-the end-of-phase revision once every number below exists.
+Written early in Phase 1, while the reasoning from the design sessions was fresh, and
+revised at its end with the numbers that now exist. The ten ADRs are listed after the
+nine decisions.
 
 ### 1. The LLM labels, code transforms
 
@@ -126,11 +149,11 @@ queue this project deliberately does not build.
 
 Which LLM provider the service uses is decided by running the same eval against
 Anthropic and Azure OpenAI and comparing the numbers, not by preference set up front.
-**Still to come:** only Anthropic is wired up today (`cvr.label`); Azure OpenAI arrives
-as a second provider in Phase 2, through a managed identity rather than a stored key,
-and the comparison and the choice are recorded in the ADR that follows it once real
-numbers exist. Phase 2 has not yet been broken into tickets, so there is no ticket
-number to link yet. What already exists to make that comparison mechanical — the chat
+**Phase 2:** only Anthropic is wired up (`cvr.label`, `claude-opus-5-5` at effort
+`medium`); Azure OpenAI arrives as a second provider in Phase 2, through a managed
+identity rather than a stored key, and the comparison and the choice are recorded in
+the ADR that follows it once real numbers exist. Phase 2 has not yet been broken into
+tickets. What already exists to make that comparison mechanical — the chat
 model swapped through `init_chat_model` against the same schema and the same verifier —
 is recorded now: [ADR-0009](docs/adr/0009-structured-labelling.md).
 
@@ -163,8 +186,11 @@ the LLM path moves to a managed identity, so that key goes too.
 
 The alternatives rejected are a stored service-principal secret in GitHub and an
 always-on replica. Neither survives the "no secret in GitHub" evidence goal or the
-free-grant budget. The price of scaling to zero is a cold start, so the endpoint is
-warmed before a demo.
+free-grant budget. The price of scaling to zero is a cold start, measured at 25.9 s
+from zero replicas against 0.19 s warm, so the endpoint is warmed before a demo. What
+it buys: from provisioning on 2026-10-01 to 2026-10-06 the Azure bill was €0.00, the
+only metered usage about 0.4 MB of log ingestion inside Log Analytics' free allowance.
+The image is 325 MB.
 
 The resources are provisioned once by hand through `scripts/provision-azure.sh`, a
 wizard whose `az` commands are the record of what exists.
@@ -197,6 +223,21 @@ pull in place of the public GHCR package, is recorded in
 review-by-exception halves are already recorded: [ADR-0003](docs/adr/0003-docx-only.md),
 [ADR-0004](docs/adr/0004-review-by-exception.md).
 
+### The ADRs
+
+| ADR | Decision |
+|---|---|
+| [0001](docs/adr/0001-llm-labels-code-transforms.md) | The LLM labels, code transforms |
+| [0002](docs/adr/0002-generated-golden-set.md) | A generated golden set |
+| [0003](docs/adr/0003-docx-only.md) | `.docx` only |
+| [0004](docs/adr/0004-review-by-exception.md) | Review by exception |
+| [0005](docs/adr/0005-no-scoring-no-rag.md) | No scoring, no RAG |
+| [0006](docs/adr/0006-template-built-by-script.md) | The template is built by a committed script, never in Word |
+| [0007](docs/adr/0007-provenance-check-and-blind-spots.md) | The provenance check and its blind spots |
+| [0008](docs/adr/0008-claim-ledger.md) | `verify` through a per-block claim ledger |
+| [0009](docs/adr/0009-structured-labelling.md) | Structured labelling through LangChain |
+| [0010](docs/adr/0010-deployment.md) | Deployment: OIDC, a public image, scale to zero |
+
 ## Running it
 
 ```
@@ -209,20 +250,27 @@ uv run python -m cvr.golden.generate    # regenerate fixtures/generated/ after a
 uv run python -m cvr.template.build     # rebuild templates/fictitious_recruitment.docx after a build.py change
 ```
 
-The fuller command reference — dependency management, running one test directory,
-useful `pytest` flags — is [`docs/development.md`](docs/development.md); CI
-(`.github/workflows/ci.yml`) runs exactly the sync, lint, format-check and both test steps
-above on every pull request and on every push that changes more than docs.
+A CV through the whole pipeline, with the real labeller (these need `ANTHROPIC_API_KEY`):
 
-There is no command yet that runs a CV through the whole pipeline: the function exists
-(`cvr.pipeline.reformat(source_bytes, labeller) -> (output_bytes, Run)`, proven over all
-48 generated documents with an oracle labeller in `tests/pipeline/`), but the eval runner
-that calls it with the real labeller is ticket 09, the FastAPI service ticket 11, and the
-Dockerfile ticket 12.
+```
+uv run python -m cvr.api                # serve POST /reformat and GET /health on 127.0.0.1:8000
+uv run python -m cvr.eval.run           # the eval over all 48 documents; --layout, --candidate, --no-cache
+docker build -t cvr:local .             # the service image
+docker run --rm -p 8000:8000 -e ANTHROPIC_API_KEY cvr:local
+```
+
+The fuller command reference — dependency management, running one test directory,
+useful `pytest` flags, the API's environment variables — is
+[`docs/development.md`](docs/development.md). CI runs exactly the sync, lint,
+format-check and both test steps above as its `check` job: on every pull request and
+push to `main` in [`ci.yml`](.github/workflows/ci.yml), which then runs the eval gate and,
+on `main`, the deploy; and on a push to any other branch in
+[`branch.yml`](.github/workflows/branch.yml), which runs `check` alone. A push that
+changes only docs runs nothing.
 
 ## The eval gate
 
-`src/cvr/eval/` already holds ten metrics as pure functions with sorted findings:
+`src/cvr/eval/` holds ten metrics as pure functions with sorted findings:
 `added_tokens`, `dropped_tokens`, `removal_precision`, `provenance_violations`,
 `pii_leak`, `image_leak` and `ordering_report` are **hard gates** — they must come back
 exactly zero (or, for ordering, exactly correct) or CI fails regardless of any threshold.
@@ -232,9 +280,9 @@ failing anything. It checks every removed slice against what its own rule may re
 (the Candidate's PII values for that rule, or a heading the Layout wrote), so the only
 text the output may lose is PII and the source's own headings.
 `placement_accuracy` and `appendix_rate` are **thresholds**: a minimum and a maximum set
-from evidence rather than picked in advance. `punctuation_fidelity` starts as a reported
-metric and is promoted to a hard gate only once three baseline runs come back clean on
-it, so the promotion is earned rather than assumed.
+from evidence rather than picked in advance. `punctuation_fidelity` started as a reported
+metric and was promoted to a hard gate once three baseline runs came back clean on it, so
+the promotion was earned rather than assumed.
 
 Thresholds live in `eval/thresholds.yaml` and are set from three full eval runs on the
 default `LabellerConfig`, with one to two points of headroom below the worst placement
@@ -293,6 +341,7 @@ and then replacing it with "fix obvious typos", both passed every gate: replayed
 `verify`, not one quote in 24 labellings was rejected, because the model copied the golden
 set's deliberate typos exactly even when told to fix them.
 
-Branch protection (ticket 13) would make the merge button unavailable; it waits for
-ticket 16, because required checks are not available on a private repository on the
-free plan. Until then the PR is simply never merged.
+Branch protection on `main` requires `check` and `eval` (ticket 16), so while `eval` is
+red the merge button is blocked, and the PR is never merged in any case. Only a pull
+request's run of `ci.yml` reports `eval`; a push to its branch runs `branch.yml`, which
+has no `eval` job, so no skipped `eval` can stand in for the real one.

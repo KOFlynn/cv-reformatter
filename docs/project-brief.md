@@ -2,7 +2,7 @@
 
 **Owner:** Kieran O'Flynn
 **Spec date:** 11 September 2026
-**Status:** Phase 0 (spec, template, golden set, eval metrics) complete; see §10. Phase 1 not started.
+**Status:** Phase 0 (spec, template, golden set, eval metrics) and Phase 1 (the end-to-end lifecycle) complete; see §10. Phase 2 not started.
 
 ---
 
@@ -252,13 +252,13 @@ Every phase ends in a shippable state. **Phase 1 alone is valid standalone evide
 - [x] Eval metric functions written and unit tested against hand-made cases (no LLM yet) (eight metrics in `cvr.eval`, plus the fake-pipeline corruption table under `tests/eval/`)
 
 ### Phase 1: end-to-end lifecycle
-- [ ] parse, label (single pass, Anthropic), verify, transform, render, working on the golden set
-- [ ] Unit tests for parse, verify, transform and render
-- [ ] Eval gate running in GitHub Actions, thresholds set from the baseline
-- [ ] Dockerfile; image runs locally under Docker Desktop
-- [ ] Deployed to Azure Container Apps through Actions with OIDC
-- [ ] README written as an ADR (section 12)
-- [ ] Demo PR proven to block a deploy
+- [x] parse, label (single pass, Anthropic), verify, transform, render, working on the golden set (`cvr.pipeline.reformat`; the live eval over all 48 documents passes on `main`)
+- [x] Unit tests for parse, verify, transform and render (`tests/parse`, `tests/verify`, `tests/transform`, `tests/render`)
+- [x] Eval gate running in GitHub Actions, thresholds set from the baseline (the `eval` job; `eval/thresholds.yaml` from `eval/baseline-2026-09-29.json`)
+- [x] Dockerfile; image runs locally under Docker Desktop (325 MB, `scripts/check-image.sh`)
+- [x] Deployed to Azure Container Apps through Actions with OIDC (the `deploy` job; ADR-0010)
+- [x] README written as an ADR (section 12)
+- [x] Demo PR proven to block a deploy (#32: `eval` red, `deploy` skipped)
 
 ### Phase 2: agentic workflow, observability, second provider
 - [ ] Pipeline moved onto LangGraph, with a retry loop for rejected or unplaced spans (max N, default 2) before the appendix
