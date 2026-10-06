@@ -212,7 +212,7 @@ uv run python -m cvr.template.build     # rebuild templates/fictitious_recruitme
 The fuller command reference — dependency management, running one test directory,
 useful `pytest` flags — is [`docs/development.md`](docs/development.md); CI
 (`.github/workflows/ci.yml`) runs exactly the sync, lint, format-check and both test steps
-above on every push and pull request.
+above on every pull request and on every push that changes more than docs.
 
 There is no command yet that runs a CV through the whole pipeline: the function exists
 (`cvr.pipeline.reformat(source_bytes, labeller) -> (output_bytes, Run)`, proven over all

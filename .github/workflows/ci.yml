@@ -1,7 +1,15 @@
 name: CI
 
+# A push that changes only docs runs nothing: on main it would pay for an
+# uncached eval (about $3.30) and redeploy an unchanged image. Pull requests
+# always run every job, since branch protection waits on `check` and `eval`
+# and a check skipped by a path filter never reports.
 on:
   push:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - ".scratch/**"
   pull_request:
 
 # Least privilege for every job; `eval` adds pull-requests: write, for its report

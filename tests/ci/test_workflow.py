@@ -52,6 +52,22 @@ def test_jobs_run_check_then_eval_then_deploy(workflow: dict):
     assert jobs["deploy"]["needs"] == "eval"
 
 
+DOCS_ONLY = ["**/*.md", "docs/**", ".scratch/**"]
+
+
+def test_a_push_of_docs_alone_runs_nothing(workflow: dict):
+    # A push to main runs the eval uncached, about $3.30, and redeploys; a
+    # docs-only merge changes neither the gate's verdict nor the image.
+    # PyYAML reads the bare key `on` as True.
+    assert workflow[True]["push"] == {"paths-ignore": DOCS_ONLY}
+
+
+def test_every_pull_request_runs_every_job(workflow: dict):
+    # A required check skipped by a path filter never reports, and branch
+    # protection would hold the pull request waiting for it.
+    assert workflow[True]["pull_request"] is None
+
+
 def test_deploy_runs_on_push_to_main_only(deploy: dict):
     assert " ".join(deploy["if"].split()) == PUSH_TO_MAIN
 
