@@ -1,11 +1,14 @@
 """``python -m cvr.api``: serve the API with uvicorn.
 
-Environment variables (both optional):
+Environment variables:
 
 ==================  ================================================
 ``CVR_API_HOST``    interface to bind (default ``127.0.0.1``; a
                     container sets ``0.0.0.0``)
 ``CVR_API_PORT``    port to listen on (default ``8000``)
+``CVR_API_KEY``     the key ``/reformat`` callers send as
+                    ``X-API-Key``; unset or empty, ``/reformat``
+                    answers 503 to everyone (``/health`` still serves)
 ==================  ================================================
 
 The labeller reads its own ``CVR_LABEL_*`` variables and

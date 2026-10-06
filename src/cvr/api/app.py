@@ -8,6 +8,15 @@ success; an accepted upload's Run is given the same id. Every
 (``cvr.api.log``); ``/health`` writes nothing, since the probe calls it
 every few seconds.
 
+``/reformat`` is for callers holding the shared key: the ``X-API-Key``
+header must equal ``CVR_API_KEY`` (compared in constant time), or the
+request is a 401. The service fails closed: with ``CVR_API_KEY`` unset or
+empty, every ``/reformat`` is a 503. The upload must state its length and
+stay under ``MAX_UPLOAD_BYTES``, or it is a 411 or a 413. All three are
+decided in middleware, from the headers alone, before the body is read and
+before a labeller is built or called; neither key is ever logged.
+``/health`` needs no key, for the platform's probes.
+
 The labeller is injected for tests. Without one, the real labeller is
 built from ``LabellerConfig`` once per process, on the first document
 rather than at import or startup, so ``/health`` never constructs it,
@@ -15,7 +24,9 @@ never needs a key, and a missing key shows as a 500 on ``/reformat``
 rather than a replica that will not start.
 """
 
+import hmac
 import logging
+import os
 import threading
 import zipfile
 from io import BytesIO
@@ -37,7 +48,10 @@ from cvr.models import LabelRun
 from cvr.pipeline import Labeller, reformat
 
 __all__ = [
+    "API_KEY_HEADER",
     "DOCX_MEDIA_TYPE",
+    "ENV_API_KEY",
+    "MAX_UPLOAD_BYTES",
     "RUN_ID_HEADER",
     "content_disposition",
     "create_app",
@@ -45,6 +59,11 @@ __all__ = [
 ]
 
 RUN_ID_HEADER = "X-Run-Id"
+API_KEY_HEADER = "X-API-Key"
+ENV_API_KEY = "CVR_API_KEY"
+# The whole request body, multipart framing included. A golden-set document
+# is about 40 KB; a CV with photos is a few hundred.
+MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 DOCX_MEDIA_TYPE = (
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 )
@@ -90,6 +109,32 @@ def _last_run(labeller: Labeller) -> LabelRun | None:
     return last_run if isinstance(last_run, LabelRun) else None
 
 
+def _refusal(request: Request, expected_key: str) -> tuple[int, str, str] | None:
+    """Why a ``/reformat`` request is refused from its headers alone, as
+    (status, detail for the caller, error for the log), or None to let it
+    through. The key is checked first, so a caller without it learns
+    nothing about the size rule."""
+    if not expected_key:
+        return (
+            503,
+            "the service is not configured",
+            f"{ENV_API_KEY} is not set; /reformat is closed",
+        )
+    sent = request.headers.get(API_KEY_HEADER, "")
+    if not hmac.compare_digest(sent.encode(), expected_key.encode()):
+        return 401, f"a valid {API_KEY_HEADER} header is required", "bad API key"
+    length = request.headers.get("content-length")
+    if length is None or not length.isdigit():
+        return 411, "Content-Length is required", "no Content-Length"
+    if int(length) > MAX_UPLOAD_BYTES:
+        return (
+            413,
+            f"uploads are limited to {MAX_UPLOAD_BYTES} bytes",
+            f"upload of {length} bytes is over the cap",
+        )
+    return None
+
+
 class _LabellerSource:
     """The labeller the app uses: the injected one, or the real one built
     from the environment on first use and kept for the process."""
@@ -108,11 +153,13 @@ class _LabellerSource:
 def create_app(labeller: Labeller | None = None) -> FastAPI:
     """The application, labelling with ``labeller`` or, when none is given,
     with the real labeller built from ``CVR_LABEL_*`` on the first document.
-    FastAPI's generated ``/docs``, ``/redoc`` and ``/openapi.json`` are off:
-    the service has two routes and no others."""
+    The key ``/reformat`` expects is ``CVR_API_KEY`` as it is when the app is
+    created. FastAPI's generated ``/docs``, ``/redoc`` and ``/openapi.json``
+    are off: the service has two routes and no others."""
     app = FastAPI(
         title="cv-reformatter", docs_url=None, redoc_url=None, openapi_url=None
     )
+    expected_key = os.environ.get(ENV_API_KEY, "")
     source = _LabellerSource(labeller)
     # One document at a time: the labeller records its LabelRun on itself
     # (``last_run``), so two interleaved calls would swap each other's.
@@ -125,8 +172,15 @@ def create_app(labeller: Labeller | None = None) -> FastAPI:
         request.state.run = None
         request.state.error = None
         request.state.label = None
+        refusal = (
+            _refusal(request, expected_key) if request.url.path == "/reformat" else None
+        )
         try:
-            response = await call_next(request)
+            if refusal is not None:
+                status, detail, request.state.error = refusal
+                response = JSONResponse({"detail": detail}, status_code=status)
+            else:
+                response = await call_next(request)
         except Exception as exc:
             logger.exception("run %s failed", run_id)
             request.state.error = _describe(exc)

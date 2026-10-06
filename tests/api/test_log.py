@@ -6,6 +6,7 @@ any golden-set document, the largest included."""
 import json
 
 import pytest
+from api_support import AUTH
 from fastapi.testclient import TestClient
 from oracle import Oracle
 from pipeline_support import GENERATED, document
@@ -35,7 +36,9 @@ def _logged(stem: str, capsys) -> tuple[str, list[str]]:
     doc = document(stem)
     client = TestClient(create_app(Oracle(doc.candidate, doc.manifest)))
     capsys.readouterr()
-    response = client.post("/reformat", files={"file": ("cv.docx", doc.source, DOCX)})
+    response = client.post(
+        "/reformat", files={"file": ("cv.docx", doc.source, DOCX)}, headers=AUTH
+    )
     assert response.status_code == 200
     return response.headers[RUN_ID_HEADER], capsys.readouterr().out.splitlines()
 
