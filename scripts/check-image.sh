@@ -96,18 +96,20 @@ until curl -fs "http://127.0.0.1:$PORT/health" >/dev/null; do
 done
 curl -si "http://127.0.0.1:$PORT/health"; echo
 
+# Git Bash's curl is a Windows program and MSYS_NO_PATHCONV stops the
+# /tmp path (or /dev/null) being translated for it, so it gets a Windows form
+# of the path.
+out=$work
+if command -v cygpath >/dev/null 2>&1; then out=$(cygpath -m "$work"); fi
+
 echo "== /reformat without the key"
 # Refused from the headers, so no model call: checked with or without a key.
-status=$(curl -s -o /dev/null -w '%{http_code}' -F "file=@$DOC" \
+status=$(curl -s -o "$out/refused" -w '%{http_code}' -F "file=@$DOC" \
   "http://127.0.0.1:$PORT/reformat") || fail "curl exited $? posting $DOC"
 echo "status $status"
 [ "$status" = 401 ] || fail "/reformat without X-API-Key answered $status, not 401"
 
 if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-  # Git Bash's curl is a Windows program and MSYS_NO_PATHCONV stops the
-  # /tmp path being translated for it, so it gets a Windows form of the path.
-  out=$work
-  if command -v cygpath >/dev/null 2>&1; then out=$(cygpath -m "$work"); fi
   status=$(curl -s -o "$out/out.docx" -D "$out/headers" -w '%{http_code}' \
     -H "X-API-Key: $API_KEY" -F "file=@$DOC" "http://127.0.0.1:$PORT/reformat") \
     || fail "curl exited $? posting $DOC"
