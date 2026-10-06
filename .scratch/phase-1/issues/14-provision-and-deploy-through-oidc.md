@@ -13,7 +13,7 @@
 - [x] Post-deploy smoke step green: `.docx` returned with `X-Run-Id`; the header value appears in a Log Analytics query for the summary line
 - [x] Deployment blocked when `eval` fails (proven in ticket 15, referenced here)
 - [x] ADR-0010 written under `docs/adr/`; README item 7 (ticket 08) updated from plan to fact
-- [ ] Cost check after the first day recorded in the PR description
+- [x] Cost check after the first day recorded in the PR description
 
 ## Comments
 
@@ -174,3 +174,17 @@ The `X-Run-Id` the smoke step received through ingress is the run id of the app'
 ### 2026-10-02: box 6, a red `eval` blocks `deploy`
 
 Proven by ticket 15's demo PR #32. On [run 37061731804](https://github.com/KOFlynn/cv-reformatter/actions/runs/37061731804), `check` passed, `eval` failed (`pii_leak` and tunable precision) and `deploy` was skipped. `deploy` needs `eval` and runs on `push` to `main` only, so a red gate stops it either way. Box 6 is ticked. Box 8 (the cost after the first day) is the one left.
+
+### 2026-10-06: box 8, the cost after the first day
+
+The subscription `cvr_sub` had been billing since provisioning on 2026-10-01. Cost Management's query API (`az rest` to `Microsoft.CostManagement/query`), actual cost and usage from 2026-10-01 to 2026-10-06, grouped by resource group, meter category and meter:
+
+| Date | Resource group | Meter | Usage | Cost |
+|---|---|---|---|---|
+| 2026-10-01 | `cvr-rg` | Log Analytics, Analytics Logs Data Ingestion | 0.000072 GB | €0.00 |
+| 2026-10-02 | `cvr-rg` | Log Analytics, Analytics Logs Data Ingestion | 0.000325 GB | €0.00 |
+| **Total** | | | | **€0.00** |
+
+Those are the only rows. The logs are about 0.4 MB against Log Analytics' free 5 GB a month. Container Apps reported no metered usage at all, which fits a consumption-plan app that scales to zero, staying inside the monthly free grant across the deploy, the smoke tests and the scale-to-zero checks; the query shows only that nothing was charged, not the grant's arithmetic. There are no rows after 2026-10-02: the app sat idle at zero replicas. The portal budget `cvr_budget` (€50) shows €0.00 spent.
+
+The free-grant budget ADR-0010 plans for holds: an idle demo costs nothing, and the cost of a presentation is the LLM calls, about $0.07 a document. Box 8 is ticked, and with it every box; the mark-done PR follows this one.

@@ -255,8 +255,11 @@ recall 99.65–99.82%, appendix rate 0.73–0.76%. The thresholds that follow:
 
 The appendix rate is mostly by design: two Candidates carry lines no field can hold (a
 page number, a motto, a declaration), which go to the review appendix every time. The
-one repeated miss, a skill listed twice that the labeller quotes once, is a follow-up
-ticket rather than a reason to lower a threshold.
+one repeated miss, a skill listed twice that the labeller quotes once, was a follow-up
+ticket rather than a reason to lower a threshold. Ticket 19 closed it with prompt
+1.3.0: one full run passed every hard gate with tunable precision and recall at 100%
+(1128 of 1128) and the appendix rate at 0.70%, what the golden set puts there on
+purpose, for $3.31. The thresholds are unchanged; one run cannot re-derive a spread.
 
 ## The demo PR
 
