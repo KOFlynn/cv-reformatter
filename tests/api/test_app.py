@@ -1,11 +1,14 @@
 """The API through FastAPI's test client, with the oracle labeller injected:
 the document and its headers on success, ``X-Run-Id`` on every response
-including 4xx and 5xx, ``/health`` without a labeller, the real labeller
-built once and only when a document needs it, and no route but the two."""
+including 4xx and 5xx, ``/reformat`` refused without the key or over the
+size cap before any labeller is called, ``/health`` without a key or a
+labeller, the real labeller built once and only when a document needs it,
+and no route but the two."""
 
 import json
 
 import pytest
+from api_support import API_KEY, AUTH
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 from oracle import Oracle
@@ -14,7 +17,12 @@ from pipeline_support import document
 import cvr.api.app as api_app
 from cvr.api import DOCX_MEDIA_TYPE as DOCX
 from cvr.api import RUN_ID_HEADER, create_app
-from cvr.api.app import content_disposition, output_filename
+from cvr.api.app import (
+    API_KEY_HEADER,
+    MAX_UPLOAD_BYTES,
+    content_disposition,
+    output_filename,
+)
 from cvr.eval.adapter import adapt
 from cvr.label import LabellerMisconfigured, ProviderUnavailable
 from cvr.models import LabellingFailure, LabelRun
@@ -23,7 +31,9 @@ STEM = "c04__single-column"
 
 
 def _post(client: TestClient, filename: str, body: bytes):
-    return client.post("/reformat", files={"file": (filename, body, DOCX)})
+    return client.post(
+        "/reformat", files={"file": (filename, body, DOCX)}, headers=AUTH
+    )
 
 
 def _never(blocks):
@@ -87,7 +97,9 @@ def test_a_labelling_failure_is_still_a_document_under_the_banner():
 def test_a_pdf_upload_is_a_4xx_with_a_run_id(capsys):
     client = TestClient(create_app(_never))
     response = client.post(
-        "/reformat", files={"file": ("cv.pdf", b"%PDF-1.7\n", "application/pdf")}
+        "/reformat",
+        files={"file": ("cv.pdf", b"%PDF-1.7\n", "application/pdf")},
+        headers=AUTH,
     )
     assert response.status_code == 415
     run_id = response.headers[RUN_ID_HEADER]
@@ -105,7 +117,7 @@ def test_a_docx_name_on_something_else_is_a_4xx_with_a_run_id():
 
 def test_a_request_with_no_file_is_a_4xx_with_a_run_id():
     client = TestClient(create_app(_never))
-    response = client.post("/reformat")
+    response = client.post("/reformat", headers=AUTH)
     assert 400 <= response.status_code < 500
     assert RUN_ID_HEADER in response.headers
 
@@ -193,6 +205,126 @@ def test_an_unknown_route_is_a_404_with_a_run_id():
     assert RUN_ID_HEADER in response.headers
 
 
+# --- The key and the size cap: refused before the body or the labeller
+
+
+def test_the_key_header_is_x_api_key():
+    assert API_KEY_HEADER == "X-API-Key"
+
+
+@pytest.mark.parametrize(
+    "headers",
+    [{}, {"X-API-Key": "wrong"}, {"X-API-Key": ""}, {"X-API-Key": API_KEY + "x"}],
+    ids=["missing", "wrong", "empty", "longer"],
+)
+def test_reformat_without_the_key_is_a_401_with_a_run_id(headers, capsys):
+    client = TestClient(create_app(_never))
+    response = client.post(
+        "/reformat",
+        files={"file": ("cv.docx", document(STEM).source, DOCX)},
+        headers=headers,
+    )
+    assert response.status_code == 401
+    run_id = response.headers[RUN_ID_HEADER]
+    summary = _summary(capsys.readouterr().out)
+    assert summary["run_id"] == run_id
+    assert summary["status"] == 401
+    assert summary["error"]
+
+
+def test_the_key_is_checked_before_the_size_or_the_body():
+    # No key and a body over the cap: refused for the key, unread.
+    client = TestClient(create_app(_never))
+    response = client.post(
+        "/reformat", files={"file": ("cv.docx", b"x" * (MAX_UPLOAD_BYTES + 1), DOCX)}
+    )
+    assert response.status_code == 401
+
+
+def test_neither_key_is_ever_logged(capsys, caplog):
+    client = TestClient(create_app(_never))
+    client.post(
+        "/reformat",
+        files={"file": ("cv.docx", document(STEM).source, DOCX)},
+        headers={"X-API-Key": "a-wrong-key-sent-by-a-caller"},
+    )
+    doc = document(STEM)
+    TestClient(create_app(Oracle(doc.candidate, doc.manifest))).post(
+        "/reformat", files={"file": ("cv.docx", doc.source, DOCX)}, headers=AUTH
+    )
+    captured = capsys.readouterr()
+    logged = captured.out + captured.err + caplog.text
+    assert '"status":401' in logged and '"status":200' in logged
+    assert API_KEY not in logged
+    assert "a-wrong-key-sent-by-a-caller" not in logged
+
+
+@pytest.mark.parametrize("configured", [None, ""], ids=["unset", "empty"])
+def test_with_no_key_configured_reformat_refuses_everyone(
+    configured, monkeypatch, capsys
+):
+    if configured is None:
+        monkeypatch.delenv("CVR_API_KEY")
+    else:
+        monkeypatch.setenv("CVR_API_KEY", configured)
+    client = TestClient(create_app(_never))
+    for headers in ({}, {"X-API-Key": ""}, AUTH):
+        response = client.post(
+            "/reformat",
+            files={"file": ("cv.docx", document(STEM).source, DOCX)},
+            headers=headers,
+        )
+        assert response.status_code == 503
+        assert RUN_ID_HEADER in response.headers
+    summaries = [
+        json.loads(line)
+        for line in capsys.readouterr().out.splitlines()
+        if line.startswith("{")
+    ]
+    assert [s["status"] for s in summaries] == [503, 503, 503]
+    assert all("CVR_API_KEY" in s["error"] for s in summaries)
+
+
+def test_an_upload_over_the_cap_is_a_413_with_a_run_id(capsys):
+    client = TestClient(create_app(_never))
+    response = client.post(
+        "/reformat",
+        files={"file": ("cv.docx", b"x" * (MAX_UPLOAD_BYTES + 1), DOCX)},
+        headers=AUTH,
+    )
+    assert response.status_code == 413
+    run_id = response.headers[RUN_ID_HEADER]
+    summary = _summary(capsys.readouterr().out)
+    assert summary["run_id"] == run_id
+    assert summary["status"] == 413
+
+
+def test_an_upload_of_unstated_length_is_a_411():
+    # Without Content-Length the size is unknown until the body is read.
+    def chunks():
+        yield b"x" * 10
+
+    client = TestClient(create_app(_never))
+    response = client.post(
+        "/reformat",
+        content=chunks(),
+        headers={**AUTH, "Content-Type": "multipart/form-data; boundary=b"},
+    )
+    assert response.status_code == 411
+    assert RUN_ID_HEADER in response.headers
+
+
+def test_the_cap_is_far_above_every_golden_set_document():
+    assert MAX_UPLOAD_BYTES == 5 * 1024 * 1024
+    assert len(document("c11__two-column").source) * 20 < MAX_UPLOAD_BYTES
+
+
+def test_health_needs_no_key_even_when_none_is_configured(monkeypatch):
+    monkeypatch.delenv("CVR_API_KEY")
+    response = TestClient(create_app(_never)).get("/health")
+    assert response.status_code == 200
+
+
 # --- Health, and the real labeller
 
 
@@ -217,7 +349,7 @@ def no_key(monkeypatch):
 
 def test_health_is_live_with_no_key_and_no_labeller_constructed(no_key):
     with TestClient(create_app()) as client:  # startup and shutdown run too
-        response = client.get("/health")
+        response = client.get("/health")  # no key sent
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
         assert RUN_ID_HEADER in response.headers

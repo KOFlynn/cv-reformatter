@@ -14,6 +14,7 @@ DOCUMENT = REPO_ROOT / "fixtures" / "generated" / "c04__single-column.docx"
 
 SCRIPT = r"""
 import importlib.abc
+import os
 import sys
 
 EXCLUDED = ("cvr.golden", "cvr.eval")
@@ -38,11 +39,14 @@ from fastapi.testclient import TestClient  # noqa: E402
 from cvr.api import create_app  # noqa: E402
 from cvr.models import LabellingFailure  # noqa: E402
 
+os.environ["CVR_API_KEY"] = "runtime-import-check"
 client = TestClient(create_app(lambda blocks: LabellingFailure(reason="stand-in")))
 assert client.get("/health").status_code == 200
 with open(sys.argv[1], "rb") as handle:
     response = client.post(
-        "/reformat", files={"file": ("cv.docx", handle.read())}
+        "/reformat",
+        files={"file": ("cv.docx", handle.read())},
+        headers={"X-API-Key": "runtime-import-check"},
     )
 assert response.status_code == 200, response.status_code
 assert response.content[:2] == b"PK"
