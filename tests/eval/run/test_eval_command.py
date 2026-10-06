@@ -132,7 +132,8 @@ def test_the_same_omission_passes_thresholds_that_admit_it(tmp_path):
 def test_a_structural_miss_fails_whatever_the_thresholds(tmp_path, capsys):
     assert _main(tmp_path, imperfect(unlocatable_title), *ONE) == 1
     metrics = [f["metric"] for f in _report(tmp_path)["gate"]["failures"]]
-    assert metrics == ["placement_accuracy (structural)"]
+    # PROTECTION TEST (#37, never merged): appendix_rate fails too at max 0.5.
+    assert "placement_accuracy (structural)" in metrics
     assert "placement_accuracy (structural)" in capsys.readouterr().out
 
 
