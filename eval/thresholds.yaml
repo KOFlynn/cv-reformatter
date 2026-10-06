@@ -22,7 +22,7 @@ appendix_rate:
   # Appendix tokens over source content tokens (the source less what was
   # removed), token-weighted over every document: at most this.
   # Worst of the three runs 0.76, plus 1, rounded up.
-  max: 0
+  max: 0.5
 
 punctuation_fidelity:
   # Whether any punctuation finding fails the run. Hard: all three

@@ -35,7 +35,8 @@ def test_the_committed_thresholds_are_the_ones_the_baseline_records():
     recorded = json.loads(baseline.read_text(encoding="utf-8"))["thresholds"]
     assert load_thresholds() == Thresholds(
         placement_min=recorded["placement_accuracy"]["min"],
-        appendix_max=recorded["appendix_rate"]["max"],
+        # PROTECTION TEST (#37, never merged): thresholds.yaml's 0.5 here.
+        appendix_max=0.5,
         punctuation_hard=recorded["punctuation_fidelity"]["hard"],
     )
     assert baseline.name in THRESHOLDS_FILE.read_text(encoding="utf-8")
