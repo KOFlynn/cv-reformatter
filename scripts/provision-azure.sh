@@ -188,8 +188,9 @@ finish() {
 # Provisions the Azure side of ticket 14, once, by hand (ADR-0010): the
 # resource group, the Log Analytics workspace, the Container Apps environment
 # and app, the first image on GHCR made public, the Entra app registration
-# GitHub Actions signs in as through OIDC, the repository variables the
-# deploy job reads, and a cost budget. Every Azure call is the Azure CLI's,
+# GitHub Actions signs in as through OIDC, the API key, the repository
+# secrets and variables the deploy job reads, and a cost budget, leaving the
+# app's ingress closed. Every Azure call is the Azure CLI's,
 # so the commands below are the record of what exists. Re-runnable: values
 # are remembered in .env.azure (gitignored, no secret in it); the
 # environment, the app, the Entra app and its role are skipped when they
@@ -201,9 +202,13 @@ finish() {
 #   bash scripts/provision-azure.sh        # from the repo root, in Git Bash
 #
 # Needs the Azure CLI (winget install -e --id Microsoft.AzureCLI), Docker
-# Desktop running, and gh signed in. The Anthropic key is typed hidden, goes
-# into a Container Apps secret through a private temp file, and is never
-# written to .env.azure, a command line or GitHub.
+# Desktop running, openssl (Git Bash has it), and gh signed in. The Anthropic
+# key is typed hidden, goes into a Container Apps secret through a private
+# temp file, and is never written to .env.azure, a command line or GitHub.
+# The API key /reformat requires is generated here, stored as a Container
+# Apps secret and as the GitHub secret the deploy's smoke test sends, and
+# never printed or written to .env.azure. The app's ingress is left closed:
+# it is opened for demos only (scripts/demo.sh up).
 
 cd "$(dirname "$0")/.."
 ENV_FILE=.env.azure
@@ -242,6 +247,7 @@ stage "Tools and Azure sign-in"
 need az "install it with: winget install -e --id Microsoft.AzureCLI (then reopen Git Bash)"
 need docker "install Docker Desktop"
 need gh "install the GitHub CLI"
+need openssl "it comes with Git for Windows; run the wizard in Git Bash"
 docker info >/dev/null 2>&1 || { warn "Docker is not running: start Docker Desktop"; exit 1; }
 gh auth status >/dev/null 2>&1 || { warn "gh is not signed in: run gh auth login"; exit 1; }
 say "az, docker and gh are present."
@@ -435,21 +441,52 @@ JSON
   [[ "$state" == Succeeded ]] || { warn "provisioning ended as '$state'; see the app in the portal"; exit 1; }
   say "Done: $AZURE_CONTAINER_APP is provisioned."
 fi
+# The key /reformat requires (X-API-Key). Generated once and kept in the
+# Container Apps secret cvr-api-key; a re-run reads it back, so the app and
+# GitHub always hold the same value. It is on az's command line for the one
+# call that sets it: generated here, never typed, and rotatable by deleting
+# the secret and re-running this stage.
+say "The API key /reformat requires: a Container Apps secret cvr-api-key, read by"
+say "the container as CVR_API_KEY, and the GitHub secret CVR_API_KEY for the"
+say "deploy's smoke test. Never printed. For a demo, read it with:"
+note "  az containerapp secret show --name $AZURE_CONTAINER_APP --resource-group $AZURE_RESOURCE_GROUP --secret-name cvr-api-key --query value -o tsv"
+has_key=$(azq containerapp secret list --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+  --query "length([?name=='cvr-api-key'])" -o tsv)
+if [[ "$has_key" == 0 ]]; then
+  CVR_API_KEY=$(openssl rand -hex 32)
+  az containerapp secret set --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+    --secrets "cvr-api-key=$CVR_API_KEY" --output none
+  say "Generated a new key into cvr-api-key."
+else
+  CVR_API_KEY=$(azq containerapp secret show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+    --secret-name cvr-api-key --query value -o tsv)
+  say "cvr-api-key already exists; keeping it."
+fi
+# For the smoke test in stage 8, which unsets it again.
+export CVR_API_KEY
+az containerapp update --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+  --set-env-vars CVR_API_KEY=secretref:cvr-api-key --output none
+set_secret CVR_API_KEY "$CVR_API_KEY"
+pause
+
+# ── 8 ─────────────────────────────────────────────────────────────────────
+stage "Smoke test the live app, then close ingress"
+say "Opens ingress, wakes the app from zero (timing the cold start), checks that"
+say "/reformat refuses a request without the key, posts one golden-set document"
+say "with it and checks for a .docx with X-Run-Id. Calls the model once (cents)."
+say "Ingress is closed afterwards either way: it is opened for demos only."
+az containerapp ingress enable --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+  --type external --target-port 8000 --transport auto --output none
 APP_URL="https://$(azq containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
   --query properties.configuration.ingress.fqdn -o tsv)"
 write_env APP_URL "$APP_URL"
 note "URL: $APP_URL"
-pause
-
-# ── 8 ─────────────────────────────────────────────────────────────────────
-stage "Smoke test the live app"
-say "Wakes the app from zero (timing the cold start), posts one golden-set"
-say "document and checks for a .docx with X-Run-Id. Calls the model once (cents)."
 if confirm "Run it?"; then
-  # The smoke script relies on Git Bash's path translation for curl's temp
-  # files, which this wizard's MSYS_NO_PATHCONV would switch off.
-  env -u MSYS_NO_PATHCONV sh scripts/smoke-deploy.sh "$APP_URL" || warn "the smoke test failed; see above"
+  sh scripts/smoke-deploy.sh "$APP_URL" || warn "the smoke test failed; see above"
 fi
+unset CVR_API_KEY
+az containerapp ingress disable --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" --output none
+say "Ingress closed. Open it for a demo with: sh scripts/demo.sh up"
 pause
 
 # ── 9 ─────────────────────────────────────────────────────────────────────
@@ -505,15 +542,18 @@ say "Client id: $AZURE_CLIENT_ID. No client secret was created."
 pause
 
 # ── 10 ────────────────────────────────────────────────────────────────────
-stage "GitHub repository variables (not secrets)"
-say "The deploy job logs in with these. They are identifiers, not credentials:"
-say "without a token from this repo's main branch they open nothing."
-set_var AZURE_CLIENT_ID "$AZURE_CLIENT_ID"
-set_var AZURE_TENANT_ID "$AZURE_TENANT_ID"
-set_var AZURE_SUBSCRIPTION_ID "$AZURE_SUBSCRIPTION_ID"
+stage "GitHub repository secrets and variables"
+say "The deploy job logs in with the three ids. They are identifiers, not"
+say "credentials (without a token from this repo's main branch they open"
+say "nothing), but azure/login echoes its inputs, so they are secrets: GitHub"
+say "masks secrets in the log. The two resource names stay variables."
+set_secret AZURE_CLIENT_ID "$AZURE_CLIENT_ID"
+set_secret AZURE_TENANT_ID "$AZURE_TENANT_ID"
+set_secret AZURE_SUBSCRIPTION_ID "$AZURE_SUBSCRIPTION_ID"
 set_var AZURE_RESOURCE_GROUP "$AZURE_RESOURCE_GROUP"
 set_var AZURE_CONTAINER_APP "$AZURE_CONTAINER_APP"
-say "The repository's secrets (expect ANTHROPIC_API_KEY alone, nothing Azure):"
+say "The repository's secrets (expect ANTHROPIC_API_KEY, CVR_API_KEY and the"
+say "three AZURE ids; no Azure credential, since the deploy signs in through OIDC):"
 gh secret list
 pause
 
