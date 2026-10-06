@@ -352,7 +352,13 @@ and then replacing it with "fix obvious typos", both passed every gate: replayed
 `verify`, not one quote in 24 labellings was rejected, because the model copied the golden
 set's deliberate typos exactly even when told to fix them.
 
-Branch protection on `main` requires `check` and `eval` (ticket 16), so while `eval` is
-red the merge button is blocked, and the PR is never merged in any case. Only a pull
-request's run of `ci.yml` reports `eval`; a push to its branch runs `branch.yml`, which
-has no `eval` job, so no skipped `eval` can stand in for the real one.
+Branch protection on `main` requires `check` and `eval`, admins included (set on
+2026-10-06, ticket 16), so a red `eval` blocks the merge button, and the PR is never
+merged in any case. Only a pull request's run of `ci.yml` reports `eval`; a push to its
+branch runs `branch.yml`, which has no `eval` job, so no skipped `eval` can stand in for
+the real one. #32 itself predates both: it now conflicts with `main` (ticket 19 changed
+the prompt after it), so GitHub reports the conflict before the checks. The blocked
+merge was proven on a throwaway PR,
+[#37](https://github.com/KOFlynn/cv-reformatter/pull/37): `check` green, `eval` red on a
+lowered threshold ([run 37535330217](https://github.com/KOFlynn/cv-reformatter/actions/runs/37535330217),
+answers from the cache, $0), merge state `BLOCKED`; closed, never merged.

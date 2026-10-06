@@ -6,17 +6,17 @@ Going public also unlocks ticket 13's last box, branch protection on `main` requ
 
 **Blocked by:** 08 (README as ADR), 15 (The demo PR)
 
-**Status:** in-progress
+**Status:** done
 
 - [x] §10 Phase 1 checklist with a link per item (test file, workflow run, PR, ADR) in the release note
 - [x] README revised with actual numbers and links; no "to come" language remains except for Phase 2 items, which are named as such
 - [x] `CLAUDE.md` status, package list and commands match the repo
 - [x] Repo-wide check for secrets, real data and stray caches recorded in the release note
 - [x] No skipped `eval` check reaches a PR: a push to a non-`main` branch produces no `eval` check run, shown on a PR's checks list
-- [ ] Branch protection on `main` requires `check` and `eval`, set after going public; proven by a PR whose failing `eval` cannot be merged, with the `gh api` output recorded (ticket 13's last box, ticked there too)
-- [ ] Repo visibility set to public; the demo PR, the baseline and the ADRs are reachable from the README
+- [x] Branch protection on `main` requires `check` and `eval`, set after going public; proven by a PR whose failing `eval` cannot be merged, with the `gh api` output recorded (ticket 13's last box, ticked there too)
+- [x] Repo visibility set to public; the demo PR, the baseline and the ADRs are reachable from the README
 - [x] `.scratch/phase-1/release-NN-NN.md` written, listing the tickets, the post-review fixes and the numbers, as Phase 0's release note did
-- [ ] Every Phase 1 ticket marked done via its mark-done PR
+- [x] Every Phase 1 ticket marked done via its mark-done PR
 
 ## Comments
 
@@ -63,3 +63,40 @@ Default suite and slow suite green, lint and format clean (counts on #36).
 7. Record the evidence and mark 13, 15 and 16 done on #36 (box 9, inside #36 rather than a separate PR, as for ticket 14).
 8. Merge #36: the one full uncached eval of this release (about $3.30) and a deploy that opens and closes ingress.
 9. Check the deploy log shows the ids as `***`, then delete the logs of runs 37052388148 (both attempts), 37056912371, 37065847534 and 37066259507.
+
+### 2026-10-06: public, protected, proven; done
+
+Maintainer steps 1–7 are done:
+
+1. The three Azure ids moved from variables to secrets, and the variables deleted. `gh variable list` now shows only `AZURE_CONTAINER_APP` and `AZURE_RESOURCE_GROUP`.
+2. The API key was created and stored as the Container Apps secret `cvr-api-key`, with env `CVR_API_KEY=secretref:cvr-api-key` on revision `cvr-ca--0000005` (ingress still off), and as the GitHub secret `CVR_API_KEY`.
+3. The keyed `check-image.sh` passed: 325 MB, uid 10001, no key in the history or filesystem, `/reformat` without the key 401, with it 200 and 39,164 bytes on prompt 1.3.0, $0.0702.
+4. **Box 7.** The repository is public: `gh repo edit KOFlynn/cv-reformatter --visibility public --accept-visibility-change-consequences` → `{"visibility":"PUBLIC"}`. The README links the demo PR #32, `eval/baseline-2026-09-29.json` and all ten ADRs, each checked to exist.
+5. **Box 6, first half.** Branch protection, with `enforce_admins` on at the maintainer's choice, so a red gate blocks admins too:
+
+```
+$ gh api repos/KOFlynn/cv-reformatter/branches/main/protection/required_status_checks
+{"strict":false,"contexts":["check","eval"],"checks":[{"context":"check","app_id":15368},{"context":"eval","app_id":15368}], ...}
+$ gh api repos/KOFlynn/cv-reformatter/branches/main/protection --jq '{required_checks: .required_status_checks.contexts, strict: .required_status_checks.strict, enforce_admins: .enforce_admins.enabled}'
+{"enforce_admins":true,"required_checks":["check","eval"],"strict":false}
+```
+
+6. **Box 6, second half.** #32 could not be the proof. Its merge state is `dirty`: it conflicts with `main` since ticket 19 changed `prompt.md`, and it still carries a pre-split skipped `eval`. Re-running it would cost about $3.30 live. The proof is the throwaway PR [#37](https://github.com/KOFlynn/cv-reformatter/pull/37), branched from #36's branch so it ran under the split workflows, with `appendix_rate.max` at 0.5.
+   - Its first push (`max: 0`) was stopped by `check`. Two unit tests pin the committed thresholds, the guard against quietly loosening one. In #37 only, as its description states, `test_the_committed_thresholds_are_the_ones_the_baseline_records` and `test_a_structural_miss_fails_whatever_the_thresholds` were edited.
+   - Then `check` passed (Branch check [37535322595](https://github.com/KOFlynn/cv-reformatter/actions/runs/37535322595), CI [37535330217](https://github.com/KOFlynn/cv-reformatter/actions/runs/37535330217)). `eval` failed with "appendix_rate: 0.70% above the maximum 0.5% (c09, c11)", in 23 s from the cache at $0, and `deploy` was skipped.
+   - The push run produced no `eval` check, which shows box 5 again.
+   - #37 was closed, never merged, and its branch deleted.
+
+```
+$ gh api repos/KOFlynn/cv-reformatter/pulls/37 --jq .mergeable_state
+blocked
+$ gh pr view 37 --json mergeStateStatus,statusCheckRollup
+{"mergeStateStatus":"BLOCKED","checks":[{"name":"check","conclusion":"SUCCESS","workflow":"Branch check"},{"name":"check","conclusion":"SUCCESS","workflow":"CI"},{"name":"eval","conclusion":"FAILURE","workflow":"CI"},{"name":"deploy","conclusion":"SKIPPED","workflow":"CI"}]}
+```
+
+7. **Box 9.** Tickets 13, 15 and 16 are marked done here, inside #36, as ticket 14 was. Every `.scratch/phase-1/issues/*.md` now reads `**Status:** done`.
+
+What remains follows the merge and is recorded here, not as boxes:
+
+- **Step 8.** Merging #36 runs the release's one full uncached eval (about $3.30) and a deploy that opens ingress for the smoke test and closes it.
+- **Step 9.** Check that the deploy log shows the three ids as `***`, then delete the logs of runs 37052388148 (both attempts), 37056912371, 37065847534 and 37066259507.

@@ -10,7 +10,7 @@ The readiness check (below) raised four exposures. The maintainer decided each o
 - **The Azure ids in run logs: masked.** They are identifiers, not credentials, but publishing them served no purpose. `azure/login` echoed them because they were repository variables; they are now repository secrets, so GitHub masks them, and every `az` call runs with `--output none` or a narrow `--query`. Once #36's deploy shows them masked, the logs (not the runs, which this note cites as evidence) of runs 37052388148 (both attempts), 37056912371, 37065847534 and 37066259507 are deleted.
 - **The maintainer's email: no-reply from now on.** Commits from 2026-10-06 use `6141875+KOFlynn@users.noreply.github.com`, "Keep my email addresses private" is on, and `pyproject.toml`'s author email is the no-reply address. History keeps the old address: GitHub keeps every pull request's commits under its PR refs, so rewriting `main` would not remove it.
 - **The phone numbers: accepted as they are.** `+353 21 4270000` in two eval tests and the Candidates' `555` numbers may be real lines: `555` is reserved for fiction only in North America, not in Ireland. Every value is attached only to fictional people, and the maintainer judged the risk negligible.
-- **Branch protection is stated as fact in the README** (the demo section): true once step 5 below is done, which is before #36 merges.
+- **Branch protection is stated as fact in the README** (the demo section): true since step 5 below, done on 2026-10-06 before #36 merges.
 
 ## Phase 1 exit criteria (brief §10)
 
@@ -22,7 +22,7 @@ The readiness check (below) raised four exposures. The maintainer decided each o
 | Dockerfile; image runs locally under Docker Desktop | [`Dockerfile`](../../Dockerfile), `scripts/check-image.sh` passed on 2026-09-29 (325 MB, one real `/reformat`), [#27](https://github.com/KOFlynn/cv-reformatter/pull/27); repeated on every deploy against the anonymous pull |
 | Deployed to Azure Container Apps through Actions with OIDC | the `deploy` job, [#30](https://github.com/KOFlynn/cv-reformatter/pull/30), [#31](https://github.com/KOFlynn/cv-reformatter/pull/31); [ADR-0010](../../docs/adr/0010-deployment.md); deploys [37052388148](https://github.com/KOFlynn/cv-reformatter/actions/runs/37052388148) (re-run) and [37066259507](https://github.com/KOFlynn/cv-reformatter/actions/runs/37066259507) |
 | README written as an ADR (section 12) | [README](../../README.md) "Decisions" and its table of ADRs 0001–0010 ([#23](https://github.com/KOFlynn/cv-reformatter/pull/23), revised in #36) |
-| Demo PR proven to block a deploy | [#32](https://github.com/KOFlynn/cv-reformatter/pull/32): `check` green, `eval` red, `deploy` skipped ([run 37061731804](https://github.com/KOFlynn/cv-reformatter/actions/runs/37061731804)); branch protection's blocked merge is step 3 below |
+| Demo PR proven to block a deploy | [#32](https://github.com/KOFlynn/cv-reformatter/pull/32): `check` green, `eval` red, `deploy` skipped ([run 37061731804](https://github.com/KOFlynn/cv-reformatter/actions/runs/37061731804)); protection's blocked merge on the throwaway [#37](https://github.com/KOFlynn/cv-reformatter/pull/37) (`eval` red, [run 37535330217](https://github.com/KOFlynn/cv-reformatter/actions/runs/37535330217), `BLOCKED`), since #32 now conflicts with `main` (step 6 below) |
 
 ## The numbers
 
@@ -48,11 +48,11 @@ The readiness check (below) raised four exposures. The maintainer decided each o
 - **05 render and the adapter, 08 README as ADR** — [#23](https://github.com/KOFlynn/cv-reformatter/pull/23), mark-done [#24](https://github.com/KOFlynn/cv-reformatter/pull/24).
 - **06 the pipeline function with oracle labellers** — [#25](https://github.com/KOFlynn/cv-reformatter/pull/25), mark-done [#26](https://github.com/KOFlynn/cv-reformatter/pull/26).
 - **09 eval runner, 10 baseline and thresholds, 11 the API, 12 the image, 17 removal precision, 18 the `RM_PERSONAL` prompt scope** — [#27](https://github.com/KOFlynn/cv-reformatter/pull/27), mark-done [#28](https://github.com/KOFlynn/cv-reformatter/pull/28).
-- **13 the CI eval gate** — [#29](https://github.com/KOFlynn/cv-reformatter/pull/29). Branch protection, its last box, is step 2 below.
+- **13 the CI eval gate** — [#29](https://github.com/KOFlynn/cv-reformatter/pull/29). Branch protection, its last box, was set on 2026-10-06 (step 5 below).
 - **14 provision and deploy through OIDC** — [#30](https://github.com/KOFlynn/cv-reformatter/pull/30), [#31](https://github.com/KOFlynn/cv-reformatter/pull/31), closed by #36 (the cost check).
-- **15 the demo PR** — [#32](https://github.com/KOFlynn/cv-reformatter/pull/32) (never merged), evidence [#33](https://github.com/KOFlynn/cv-reformatter/pull/33). Box 5, the blocked merge button, is step 3 below.
+- **15 the demo PR** — [#32](https://github.com/KOFlynn/cv-reformatter/pull/32) (never merged), evidence [#33](https://github.com/KOFlynn/cv-reformatter/pull/33). Box 5, the blocked merge button, was shown on #37 (step 6 below).
 - **19 a repeated item quoted once** — [#34](https://github.com/KOFlynn/cv-reformatter/pull/34), mark-done [#35](https://github.com/KOFlynn/cv-reformatter/pull/35). Prompt 1.3.0.
-- **16 integrate, verify, go public** — #36: the CI split, the docs, this note, the readiness check.
+- **16 integrate, verify, go public** — #36: the CI split, the docs, this note, the readiness check; public and protected on 2026-10-06, proven on the throwaway [#37](https://github.com/KOFlynn/cv-reformatter/pull/37). Tickets 13, 14, 15 and 16 are marked done inside #36.
 
 ## Post-review fixes
 
@@ -69,7 +69,8 @@ Each found by evidence after the ticket it fixes had merged.
 ## Decisions
 
 - 16 · CI split → `ci.yml` keeps the gate and the deploy (they must share a workflow, `deploy` `needs: eval`), `branch.yml` carries `check` for every other branch; the two `check` jobs are asserted identical by test rather than shared through a reusable workflow, whose check would be named `check / check` and change the required context (sub-agent).
-- 16 · visibility, branch protection and the proof → left to the maintainer, with the commands below; nothing outward-facing was changed (orch).
+- 16 · visibility, branch protection and the proof → run on the maintainer's approval, step by step (orch); `enforce_admins` on, so the block holds for admins too (maintainer).
+- 16 · the proof → a throwaway PR (#37) rather than #32, which conflicts with `main`; its two threshold-pinning tests edited in #37 only, stated in its description, since it is never merged (maintainer).
 - 16 · readiness findings → recorded, not fixed: each is a choice about exposure (spend limit, logs, ids), and none needs history rewritten (sub-agent).
 - 14 · ticket 14 marked done inside #36 rather than by a separate mark-done PR, since merging was all that remained (maintainer).
 - 16 · the live endpoint → an API key on `/reformat` plus ingress off by default, not a spend limit alone, which only caps the damage; no nightly auto-off job, revisit when demos are planned (maintainer).
@@ -96,15 +97,15 @@ Each found by evidence after the ticket it fixes had merged.
 
 ## Maintainer steps, in order
 
-Steps 1 and 2 must be done before #36 merges, or its deploy fails at `azure/login` and at the smoke test. Run them in Git Bash.
+Steps 1–7 are done (2026-10-06); steps 8 and 9 follow the merge. Steps 1 and 2 had to be done before #36 merges, or its deploy fails at `azure/login` and at the smoke test.
 
-1. **Move the three ids from variables to secrets:**
+1. **Done. Move the three ids from variables to secrets.** `gh variable list` now shows only `AZURE_CONTAINER_APP` and `AZURE_RESOURCE_GROUP`.
    ```
    for n in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID; do gh variable get "$n" | tr -d '\r\n' | gh secret set "$n"; done
    gh secret list
    for n in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID; do gh variable delete "$n"; done
    ```
-2. **Create the API key** and set it in the app and in GitHub, never printed. The env var makes a new revision of the current image, which ignores it until #36 deploys:
+2. **Done. Create the API key** (secret `cvr-api-key`, env `CVR_API_KEY=secretref:cvr-api-key` on revision `cvr-ca--0000005`, ingress still off; GitHub secret `CVR_API_KEY`) and set it in the app and in GitHub, never printed. The env var makes a new revision of the current image, which ignores it until #36 deploys:
    ```
    key=$(openssl rand -hex 32)
    az containerapp secret set -n cvr-ca -g cvr-rg --secrets "cvr-api-key=$key" -o none
@@ -113,15 +114,15 @@ Steps 1 and 2 must be done before #36 merges, or its deploy fails at `azure/logi
    unset key
    ```
    For a demo, read it with `az containerapp secret show -n cvr-ca -g cvr-rg --secret-name cvr-api-key --query value -o tsv`.
-3. **Optional: the image check with a real `/reformat`** (one labelling, about $0.07; the keyless run passed on 2026-10-06, 401 included):
+3. **Done. The image check with a real `/reformat`:** 325 MB, uid 10001, no key in history or filesystem, 401 without the key, 200 and 39,164 bytes with it on prompt 1.3.0, $0.0702.
    ```
    ANTHROPIC_API_KEY=... sh scripts/check-image.sh
    ```
-4. **Make the repository public:**
+4. **Done. Make the repository public** (`{"visibility":"PUBLIC"}`):
    ```
    gh repo edit KOFlynn/cv-reformatter --visibility public --accept-visibility-change-consequences
    ```
-5. **Branch protection on `main`** requiring `check` and `eval` (ticket 13's command), and record the output in tickets 13 and 16 and on #36:
+5. **Done. Branch protection on `main`** requiring `check` and `eval` (ticket 13's command), then `enforce_admins` on (`gh api --method POST repos/KOFlynn/cv-reformatter/branches/main/protection/enforce_admins`); result `{"enforce_admins":true,"required_checks":["check","eval"],"strict":false}`, recorded in tickets 13 and 16 and on #36:
    ```
    gh api --method PUT repos/KOFlynn/cv-reformatter/branches/main/protection --input - <<'JSON'
    {
@@ -133,15 +134,15 @@ Steps 1 and 2 must be done before #36 merges, or its deploy fails at `azure/logi
    JSON
    gh api repos/KOFlynn/cv-reformatter/branches/main/protection/required_status_checks
    ```
-6. **Prove it on #32**, which is already red, at no cost. Read, never merge:
+6. **Done, on #37 instead of #32.** #32 returned `dirty`: it conflicts with `main` since ticket 19 changed `prompt.md`, and still carries a pre-split skipped `eval`; rebasing would re-run it live (about $3.30), so it is left as it is. The throwaway [#37](https://github.com/KOFlynn/cv-reformatter/pull/37), branched from #36 with `appendix_rate.max` 0.5 (and its two threshold-pinning tests edited, in #37 only), went `check` green, `eval` red ("appendix_rate: 0.70% above the maximum 0.5% (c09, c11)", [run 37535330217](https://github.com/KOFlynn/cv-reformatter/actions/runs/37535330217), cached, $0), `deploy` skipped, merge state `BLOCKED`; closed, never merged, branch deleted. The commands as first planned:
    ```
    gh api repos/KOFlynn/cv-reformatter/pulls/32 --jq '{mergeable_state, draft}'
    gh pr view 32 --json mergeStateStatus,statusCheckRollup
    ```
-   Expect `mergeable_state: "blocked"`, and take a screenshot of the disabled merge button for ticket 15 box 5. Caveat: #32's head commit predates the split, so beside its failed `eval` it still carries the skipped `eval` of its old push run, the very gap #36 closes. If GitHub does not report it blocked, ticket 15 box 5 stays open and the proof follows the merge: an empty commit pushed to `demo/degraded-prompt` (`git commit --allow-empty -m "Re-run the gate under the split workflow"`) runs its eval live under the new workflow, about $3.30, since a failing run's answers are never cached.
-7. **Record the evidence and mark tickets 13, 15 and 16 done on #36** (docs only; the PR's eval replays from the cache, $0.00).
-8. **Merge #36.** It changes code, `ci.yml` and tests, so its push to `main` runs the full uncached eval (about $3.30, four minutes) and redeploys, opening ingress for the smoke test and closing it after: the one paid run of this release. Then delete the branch.
-9. **Check the masking, then delete the old logs.** In the deploy job's `Log in to Azure (OIDC)` step the three ids must show as `***`. Then:
+   It returned `dirty`, not `blocked`, for the reasons above, so the proof moved to #37 and the empty-commit fallback (a live re-run of #32, about $3.30) was not needed.
+7. **Done. Record the evidence and mark tickets 13, 15 and 16 done on #36** (docs only; the PR's eval replays from the cache, $0.00).
+8. **Remaining: merge #36.** It changes code, `ci.yml` and tests, so its push to `main` runs the full uncached eval (about $3.30, four minutes) and redeploys, opening ingress for the smoke test and closing it after: the one paid run of this release. Then delete the branch.
+9. **Remaining: check the masking, then delete the old logs.** In the deploy job's `Log in to Azure (OIDC)` step the three ids must show as `***`. Then:
    ```
    for id in 37052388148 37056912371 37065847534 37066259507; do gh api -X DELETE repos/KOFlynn/cv-reformatter/actions/runs/$id/logs; done
    gh run view 37052388148 --attempt 1 --log | head -3   # expect no log
@@ -149,6 +150,7 @@ Steps 1 and 2 must be done before #36 merges, or its deploy fails at `azure/logi
 
 ## Run log
 
+- 2026-10-06 maintainer steps 1–7: ids to secrets, API key set, keyed image check passed ($0.07), repository public, branch protection with `enforce_admins`, the blocked merge proven on the throwaway #37 at $0, tickets 13, 15 and 16 done on #36.
 - 2026-10-06 the readiness decisions (#36): `/reformat` keyed and capped, ingress disabled on `cvr-ca` and off by default, the Azure ids masked secrets, `demo.sh`; two sub-agents and a docs pass. The keyless `check-image.sh` passed locally, 401 included, after a fix for Git Bash's curl and `/dev/null`.
 - 2026-10-06 ticket 16 implemented on `phase-1/14-cost-check` (#36) by a sub-agent: CI split, docs, brief §10, readiness check, this note. PR eval on #36 cached: 48 hits, $0.00.
 - 2026-10-06 ticket 14 cost check, €0.00; docs-only `paths-ignore` (#36).

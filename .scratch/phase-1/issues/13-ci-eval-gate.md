@@ -4,13 +4,13 @@
 
 **Blocked by:** 10 (Baseline and thresholds)
 
-**Status:** in-review
+**Status:** done
 
 - [x] `eval` job defined as specified; the key is a repository secret with a documented name; no key in the workflow file
 - [x] The eval job runs on pull requests and pushes to main only; `check` still runs on every push
 - [x] Artifacts uploaded; job summary shows the markdown; the PR comment is created on first run and updated on subsequent runs
 - [x] Workflow concurrency group with cancel-in-progress; verified by two rapid pushes with the first run cancelled
-- [ ] Branch protection on `main` requires `check` and `eval`; recorded in the PR description with a screenshot or the `gh api` output
+- [x] Branch protection on `main` requires `check` and `eval`; recorded in the PR description with a screenshot or the `gh api` output
 - [x] The ticket's own PR goes green through the new gate, with the report comment visible; tokens and cost for the run are in the comment
 - [x] `CLAUDE.md` CI section updated
 
@@ -66,3 +66,15 @@ The release PR (#29, `release/phase-1-13` → `main`) is the first through the g
 
 Every box but branch protection is ticked. Before protection can mean anything, ticket 16 closed the gap these runs showed: a push to a PR branch put a skipped `eval` beside the real one, and GitHub counts a skipped job as satisfying a required check. `ci.yml` now runs only on pull requests and pushes to `main`, with no `if:` on `eval`, and `branch.yml` runs `check` alone on every other branch (#36). The command above is unchanged and is step 2 of the maintainer's steps in `.scratch/phase-1/release-01-19.md`, after the repository goes public. **Pending maintainer approval;** the box is ticked here, with the `gh api` output, once it is set.
 
+### 2026-10-06: branch protection set; done
+
+The repository went public on 2026-10-06 (`gh repo edit ... --visibility public` → `{"visibility":"PUBLIC"}`), and protection was set with the command above, then `enforce_admins` turned on at the maintainer's choice, so a red gate blocks the maintainer too (`gh api -X DELETE repos/KOFlynn/cv-reformatter/branches/main/protection/enforce_admins` lifts it if CI itself is ever broken):
+
+```
+$ gh api repos/KOFlynn/cv-reformatter/branches/main/protection/required_status_checks
+{"strict":false,"contexts":["check","eval"],"checks":[{"context":"check","app_id":15368},{"context":"eval","app_id":15368}], ...}
+$ gh api repos/KOFlynn/cv-reformatter/branches/main/protection --jq '{required_checks: .required_status_checks.contexts, strict: .required_status_checks.strict, enforce_admins: .enforce_admins.enabled}'
+{"enforce_admins":true,"required_checks":["check","eval"],"strict":false}
+```
+
+It is proven by the throwaway PR [#37](https://github.com/KOFlynn/cv-reformatter/pull/37) (ticket 16's comment has the detail): `check` green, `eval` red on a lowered threshold, merge state `BLOCKED`. The output is in #36's description too. The last box is ticked and the ticket is done, inside #36.

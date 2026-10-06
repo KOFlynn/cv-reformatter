@@ -4,13 +4,13 @@
 
 **Blocked by:** 14 (Provision and deploy through OIDC)
 
-**Status:** in-review
+**Status:** done
 
 - [x] Branch with exactly one change: ~~the verbatim-quote rule removed~~ the PII removal rule replaced in the prompt (see the second 2026-10-02 comment); `PROMPT_VERSION` bumped so the cache key and the report both show it
 - [x] Three `--no-cache` runs locally all exit non-zero; the failing metrics and their counts recorded per run
 - [x] Draft PR open, labelled `demo`, description explaining what was removed and why the gate catches it, with the three-run evidence
 - [x] CI on the PR: `check` green, `eval` red with the report comment showing the ~~provenance~~ `pii_leak` findings, `deploy` not run
-- [ ] Merge button disabled by branch protection (screenshot or `gh pr view` output in the description)
+- [x] Merge button disabled by branch protection (screenshot or `gh pr view` output in the description)
 - [x] README demo section links the PR and states what a reviewer should look at first
 
 ## Comments
@@ -89,3 +89,17 @@ The README demo section links #32. Boxes 1, 3, 4 and 6 are ticked (box 1: `b24e9
 
 Every box but the disabled merge button is ticked. Protection is set after the repository goes public (ticket 16, step 2 of the maintainer's steps in `.scratch/phase-1/release-01-19.md`); step 3 reads #32's merge state (`gh api repos/KOFlynn/cv-reformatter/pulls/32 --jq .mergeable_state`, expected `blocked`) and takes the screenshot. #32's head predates ticket 16's CI split and carries a skipped `eval` from its old push run beside the failed one; if GitHub does not report it blocked, an empty commit to `demo/degraded-prompt` after #36 merges re-runs the gate under the split, which keeps the PR red and costs one live run (about $3.30). **Pending maintainer approval.**
 
+### 2026-10-06: box 5, the blocked merge, shown on #37; done
+
+Branch protection on `main` requires `check` and `eval`, admins included (ticket 13's comment). #32 itself could not show it: `gh api repos/KOFlynn/cv-reformatter/pulls/32 --jq .mergeable_state` returned `dirty`, because #32 now conflicts with `main` (ticket 19 changed `prompt.md` after it was opened), and GitHub reports a conflict before failing checks. It also still carries the skipped `eval` of its pre-split push run. It was left as it is: rebasing it would re-run its failing eval live, about $3.30, since a failing run's answers are never cached. [Run 37061731804](https://github.com/KOFlynn/cv-reformatter/actions/runs/37061731804) remains the evidence that the bad prompt turns `eval` red and skips `deploy`.
+
+The blocked merge was shown instead on a throwaway PR, [#37](https://github.com/KOFlynn/cv-reformatter/pull/37), branched from #36 so it ran under the split workflows, with `appendix_rate.max` lowered to 0.5. `eval` failed on the gate's own threshold logic at $0 (answers from the cache):
+
+```
+$ gh api repos/KOFlynn/cv-reformatter/pulls/37 --jq .mergeable_state
+blocked
+$ gh pr view 37 --json mergeStateStatus,statusCheckRollup
+{"mergeStateStatus":"BLOCKED","checks":[{"name":"check","conclusion":"SUCCESS","workflow":"Branch check"},{"name":"check","conclusion":"SUCCESS","workflow":"CI"},{"name":"eval","conclusion":"FAILURE","workflow":"CI"},{"name":"deploy","conclusion":"SKIPPED","workflow":"CI"}]}
+```
+
+#37 was closed, never merged, and its branch deleted. Every box is ticked; the ticket is done, inside #36.
