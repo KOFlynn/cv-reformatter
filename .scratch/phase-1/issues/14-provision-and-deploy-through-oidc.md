@@ -188,3 +188,7 @@ The subscription `cvr_sub` had been billing since provisioning on 2026-10-01. Co
 Those are the only rows. The logs are about 0.4 MB against Log Analytics' free 5 GB a month. Container Apps reported no metered usage at all, which fits a consumption-plan app that scales to zero, staying inside the monthly free grant across the deploy, the smoke tests and the scale-to-zero checks; the query shows only that nothing was charged, not the grant's arithmetic. There are no rows after 2026-10-02: the app sat idle at zero replicas. The portal budget `cvr_budget` (€50) shows €0.00 spent.
 
 The free-grant budget ADR-0010 plans for holds: an idle demo costs nothing, and the cost of a presentation is the LLM calls, about $0.07 a document. Box 8 is ticked, and with it every box: the ticket is done.
+
+### 2026-10-06: ingress off by default (ticket 16)
+
+Since ticket 16, the app's ingress is off by default: the deploy job opens it for its smoke test and closes it after, and `scripts/demo.sh` opens it for demos. `/reformat` needs `X-API-Key`, and the three ids `azure/login` reads are repository secrets so GitHub masks them. The scale-to-zero and cold-start figures above are unchanged; the cost check's €0.00 predates the change. ADR-0010's 2026-10-06 amendments and ticket 16's comment have the detail.

@@ -2,15 +2,15 @@
 
 Phase 1 is the end-to-end lifecycle: a CV through `parse` → `label` → `verify` → `transform` → `render`, behind an eval gate in CI, deployed to Azure Container Apps through OIDC, with a demo PR the gate stops. Nineteen tickets from 2026-09-21 to 2026-10-06, all on `main` by pull request. The last, ticket 16, lands with ticket 14's close in #36, the one merge to `main` this release still needs.
 
-## Review before merging #36
+## Review before merging #36: the decisions
 
-These need the maintainer. None of them needs history rewritten.
+The readiness check (below) raised four exposures. The maintainer decided each on 2026-10-06; none needed history rewritten.
 
-- **The live endpoint is public, and `/reformat` calls the paid model.** The app's URL is in ticket 14's comments (and so in history) and in the logs of every deploy run. Once the repository is public anyone can find it and `POST /reformat`, each call about $0.07 on the app's own Anthropic key. Max replicas 1 bounds concurrency, not spend. Auth is outside the brief's scope, so the decision is the maintainer's: a spend limit on the Anthropic workspace that holds the app's key (the cheapest guard, no code), or accept the exposure for a demo, or remove ingress between demos. **Recommended: set the spend limit before going public.**
-- **The Azure subscription, tenant and client ids are in public run logs.** `azure/login` echoes its inputs, so the step log of every deploy run prints all three (runs 37052388148, both attempts; 37056912371; 37065847534; 37066259507), and every future deploy will too. They are identifiers, not credentials: the federated credential trusts only this repository's `main`, and ADR-0010 already calls them identifiers rather than secrets. They are not in any file or commit. Options: accept (the ADR's position), or delete those runs' logs before going public (`gh api -X DELETE repos/KOFlynn/cv-reformatter/actions/runs/<id>/logs` per run) and accept that later runs print them, or mask them in the workflow (a code change, not made here).
-- **The maintainer's own name and email** are in commits, `pyproject.toml`'s `authors` and the brief's owner line. Expected; listed so it is a choice, not a surprise.
-- **One unit-test phone number is not a reserved one.** `+353 21 4270000` (a Cork number, in `tests/eval/test_pii_leak.py` and `tests/eval/test_removal_precision.py`, history since Phase 0 ticket 08) is a format example with no name attached; every Candidate number is a `555` number. It may be someone's real line. Replacing it in the working tree is a small test-only change; history keeps it either way.
-- **Branch protection is stated as fact in the README** (the demo section): true once step 2 below is done, which is before #36 merges.
+- **The live endpoint: closed by default and keyed.** The app's URL is in ticket 14's comments, so in public history, and `/reformat` calls the paid model. A spend limit alone would only cap the damage, and any request through ingress wakes the app whatever its answer. So `/reformat` now needs the `X-API-Key` header (401 without it, before the body is read or the model called; a closed 503 if the app has no `CVR_API_KEY`; uploads capped at 5 MB, 413), and the app's ingress is **off by default**: disabled on 2026-10-06 (the settings were external, port 8000, transport Auto, and `demo.sh up` restores them). The deploy job opens it for its smoke test and always closes it after; `sh scripts/demo.sh up` / `down` opens and closes it for a demo. While it is open, wake-ups are bounded by max replicas 1. How demos open it is to be revisited when a later phase plans them. A spend limit on the Anthropic workspace stays an optional backstop.
+- **The Azure ids in run logs: masked.** They are identifiers, not credentials, but publishing them served no purpose. `azure/login` echoed them because they were repository variables; they are now repository secrets, so GitHub masks them, and every `az` call runs with `--output none` or a narrow `--query`. Once #36's deploy shows them masked, the logs (not the runs, which this note cites as evidence) of runs 37052388148 (both attempts), 37056912371, 37065847534 and 37066259507 are deleted.
+- **The maintainer's email: no-reply from now on.** Commits from 2026-10-06 use `6141875+KOFlynn@users.noreply.github.com`, "Keep my email addresses private" is on, and `pyproject.toml`'s author email is the no-reply address. History keeps the old address: GitHub keeps every pull request's commits under its PR refs, so rewriting `main` would not remove it.
+- **The phone numbers: accepted as they are.** `+353 21 4270000` in two eval tests and the Candidates' `555` numbers may be real lines: `555` is reserved for fiction only in North America, not in Ireland. Every value is attached only to fictional people, and the maintainer judged the risk negligible.
+- **Branch protection is stated as fact in the README** (the demo section): true once step 5 below is done, which is before #36 merges.
 
 ## Phase 1 exit criteria (brief §10)
 
@@ -64,6 +64,7 @@ Each found by evidence after the ticket it fixes had merged.
 - **#31 the OIDC subject.** The first deploy failed `AADSTS700213`: this repository's tokens carry GitHub's immutable subject (owner and repo ids), not `repo:owner/name`. The wizard now asks GitHub for the prefix; ADR-0010 records why immutable is kept.
 - **#36 no skipped `eval` on a pull request (ticket 16).** A push to a PR branch started a `push` run whose `eval` was skipped by its `if:`, beside the real one, and GitHub counts a skipped job as satisfying a required check. `ci.yml` (check, eval, deploy) now runs only on pull requests and pushes to `main`, with no `if:` on `eval`; `branch.yml` runs the identical `check` alone on every other branch. On #36: before, `9f82528` carried a skipped `eval` from push run 37520333534 beside the real one from 37520338239; after, `75df46b` carries one `eval`, from pull-request run 37521015614, and the push run 37521006232 (`Branch check`) has `check` alone.
 - **#36 docs-only pushes run nothing.** A merge to `main` pays for an uncached eval (about $3.30) and a redeploy; a push of only `**/*.md`, `docs/**` or `.scratch/**` now runs no job. Pull requests stay unfiltered, since a required check skipped by a path filter never reports.
+- **#36 the endpoint and the logs (ticket 16).** The readiness check found the live URL in history with an unauthenticated, paid `/reformat`, and the Azure ids echoed in deploy logs. `/reformat` now needs `X-API-Key` and caps uploads at 5 MB; ingress is off by default, opened by the deploy only for its smoke test and by `scripts/demo.sh` for demos; the ids are masked secrets; the wizard sets the API key and leaves ingress closed. ADR-0010 is amended.
 
 ## Decisions
 
@@ -71,6 +72,10 @@ Each found by evidence after the ticket it fixes had merged.
 - 16 · visibility, branch protection and the proof → left to the maintainer, with the commands below; nothing outward-facing was changed (orch).
 - 16 · readiness findings → recorded, not fixed: each is a choice about exposure (spend limit, logs, ids), and none needs history rewritten (sub-agent).
 - 14 · ticket 14 marked done inside #36 rather than by a separate mark-done PR, since merging was all that remained (maintainer).
+- 16 · the live endpoint → an API key on `/reformat` plus ingress off by default, not a spend limit alone, which only caps the damage; no nightly auto-off job, revisit when demos are planned (maintainer).
+- 16 · the Azure ids → repository secrets for masking, reversing ADR-0010's "variables, never secrets"; the logs of the five old deploy runs deleted, the runs kept as evidence (maintainer).
+- 16 · the phone numbers → accepted; the maintainer's email → no-reply from now on, history left as it is (maintainer).
+- 16 · the work split across two sub-agents in their own worktrees (API; CI and Azure) and a docs pass, merged into #36 (orch).
 
 ## Public-readiness check (2026-10-06)
 
@@ -80,22 +85,43 @@ Each found by evidence after the ticket it fixes had merged.
 
 **Results.**
 - No key, token, private key, connection string or client secret anywhere in history or in any CI log (the Anthropic key is a masked secret).
-- The Azure ids appear in **no file or commit**; they are in the `azure/login` input echo of the deploy run logs (see Review, above).
+- The Azure ids appear in **no file or commit**; they were in the `azure/login` input echo of the deploy run logs, now masked (see Review, above).
 - No `.env`, cache, report, key or certificate file was ever committed. `.gitignore` covers `.env`, `.env.*`, `.cache/` and `eval/report.*`.
 - One GUID in history, `EF278816-EC6F-A645-907D-7F25AECB1D4A`: python-docx's default-template `customXml` item id, in two early `.docx` blobs. Not ours.
 - `.docx` metadata: `cvr golden generator` (91 blobs) or python-docx's defaults (2). No personal name.
 - Emails: `example.*` and `*-fictional.example.com` domains, `domain.tld`, and the maintainer's own address (commits, `pyproject.toml`).
-- Phones: every Candidate number is a `555` number, plus `+44 7700 900412` (Ofcom's drama range), and the one Cork test number above.
+- Phones: every Candidate number is a `555` number, plus `+44 7700 900412` (Ofcom's drama range), and the one Cork test number above, all accepted (see Review, above).
 - Names: the twelve Candidates are invented and were reviewed by the maintainer in Phase 0; institutions are real by design (ADR-0002); employers are invented. The maintainer's name is in the brief and the specs as owner.
-- The live app URL is in ticket 14 and the deploy logs (see Review, above).
+- The live app URL is in ticket 14 and the deploy logs; ingress is now off by default and `/reformat` keyed (see Review, above).
 
 ## Maintainer steps, in order
 
-1. **Decide the Review items**, then make the repository public:
+Steps 1 and 2 must be done before #36 merges, or its deploy fails at `azure/login` and at the smoke test. Run them in Git Bash.
+
+1. **Move the three ids from variables to secrets:**
+   ```
+   for n in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID; do gh variable get "$n" | tr -d '\r\n' | gh secret set "$n"; done
+   gh secret list
+   for n in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID; do gh variable delete "$n"; done
+   ```
+2. **Create the API key** and set it in the app and in GitHub, never printed. The env var makes a new revision of the current image, which ignores it until #36 deploys:
+   ```
+   key=$(openssl rand -hex 32)
+   az containerapp secret set -n cvr-ca -g cvr-rg --secrets "cvr-api-key=$key" -o none
+   az containerapp update -n cvr-ca -g cvr-rg --set-env-vars CVR_API_KEY=secretref:cvr-api-key -o none
+   printf '%s' "$key" | gh secret set CVR_API_KEY
+   unset key
+   ```
+   For a demo, read it with `az containerapp secret show -n cvr-ca -g cvr-rg --secret-name cvr-api-key --query value -o tsv`.
+3. **Optional: the image check with a real `/reformat`** (one labelling, about $0.07; the keyless run passed on 2026-10-06, 401 included):
+   ```
+   ANTHROPIC_API_KEY=... sh scripts/check-image.sh
+   ```
+4. **Make the repository public:**
    ```
    gh repo edit KOFlynn/cv-reformatter --visibility public --accept-visibility-change-consequences
    ```
-2. **Branch protection on `main`** requiring `check` and `eval` (ticket 13's command), and record the output in ticket 13 and #36:
+5. **Branch protection on `main`** requiring `check` and `eval` (ticket 13's command), and record the output in tickets 13 and 16 and on #36:
    ```
    gh api --method PUT repos/KOFlynn/cv-reformatter/branches/main/protection --input - <<'JSON'
    {
@@ -107,16 +133,23 @@ Each found by evidence after the ticket it fixes had merged.
    JSON
    gh api repos/KOFlynn/cv-reformatter/branches/main/protection/required_status_checks
    ```
-3. **Prove it on #32**, which is already red, at no cost. Read, never merge:
+6. **Prove it on #32**, which is already red, at no cost. Read, never merge:
    ```
    gh api repos/KOFlynn/cv-reformatter/pulls/32 --jq '{mergeable_state, draft}'
    gh pr view 32 --json mergeStateStatus,statusCheckRollup
    ```
-   Expect `mergeable_state: "blocked"`. Caveat: #32's head commit predates the split, so beside its failed `eval` it still carries the skipped `eval` of its old push run, the very gap #36 closes. If GitHub reports it `blocked`, that is the proof. If not, the failed `eval` alone is not enough while the skipped one stands, and the proof needs a fresh run on #32 under the new workflow: an empty commit pushed to `demo/degraded-prompt` after #36 merges (`git commit --allow-empty -m "Re-run the gate under the split workflow"`), which runs its eval live, about $3.30, since a failing run's answers are never cached. Take a screenshot of the disabled merge button for ticket 15 box 5 either way.
-4. **Merge #36.** It changes `ci.yml` and tests, so its push to `main` runs the full uncached eval (about $3.30, four minutes) and redeploys: the one paid run of this release. Then delete the branch, and tick ticket 13's and 15's last boxes and ticket 16's remaining boxes in one mark-done PR (docs only, so it runs nothing on `main`).
+   Expect `mergeable_state: "blocked"`, and take a screenshot of the disabled merge button for ticket 15 box 5. Caveat: #32's head commit predates the split, so beside its failed `eval` it still carries the skipped `eval` of its old push run, the very gap #36 closes. If GitHub does not report it blocked, ticket 15 box 5 stays open and the proof follows the merge: an empty commit pushed to `demo/degraded-prompt` (`git commit --allow-empty -m "Re-run the gate under the split workflow"`) runs its eval live under the new workflow, about $3.30, since a failing run's answers are never cached.
+7. **Record the evidence and mark tickets 13, 15 and 16 done on #36** (docs only; the PR's eval replays from the cache, $0.00).
+8. **Merge #36.** It changes code, `ci.yml` and tests, so its push to `main` runs the full uncached eval (about $3.30, four minutes) and redeploys, opening ingress for the smoke test and closing it after: the one paid run of this release. Then delete the branch.
+9. **Check the masking, then delete the old logs.** In the deploy job's `Log in to Azure (OIDC)` step the three ids must show as `***`. Then:
+   ```
+   for id in 37052388148 37056912371 37065847534 37066259507; do gh api -X DELETE repos/KOFlynn/cv-reformatter/actions/runs/$id/logs; done
+   gh run view 37052388148 --attempt 1 --log | head -3   # expect no log
+   ```
 
 ## Run log
 
+- 2026-10-06 the readiness decisions (#36): `/reformat` keyed and capped, ingress disabled on `cvr-ca` and off by default, the Azure ids masked secrets, `demo.sh`; two sub-agents and a docs pass. The keyless `check-image.sh` passed locally, 401 included, after a fix for Git Bash's curl and `/dev/null`.
 - 2026-10-06 ticket 16 implemented on `phase-1/14-cost-check` (#36) by a sub-agent: CI split, docs, brief §10, readiness check, this note. PR eval on #36 cached: 48 hits, $0.00.
 - 2026-10-06 ticket 14 cost check, €0.00; docs-only `paths-ignore` (#36).
 - 2026-10-02 #34 and #35 merged; `main`'s uncached eval and deploy passed (37065847534, 37066259507).
