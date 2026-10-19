@@ -14,6 +14,7 @@ from langchain_core.runnables import RunnableLambda
 from cvr.label.config import LabellerConfig
 from cvr.label.errors import LabellerMisconfigured, ProviderUnavailable
 from cvr.label.labeller import (
+    MAX_OUTPUT_TOKENS,
     PROVIDER_RETRIES,
     anthropic_kwargs,
     build_chat_model,
@@ -83,6 +84,18 @@ def test_other_sampling_knobs_pass_through():
     config = LabellerConfig(extra={"top_p": 0.9})
     kwargs = anthropic_kwargs(config)
     assert kwargs["top_p"] == 0.9
+
+
+def test_output_cap_is_sent_by_default():
+    # langchain-anthropic has no model profile for claude-sonnet-5-5 and would
+    # fall back to 4096 tokens, truncating answers (thinking counts against it).
+    assert MAX_OUTPUT_TOKENS == 128_000
+    assert anthropic_kwargs(LabellerConfig())["max_tokens"] == 128_000
+
+
+def test_extra_overrides_the_output_cap():
+    config = LabellerConfig(extra={"max_tokens": 64_000})
+    assert anthropic_kwargs(config)["max_tokens"] == 64_000
 
 
 # --- Canned-response handling: a fake chat model, no network ---------------

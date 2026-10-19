@@ -69,7 +69,7 @@ DOCS_ONLY = ["**/*.md", "docs/**", ".scratch/**"]
 
 
 def test_the_gate_runs_on_pull_requests_and_pushes_to_main_only(workflow: dict):
-    # A push to main runs the eval uncached, about $3.30, and redeploys; a
+    # A push to main runs the eval uncached, about $1.60, and redeploys; a
     # docs-only merge changes neither the gate's verdict nor the image.
     # Every pull request runs every job: a required check skipped by a path
     # filter never reports, and branch protection would hold the pull request
