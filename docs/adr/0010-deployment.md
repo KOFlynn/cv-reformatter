@@ -90,7 +90,7 @@ Manual provisioning is a shortcut. For one app in one region with one maintainer
 - **Log Analytics:** this app writes a few KB per request.
 - **GHCR:** free for a public package.
 
-The live cost is the LLM, about $0.07 per document. Each merge to `main` spends one live eval run (about $3.3) plus one smoke document. A cost budget on the subscription alerts by email at 50% and 100% actual and at 100% forecast. If it ever fires, the response is to delete, not to investigate while paying: `az group delete -n cvr-rg` removes every billable resource in one command, and the wizard rebuilds them.
+The live cost is the LLM, about $0.07 per document. Each merge to `main` spends one live eval run (about $3.3 when this was written; about $1.6 on Sonnet 5.5, ADR-0011) plus one smoke document. A cost budget on the subscription alerts by email at 50% and 100% actual and at 100% forecast. If it ever fires, the response is to delete, not to investigate while paying: `az group delete -n cvr-rg` removes every billable resource in one command, and the wizard rebuilds them.
 
 **Considered options:**
 
