@@ -10,13 +10,13 @@ Spec: `.scratch/phase-1.5/spec.md`.
 
 **Blocked by:** 01 (Price Haiku 5.5 and write the run instructions), 02 (The Haiku runs)
 
-**Status:** ready-for-human
+**Status:** done
 
-- [ ] Smoke run done: config shows `claude-sonnet-5-5`, `medium`, `{'max_tokens': 128000}`, and cost is non-zero
-- [ ] Run 1 done, report kept in `sonnet-run-1/`
-- [ ] Run 2 done, report kept in `sonnet-run-2/`
-- [ ] Run 3 done, report kept in `sonnet-run-3/`
-- [ ] Each run's gate line, totals, cost and wall time posted as a comment below
+- [x] Smoke run done: config shows `claude-sonnet-5-5`, `medium`, `{'max_tokens': 128000}`, and cost is non-zero
+- [x] Run 1 done, report kept in `sonnet-run-1/`
+- [x] Run 2 done, report kept in `sonnet-run-2/`
+- [x] Run 3 done, report kept in `sonnet-run-3/`
+- [x] Each run's gate line, totals, cost and wall time posted as a comment below
 
 ## Comments
 
@@ -41,3 +41,17 @@ Full run N (about $1.50 to $2 and about four minutes each). Copy the reports eve
 uv run python -m cvr.eval.run --no-cache
 mkdir -p .cache/phase-1.5-runs/sonnet-run-1 && cp eval/report.json eval/report.md .cache/phase-1.5-runs/sonnet-run-1/
 ```
+
+**2026-10-19, results (`claude-sonnet-5-5`, `medium`, `{"max_tokens": 128000}`, prompt 1.3.0, schema 1.0.0, 48 live calls each, no retries).** Every run passed the gate.
+
+| Run | Gate | Structural P/R | Tunable P/R | Appendix | Input / output tokens | Cost | Wall time |
+|---|---|---|---|---|---|---|---|
+| 1 | PASS | 100 / 100 | 99.56 / 99.65 | 0.70% | 269,974 / 105,330 | $1.5932 | 163.3 s |
+| 2 | PASS | 100 / 100 | 99.73 / 99.73 | 0.70% | 269,974 / 105,274 | $1.5927 | 138.8 s |
+| 3 | PASS | 100 / 100 | 99.65 / 99.65 | 0.70% | 269,974 / 105,253 | $1.5925 | 138.5 s |
+
+Every hard-gate count was zero: added, dropped, wrongful removals, provenance, PII, images, ordering, punctuation, labelling failures and errors. The tunable misses were all section choices, and no wording was lost:
+- **c04:** Sonnet put the second profile paragraph, "Recently relocated to Dublin and available at short notice.", under Additional instead of Profile. That happened in 3 of 4 Layouts in runs 1 and 2, and in all 4 in run 3.
+- **c10 text-box, run 1 only:** the profile was split between Profile and Additional.
+
+Against the Opus reference (3 CI runs: tunable 99.91 to 100, appendix 0.70%, about $3.32, 214 to 238 s), Sonnet costs about 52% less and is about 35% faster. It is a little lower on tunable placement, but still well above the 98% threshold.
