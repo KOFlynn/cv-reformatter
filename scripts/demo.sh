@@ -35,21 +35,35 @@ fqdn() {
 }
 
 revision() {
-  az containerapp show --name "$APP" --resource-group "$RG"     --query properties.latestRevisionName --output tsv | tr -d ''
+  az containerapp show --name "$APP" --resource-group "$RG" \
+    --query properties.latestRevisionName --output tsv | tr -d '\r'
+}
+
+# Whether the revision is active: "true" or "false".
+active() {
+  az containerapp revision show --name "$APP" --resource-group "$RG" \
+    --revision "$1" --query properties.active --output tsv | tr -d '\r'
 }
 
 # How many replicas of the revision are Running, as a number ("?" if az fails).
 running() {
-  az containerapp replica list --name "$APP" --resource-group "$RG"     --revision "$1" --only-show-errors     --query "[?properties.runningState=='Running'] | length(@)"     --output tsv 2>/dev/null | tr -d '' || echo "?"
+  n=$(az containerapp replica list --name "$APP" --resource-group "$RG" \
+    --revision "$1" --only-show-errors \
+    --query "[?properties.runningState=='Running'] | length(@)" \
+    --output tsv 2>/dev/null) || n="?"
+  echo "${n:-?}" | tr -d '\r'
 }
 
 case "$ACTION" in
   up)
     rev=$(revision)
     echo "== activating the latest revision of $APP ($RG)"
-    az containerapp revision activate --name "$APP" --resource-group "$RG"       --revision "$rev" --only-show-errors --output none
+    az containerapp revision activate --name "$APP" --resource-group "$RG" \
+      --revision "$rev" --only-show-errors --output none
     echo "== opening ingress on $APP"
-    az containerapp ingress enable --name "$APP" --resource-group "$RG"       --type external --target-port 8000 --transport auto       --only-show-errors --output none
+    az containerapp ingress enable --name "$APP" --resource-group "$RG" \
+      --type external --target-port 8000 --transport auto \
+      --only-show-errors --output none
     url="https://$(fqdn)"
     echo "== waking $url"
     start=$(date +%s)
@@ -68,12 +82,16 @@ case "$ACTION" in
   down)
     if [ -n "$(fqdn)" ]; then
       echo "== closing ingress on $APP ($RG)"
-      az containerapp ingress disable --name "$APP" --resource-group "$RG"         --only-show-errors --output none
+      az containerapp ingress disable --name "$APP" --resource-group "$RG" \
+        --only-show-errors --output none
       [ -z "$(fqdn)" ] || { echo "FAIL: $APP still has an ingress FQDN"; exit 1; }
     fi
     rev=$(revision)
-    echo "== deactivating the latest revision of $APP"
-    az containerapp revision deactivate --name "$APP" --resource-group "$RG"       --revision "$rev" --only-show-errors --output none
+    if [ "$(active "$rev")" != false ]; then
+      echo "== deactivating the latest revision of $APP"
+      az containerapp revision deactivate --name "$APP" --resource-group "$RG" \
+        --revision "$rev" --only-show-errors --output none
+    fi
     # Termination takes a few seconds.
     n=$(running "$rev")
     waited=0
