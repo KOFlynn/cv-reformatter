@@ -1,0 +1,2677 @@
+{
+  "date": "2026-10-19",
+  "ticket": "phase-1.5 ticket 03",
+  "description": "Model comparison (CONTEXT.md): one reference configuration (Opus 5.5, medium) against two candidates (Haiku 5.5, high; Sonnet 5.5, medium), three runs each, same prompt and golden set. Not a Baseline: eval/thresholds.yaml was derived from eval/baseline-2026-09-29.json, and this file changes no threshold.",
+  "versions": {
+    "prompt": {
+      "version": "1.3.0",
+      "hash": "f326caf4f478e95d"
+    },
+    "schema": {
+      "version": "1.0.0",
+      "hash": "3ee02723787bc1ee"
+    }
+  },
+  "documents_per_run": 48,
+  "thresholds_applied": {
+    "placement_accuracy": {
+      "min": 98.0
+    },
+    "appendix_rate": {
+      "max": 2.0
+    },
+    "punctuation_fidelity": {
+      "hard": true
+    },
+    "note": "unchanged from eval/thresholds.yaml; every hard gate applied as in the eval runner"
+  },
+  "reference": {
+    "config": {
+      "provider": "anthropic",
+      "model": "claude-opus-5-5",
+      "effort": "medium",
+      "temperature": null,
+      "extra": {}
+    },
+    "runs": [
+      {
+        "run": 1,
+        "source": "CI run 37065847534 (push to main, 2026-10-02), eval-report artifact",
+        "gate": {
+          "passed": true,
+          "failures": []
+        },
+        "totals": {
+          "documents": 48,
+          "added": 0,
+          "dropped": 0,
+          "wrongful_removals": 0,
+          "provenance": 0,
+          "pii": 0,
+          "images": 0,
+          "ordering_failures": 0,
+          "structural": {
+            "precision": 100.0,
+            "recall": 100.0,
+            "hits": 1072,
+            "actual": 1072,
+            "expected": 1072
+          },
+          "tunable": {
+            "precision": 99.91,
+            "recall": 99.91,
+            "hits": 1127,
+            "actual": 1128,
+            "expected": 1128
+          },
+          "punctuation": 0,
+          "appendix_rate": 0.7,
+          "appendix_tokens": 92,
+          "content_tokens": 13108,
+          "label_failures": 0,
+          "errors": 0,
+          "retries": 0,
+          "cache_hits": 0,
+          "input_tokens": 269974,
+          "output_tokens": 111810,
+          "cost_usd": 3.3161
+        },
+        "per_layout": {
+          "header-footer": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 99.65,
+              "recall": 99.65,
+              "hits": 281,
+              "actual": 282,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.7,
+            "appendix_tokens": 23,
+            "content_tokens": 3266,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "cache_hits": 0,
+            "input_tokens": 66309,
+            "output_tokens": 26412,
+            "cost_usd": 0.7935
+          },
+          "single-column": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 282,
+              "actual": 282,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.69,
+            "appendix_tokens": 23,
+            "content_tokens": 3315,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "cache_hits": 0,
+            "input_tokens": 65504,
+            "output_tokens": 25474,
+            "cost_usd": 0.7715
+          },
+          "text-box": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 282,
+              "actual": 282,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.69,
+            "appendix_tokens": 23,
+            "content_tokens": 3315,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "cache_hits": 0,
+            "input_tokens": 66946,
+            "output_tokens": 27358,
+            "cost_usd": 0.8149
+          },
+          "two-column": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 282,
+              "actual": 282,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.72,
+            "appendix_tokens": 23,
+            "content_tokens": 3212,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "cache_hits": 0,
+            "input_tokens": 71215,
+            "output_tokens": 32566,
+            "cost_usd": 0.9362
+          }
+        },
+        "tokens": {
+          "input": 269974,
+          "output": 111810
+        },
+        "cost_usd": 3.3161,
+        "wall_time_seconds": 216.0,
+        "retries": 0,
+        "cache": {
+          "enabled": true,
+          "read": false,
+          "hits": 0,
+          "live_calls": 48
+        }
+      },
+      {
+        "run": 2,
+        "source": "CI run 37066259507 (push to main, 2026-10-02), eval-report artifact",
+        "gate": {
+          "passed": true,
+          "failures": []
+        },
+        "totals": {
+          "documents": 48,
+          "added": 0,
+          "dropped": 0,
+          "wrongful_removals": 0,
+          "provenance": 0,
+          "pii": 0,
+          "images": 0,
+          "ordering_failures": 0,
+          "structural": {
+            "precision": 100.0,
+            "recall": 100.0,
+            "hits": 1072,
+            "actual": 1072,
+            "expected": 1072
+          },
+          "tunable": {
+            "precision": 100.0,
+            "recall": 100.0,
+            "hits": 1128,
+            "actual": 1128,
+            "expected": 1128
+          },
+          "punctuation": 0,
+          "appendix_rate": 0.7,
+          "appendix_tokens": 92,
+          "content_tokens": 13108,
+          "label_failures": 0,
+          "errors": 0,
+          "retries": 0,
+          "cache_hits": 0,
+          "input_tokens": 269974,
+          "output_tokens": 112533,
+          "cost_usd": 3.3306
+        },
+        "per_layout": {
+          "header-footer": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 282,
+              "actual": 282,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.7,
+            "appendix_tokens": 23,
+            "content_tokens": 3266,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "cache_hits": 0,
+            "input_tokens": 66309,
+            "output_tokens": 26516,
+            "cost_usd": 0.7956
+          },
+          "single-column": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 282,
+              "actual": 282,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.69,
+            "appendix_tokens": 23,
+            "content_tokens": 3315,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "cache_hits": 0,
+            "input_tokens": 65504,
+            "output_tokens": 25510,
+            "cost_usd": 0.7722
+          },
+          "text-box": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 282,
+              "actual": 282,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.69,
+            "appendix_tokens": 23,
+            "content_tokens": 3315,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "cache_hits": 0,
+            "input_tokens": 66946,
+            "output_tokens": 27587,
+            "cost_usd": 0.8195
+          },
+          "two-column": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 282,
+              "actual": 282,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.72,
+            "appendix_tokens": 23,
+            "content_tokens": 3212,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "cache_hits": 0,
+            "input_tokens": 71215,
+            "output_tokens": 32920,
+            "cost_usd": 0.9433
+          }
+        },
+        "tokens": {
+          "input": 269974,
+          "output": 112533
+        },
+        "cost_usd": 3.3306,
+        "wall_time_seconds": 237.8,
+        "retries": 0,
+        "cache": {
+          "enabled": true,
+          "read": false,
+          "hits": 0,
+          "live_calls": 48
+        }
+      },
+      {
+        "run": 3,
+        "source": "CI run 37536287167 (push to main, 2026-10-06), eval-report artifact",
+        "gate": {
+          "passed": true,
+          "failures": []
+        },
+        "totals": {
+          "documents": 48,
+          "added": 0,
+          "dropped": 0,
+          "wrongful_removals": 0,
+          "provenance": 0,
+          "pii": 0,
+          "images": 0,
+          "ordering_failures": 0,
+          "structural": {
+            "precision": 100.0,
+            "recall": 100.0,
+            "hits": 1072,
+            "actual": 1072,
+            "expected": 1072
+          },
+          "tunable": {
+            "precision": 100.0,
+            "recall": 100.0,
+            "hits": 1128,
+            "actual": 1128,
+            "expected": 1128
+          },
+          "punctuation": 0,
+          "appendix_rate": 0.7,
+          "appendix_tokens": 92,
+          "content_tokens": 13108,
+          "label_failures": 0,
+          "errors": 0,
+          "retries": 0,
+          "cache_hits": 0,
+          "input_tokens": 269974,
+          "output_tokens": 112309,
+          "cost_usd": 3.3261
+        },
+        "per_layout": {
+          "header-footer": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 282,
+              "actual": 282,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.7,
+            "appendix_tokens": 23,
+            "content_tokens": 3266,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "cache_hits": 0,
+            "input_tokens": 66309,
+            "output_tokens": 26384,
+            "cost_usd": 0.7929
+          },
+          "single-column": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 282,
+              "actual": 282,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.69,
+            "appendix_tokens": 23,
+            "content_tokens": 3315,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "cache_hits": 0,
+            "input_tokens": 65504,
+            "output_tokens": 25599,
+            "cost_usd": 0.774
+          },
+          "text-box": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 282,
+              "actual": 282,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.69,
+            "appendix_tokens": 23,
+            "content_tokens": 3315,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "cache_hits": 0,
+            "input_tokens": 66946,
+            "output_tokens": 27161,
+            "cost_usd": 0.811
+          },
+          "two-column": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 282,
+              "actual": 282,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.72,
+            "appendix_tokens": 23,
+            "content_tokens": 3212,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "cache_hits": 0,
+            "input_tokens": 71215,
+            "output_tokens": 33165,
+            "cost_usd": 0.9482
+          }
+        },
+        "tokens": {
+          "input": 269974,
+          "output": 112309
+        },
+        "cost_usd": 3.3261,
+        "wall_time_seconds": 213.6,
+        "retries": 0,
+        "cache": {
+          "enabled": true,
+          "read": false,
+          "hits": 0,
+          "live_calls": 48
+        }
+      }
+    ],
+    "spread": {
+      "tunable_precision": {
+        "runs": [
+          99.91,
+          100.0,
+          100.0
+        ],
+        "min": 99.91,
+        "max": 100.0,
+        "range": 0.09
+      },
+      "tunable_recall": {
+        "runs": [
+          99.91,
+          100.0,
+          100.0
+        ],
+        "min": 99.91,
+        "max": 100.0,
+        "range": 0.09
+      },
+      "appendix_rate": {
+        "runs": [
+          0.7,
+          0.7,
+          0.7
+        ],
+        "min": 0.7,
+        "max": 0.7,
+        "range": 0.0
+      },
+      "structural_precision": {
+        "runs": [
+          100.0,
+          100.0,
+          100.0
+        ],
+        "min": 100.0,
+        "max": 100.0,
+        "range": 0.0
+      },
+      "structural_recall": {
+        "runs": [
+          100.0,
+          100.0,
+          100.0
+        ],
+        "min": 100.0,
+        "max": 100.0,
+        "range": 0.0
+      },
+      "punctuation": {
+        "runs": [
+          0,
+          0,
+          0
+        ],
+        "min": 0,
+        "max": 0,
+        "range": 0
+      },
+      "added": {
+        "runs": [
+          0,
+          0,
+          0
+        ],
+        "min": 0,
+        "max": 0,
+        "range": 0
+      },
+      "dropped": {
+        "runs": [
+          0,
+          0,
+          0
+        ],
+        "min": 0,
+        "max": 0,
+        "range": 0
+      },
+      "wrongful_removals": {
+        "runs": [
+          0,
+          0,
+          0
+        ],
+        "min": 0,
+        "max": 0,
+        "range": 0
+      },
+      "provenance": {
+        "runs": [
+          0,
+          0,
+          0
+        ],
+        "min": 0,
+        "max": 0,
+        "range": 0
+      },
+      "pii": {
+        "runs": [
+          0,
+          0,
+          0
+        ],
+        "min": 0,
+        "max": 0,
+        "range": 0
+      },
+      "images": {
+        "runs": [
+          0,
+          0,
+          0
+        ],
+        "min": 0,
+        "max": 0,
+        "range": 0
+      },
+      "ordering_failures": {
+        "runs": [
+          0,
+          0,
+          0
+        ],
+        "min": 0,
+        "max": 0,
+        "range": 0
+      },
+      "label_failures": {
+        "runs": [
+          0,
+          0,
+          0
+        ],
+        "min": 0,
+        "max": 0,
+        "range": 0
+      },
+      "errors": {
+        "runs": [
+          0,
+          0,
+          0
+        ],
+        "min": 0,
+        "max": 0,
+        "range": 0
+      },
+      "retries": {
+        "runs": [
+          0,
+          0,
+          0
+        ],
+        "min": 0,
+        "max": 0,
+        "range": 0
+      },
+      "input_tokens": {
+        "runs": [
+          269974,
+          269974,
+          269974
+        ],
+        "min": 269974,
+        "max": 269974,
+        "range": 0
+      },
+      "output_tokens": {
+        "runs": [
+          111810,
+          112533,
+          112309
+        ],
+        "min": 111810,
+        "max": 112533,
+        "range": 723
+      },
+      "cost_usd": {
+        "runs": [
+          3.3161,
+          3.3306,
+          3.3261
+        ],
+        "min": 3.3161,
+        "max": 3.3306,
+        "range": 0.0145
+      },
+      "wall_time_seconds": {
+        "runs": [
+          216.0,
+          237.8,
+          213.6
+        ],
+        "min": 213.6,
+        "max": 237.8,
+        "range": 24.2
+      }
+    },
+    "gates_passed": 3,
+    "total_cost_usd": 9.9728
+  },
+  "candidates": {
+    "haiku": {
+      "config": {
+        "provider": "anthropic",
+        "model": "claude-haiku-5-5",
+        "effort": "high",
+        "temperature": null,
+        "extra": {
+          "max_tokens": 128000
+        }
+      },
+      "runs": [
+        {
+          "run": 1,
+          "source": "local run 1, 2026-10-19, .cache/phase-1.5-runs/run-1/report.json",
+          "gate": {
+            "passed": false,
+            "failures": [
+              {
+                "metric": "removal_precision",
+                "detail": "RM_REFEREE may not remove \"with a reference available\"",
+                "candidates": [
+                  "c04"
+                ],
+                "documents": [
+                  "c04__header-footer",
+                  "c04__text-box"
+                ]
+              }
+            ]
+          },
+          "totals": {
+            "documents": 48,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 2,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 1072,
+              "actual": 1072,
+              "expected": 1072
+            },
+            "tunable": {
+              "precision": 98.94,
+              "recall": 99.02,
+              "hits": 1117,
+              "actual": 1129,
+              "expected": 1128
+            },
+            "punctuation": 0,
+            "appendix_rate": 1.3,
+            "appendix_tokens": 170,
+            "content_tokens": 13100,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "cache_hits": 0,
+            "input_tokens": 269974,
+            "output_tokens": 227427,
+            "cost_usd": 0.1407
+          },
+          "per_layout": {
+            "header-footer": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 1,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 98.23,
+                "recall": 98.23,
+                "hits": 277,
+                "actual": 282,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 1.81,
+              "appendix_tokens": 59,
+              "content_tokens": 3262,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 66309,
+              "output_tokens": 58166,
+              "cost_usd": 0.0357
+            },
+            "single-column": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 0,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 99.65,
+                "recall": 99.65,
+                "hits": 281,
+                "actual": 282,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.81,
+              "appendix_tokens": 27,
+              "content_tokens": 3315,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 65504,
+              "output_tokens": 48438,
+              "cost_usd": 0.0308
+            },
+            "text-box": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 1,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 98.94,
+                "recall": 98.94,
+                "hits": 279,
+                "actual": 282,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 1.27,
+              "appendix_tokens": 42,
+              "content_tokens": 3311,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 66946,
+              "output_tokens": 57865,
+              "cost_usd": 0.0356
+            },
+            "two-column": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 0,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 98.94,
+                "recall": 99.29,
+                "hits": 280,
+                "actual": 283,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 1.31,
+              "appendix_tokens": 42,
+              "content_tokens": 3212,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 71215,
+              "output_tokens": 62958,
+              "cost_usd": 0.0386
+            }
+          },
+          "tokens": {
+            "input": 269974,
+            "output": 227427
+          },
+          "cost_usd": 0.1407,
+          "wall_time_seconds": 201.0,
+          "retries": 0,
+          "cache": {
+            "enabled": true,
+            "read": false,
+            "hits": 0,
+            "live_calls": 48
+          }
+        },
+        {
+          "run": 2,
+          "source": "local run 2, 2026-10-19, .cache/phase-1.5-runs/run-2/report.json",
+          "gate": {
+            "passed": false,
+            "failures": [
+              {
+                "metric": "removal_precision",
+                "detail": "RM_PERSONAL may not remove \"EU citizen\"",
+                "candidates": [
+                  "c07"
+                ],
+                "documents": [
+                  "c07__text-box"
+                ]
+              },
+              {
+                "metric": "removal_precision",
+                "detail": "RM_REFEREE may not remove \"with a reference available\"",
+                "candidates": [
+                  "c04"
+                ],
+                "documents": [
+                  "c04__header-footer",
+                  "c04__single-column",
+                  "c04__text-box"
+                ]
+              },
+              {
+                "metric": "placement_accuracy (structural)",
+                "detail": "structural leaves below 100% precision or recall",
+                "candidates": [
+                  "c05",
+                  "c08",
+                  "c12"
+                ],
+                "documents": [
+                  "c05__header-footer",
+                  "c08__text-box",
+                  "c12__single-column"
+                ]
+              }
+            ]
+          },
+          "totals": {
+            "documents": 48,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 4,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 99.72,
+              "recall": 99.72,
+              "hits": 1069,
+              "actual": 1072,
+              "expected": 1072
+            },
+            "tunable": {
+              "precision": 98.41,
+              "recall": 98.49,
+              "hits": 1111,
+              "actual": 1129,
+              "expected": 1128
+            },
+            "punctuation": 0,
+            "appendix_rate": 1.34,
+            "appendix_tokens": 176,
+            "content_tokens": 13095,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "cache_hits": 0,
+            "input_tokens": 269974,
+            "output_tokens": 229659,
+            "cost_usd": 0.1418
+          },
+          "per_layout": {
+            "header-footer": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 1,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 99.63,
+                "recall": 99.63,
+                "hits": 267,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 98.93,
+                "recall": 98.58,
+                "hits": 278,
+                "actual": 281,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 1.84,
+              "appendix_tokens": 60,
+              "content_tokens": 3262,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 66309,
+              "output_tokens": 58948,
+              "cost_usd": 0.0361
+            },
+            "single-column": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 1,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 99.63,
+                "recall": 99.63,
+                "hits": 267,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 99.29,
+                "recall": 98.58,
+                "hits": 278,
+                "actual": 280,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 1.69,
+              "appendix_tokens": 56,
+              "content_tokens": 3311,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 65504,
+              "output_tokens": 50843,
+              "cost_usd": 0.032
+            },
+            "text-box": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 2,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 99.63,
+                "recall": 99.63,
+                "hits": 267,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 97.54,
+                "recall": 98.23,
+                "hits": 277,
+                "actual": 284,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.73,
+              "appendix_tokens": 24,
+              "content_tokens": 3309,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 66946,
+              "output_tokens": 58690,
+              "cost_usd": 0.036
+            },
+            "two-column": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 0,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 97.89,
+                "recall": 98.58,
+                "hits": 278,
+                "actual": 284,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 1.12,
+              "appendix_tokens": 36,
+              "content_tokens": 3213,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 71215,
+              "output_tokens": 61178,
+              "cost_usd": 0.0377
+            }
+          },
+          "tokens": {
+            "input": 269974,
+            "output": 229659
+          },
+          "cost_usd": 0.1418,
+          "wall_time_seconds": 200.1,
+          "retries": 0,
+          "cache": {
+            "enabled": true,
+            "read": false,
+            "hits": 0,
+            "live_calls": 48
+          }
+        },
+        {
+          "run": 3,
+          "source": "local run 3, 2026-10-19, .cache/phase-1.5-runs/run-3/report.json",
+          "gate": {
+            "passed": false,
+            "failures": [
+              {
+                "metric": "removal_precision",
+                "detail": "RM_PERSONAL may not remove \"EU citizen\"",
+                "candidates": [
+                  "c07"
+                ],
+                "documents": [
+                  "c07__two-column"
+                ]
+              },
+              {
+                "metric": "removal_precision",
+                "detail": "RM_REFEREE may not remove \"with a reference available\"",
+                "candidates": [
+                  "c04"
+                ],
+                "documents": [
+                  "c04__single-column",
+                  "c04__text-box"
+                ]
+              },
+              {
+                "metric": "placement_accuracy (structural)",
+                "detail": "structural leaves below 100% precision or recall",
+                "candidates": [
+                  "c08",
+                  "c12"
+                ],
+                "documents": [
+                  "c08__text-box",
+                  "c12__single-column"
+                ]
+              }
+            ]
+          },
+          "totals": {
+            "documents": 48,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 3,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 99.81,
+              "recall": 99.81,
+              "hits": 1070,
+              "actual": 1072,
+              "expected": 1072
+            },
+            "tunable": {
+              "precision": 98.59,
+              "recall": 98.94,
+              "hits": 1116,
+              "actual": 1132,
+              "expected": 1128
+            },
+            "punctuation": 0,
+            "appendix_rate": 1.09,
+            "appendix_tokens": 143,
+            "content_tokens": 13098,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "cache_hits": 0,
+            "input_tokens": 269974,
+            "output_tokens": 226587,
+            "cost_usd": 0.1403
+          },
+          "per_layout": {
+            "header-footer": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 0,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 98.24,
+                "recall": 98.94,
+                "hits": 279,
+                "actual": 284,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 1.04,
+              "appendix_tokens": 34,
+              "content_tokens": 3266,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 66309,
+              "output_tokens": 56275,
+              "cost_usd": 0.0348
+            },
+            "single-column": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 1,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 99.63,
+                "recall": 99.63,
+                "hits": 267,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 98.94,
+                "recall": 98.94,
+                "hits": 279,
+                "actual": 282,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 1.3,
+              "appendix_tokens": 43,
+              "content_tokens": 3311,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 65504,
+              "output_tokens": 49244,
+              "cost_usd": 0.0312
+            },
+            "text-box": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 1,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 99.63,
+                "recall": 99.63,
+                "hits": 267,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 98.59,
+                "recall": 98.94,
+                "hits": 279,
+                "actual": 283,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 1.3,
+              "appendix_tokens": 43,
+              "content_tokens": 3311,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 66946,
+              "output_tokens": 57322,
+              "cost_usd": 0.0354
+            },
+            "two-column": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 1,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 98.59,
+                "recall": 98.94,
+                "hits": 279,
+                "actual": 283,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.72,
+              "appendix_tokens": 23,
+              "content_tokens": 3210,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 71215,
+              "output_tokens": 63746,
+              "cost_usd": 0.039
+            }
+          },
+          "tokens": {
+            "input": 269974,
+            "output": 226587
+          },
+          "cost_usd": 0.1403,
+          "wall_time_seconds": 202.2,
+          "retries": 0,
+          "cache": {
+            "enabled": true,
+            "read": false,
+            "hits": 0,
+            "live_calls": 48
+          }
+        }
+      ],
+      "spread": {
+        "tunable_precision": {
+          "runs": [
+            98.94,
+            98.41,
+            98.59
+          ],
+          "min": 98.41,
+          "max": 98.94,
+          "range": 0.53
+        },
+        "tunable_recall": {
+          "runs": [
+            99.02,
+            98.49,
+            98.94
+          ],
+          "min": 98.49,
+          "max": 99.02,
+          "range": 0.53
+        },
+        "appendix_rate": {
+          "runs": [
+            1.3,
+            1.34,
+            1.09
+          ],
+          "min": 1.09,
+          "max": 1.34,
+          "range": 0.25
+        },
+        "structural_precision": {
+          "runs": [
+            100.0,
+            99.72,
+            99.81
+          ],
+          "min": 99.72,
+          "max": 100.0,
+          "range": 0.28
+        },
+        "structural_recall": {
+          "runs": [
+            100.0,
+            99.72,
+            99.81
+          ],
+          "min": 99.72,
+          "max": 100.0,
+          "range": 0.28
+        },
+        "punctuation": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "added": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "dropped": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "wrongful_removals": {
+          "runs": [
+            2,
+            4,
+            3
+          ],
+          "min": 2,
+          "max": 4,
+          "range": 2
+        },
+        "provenance": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "pii": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "images": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "ordering_failures": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "label_failures": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "errors": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "retries": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "input_tokens": {
+          "runs": [
+            269974,
+            269974,
+            269974
+          ],
+          "min": 269974,
+          "max": 269974,
+          "range": 0
+        },
+        "output_tokens": {
+          "runs": [
+            227427,
+            229659,
+            226587
+          ],
+          "min": 226587,
+          "max": 229659,
+          "range": 3072
+        },
+        "cost_usd": {
+          "runs": [
+            0.1407,
+            0.1418,
+            0.1403
+          ],
+          "min": 0.1403,
+          "max": 0.1418,
+          "range": 0.0015
+        },
+        "wall_time_seconds": {
+          "runs": [
+            201.0,
+            200.1,
+            202.2
+          ],
+          "min": 200.1,
+          "max": 202.2,
+          "range": 2.1
+        }
+      },
+      "gates_passed": 0,
+      "total_cost_usd": 0.4228
+    },
+    "sonnet": {
+      "config": {
+        "provider": "anthropic",
+        "model": "claude-sonnet-5-5",
+        "effort": "medium",
+        "temperature": null,
+        "extra": {
+          "max_tokens": 128000
+        }
+      },
+      "runs": [
+        {
+          "run": 1,
+          "source": "local run 1, 2026-10-19, .cache/phase-1.5-runs/sonnet-run-1/report.json",
+          "gate": {
+            "passed": true,
+            "failures": []
+          },
+          "totals": {
+            "documents": 48,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 1072,
+              "actual": 1072,
+              "expected": 1072
+            },
+            "tunable": {
+              "precision": 99.56,
+              "recall": 99.65,
+              "hits": 1124,
+              "actual": 1129,
+              "expected": 1128
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.7,
+            "appendix_tokens": 92,
+            "content_tokens": 13108,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "cache_hits": 0,
+            "input_tokens": 269974,
+            "output_tokens": 105330,
+            "cost_usd": 1.5932
+          },
+          "per_layout": {
+            "header-footer": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 0,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 99.65,
+                "recall": 99.65,
+                "hits": 281,
+                "actual": 282,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.7,
+              "appendix_tokens": 23,
+              "content_tokens": 3266,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 66309,
+              "output_tokens": 25022,
+              "cost_usd": 0.3828
+            },
+            "single-column": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 0,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 282,
+                "actual": 282,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.69,
+              "appendix_tokens": 23,
+              "content_tokens": 3315,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 65504,
+              "output_tokens": 24478,
+              "cost_usd": 0.3758
+            },
+            "text-box": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 0,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 98.94,
+                "recall": 99.29,
+                "hits": 280,
+                "actual": 283,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.69,
+              "appendix_tokens": 23,
+              "content_tokens": 3315,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 66946,
+              "output_tokens": 25767,
+              "cost_usd": 0.3916
+            },
+            "two-column": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 0,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 99.65,
+                "recall": 99.65,
+                "hits": 281,
+                "actual": 282,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.72,
+              "appendix_tokens": 23,
+              "content_tokens": 3212,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 71215,
+              "output_tokens": 30063,
+              "cost_usd": 0.4431
+            }
+          },
+          "tokens": {
+            "input": 269974,
+            "output": 105330
+          },
+          "cost_usd": 1.5932,
+          "wall_time_seconds": 163.3,
+          "retries": 0,
+          "cache": {
+            "enabled": true,
+            "read": false,
+            "hits": 0,
+            "live_calls": 48
+          }
+        },
+        {
+          "run": 2,
+          "source": "local run 2, 2026-10-19, .cache/phase-1.5-runs/sonnet-run-2/report.json",
+          "gate": {
+            "passed": true,
+            "failures": []
+          },
+          "totals": {
+            "documents": 48,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 1072,
+              "actual": 1072,
+              "expected": 1072
+            },
+            "tunable": {
+              "precision": 99.73,
+              "recall": 99.73,
+              "hits": 1125,
+              "actual": 1128,
+              "expected": 1128
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.7,
+            "appendix_tokens": 92,
+            "content_tokens": 13108,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "cache_hits": 0,
+            "input_tokens": 269974,
+            "output_tokens": 105274,
+            "cost_usd": 1.5927
+          },
+          "per_layout": {
+            "header-footer": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 0,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 99.65,
+                "recall": 99.65,
+                "hits": 281,
+                "actual": 282,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.7,
+              "appendix_tokens": 23,
+              "content_tokens": 3266,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 66309,
+              "output_tokens": 25029,
+              "cost_usd": 0.3829
+            },
+            "single-column": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 0,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 282,
+                "actual": 282,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.69,
+              "appendix_tokens": 23,
+              "content_tokens": 3315,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 65504,
+              "output_tokens": 24478,
+              "cost_usd": 0.3758
+            },
+            "text-box": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 0,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 99.65,
+                "recall": 99.65,
+                "hits": 281,
+                "actual": 282,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.69,
+              "appendix_tokens": 23,
+              "content_tokens": 3315,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 66946,
+              "output_tokens": 25751,
+              "cost_usd": 0.3914
+            },
+            "two-column": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 0,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 99.65,
+                "recall": 99.65,
+                "hits": 281,
+                "actual": 282,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.72,
+              "appendix_tokens": 23,
+              "content_tokens": 3212,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 71215,
+              "output_tokens": 30016,
+              "cost_usd": 0.4426
+            }
+          },
+          "tokens": {
+            "input": 269974,
+            "output": 105274
+          },
+          "cost_usd": 1.5927,
+          "wall_time_seconds": 138.8,
+          "retries": 0,
+          "cache": {
+            "enabled": true,
+            "read": false,
+            "hits": 0,
+            "live_calls": 48
+          }
+        },
+        {
+          "run": 3,
+          "source": "local run 3, 2026-10-19, .cache/phase-1.5-runs/sonnet-run-3/report.json",
+          "gate": {
+            "passed": true,
+            "failures": []
+          },
+          "totals": {
+            "documents": 48,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 1072,
+              "actual": 1072,
+              "expected": 1072
+            },
+            "tunable": {
+              "precision": 99.65,
+              "recall": 99.65,
+              "hits": 1124,
+              "actual": 1128,
+              "expected": 1128
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.7,
+            "appendix_tokens": 92,
+            "content_tokens": 13108,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "cache_hits": 0,
+            "input_tokens": 269974,
+            "output_tokens": 105253,
+            "cost_usd": 1.5925
+          },
+          "per_layout": {
+            "header-footer": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 0,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 99.65,
+                "recall": 99.65,
+                "hits": 281,
+                "actual": 282,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.7,
+              "appendix_tokens": 23,
+              "content_tokens": 3266,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 66309,
+              "output_tokens": 25029,
+              "cost_usd": 0.3829
+            },
+            "single-column": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 0,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 99.65,
+                "recall": 99.65,
+                "hits": 281,
+                "actual": 282,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.69,
+              "appendix_tokens": 23,
+              "content_tokens": 3315,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 65504,
+              "output_tokens": 24450,
+              "cost_usd": 0.3755
+            },
+            "text-box": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 0,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 99.65,
+                "recall": 99.65,
+                "hits": 281,
+                "actual": 282,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.69,
+              "appendix_tokens": 23,
+              "content_tokens": 3315,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 66946,
+              "output_tokens": 25751,
+              "cost_usd": 0.3914
+            },
+            "two-column": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 0,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 99.65,
+                "recall": 99.65,
+                "hits": 281,
+                "actual": 282,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.72,
+              "appendix_tokens": 23,
+              "content_tokens": 3212,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "cache_hits": 0,
+              "input_tokens": 71215,
+              "output_tokens": 30023,
+              "cost_usd": 0.4427
+            }
+          },
+          "tokens": {
+            "input": 269974,
+            "output": 105253
+          },
+          "cost_usd": 1.5925,
+          "wall_time_seconds": 138.5,
+          "retries": 0,
+          "cache": {
+            "enabled": true,
+            "read": false,
+            "hits": 0,
+            "live_calls": 48
+          }
+        }
+      ],
+      "spread": {
+        "tunable_precision": {
+          "runs": [
+            99.56,
+            99.73,
+            99.65
+          ],
+          "min": 99.56,
+          "max": 99.73,
+          "range": 0.17
+        },
+        "tunable_recall": {
+          "runs": [
+            99.65,
+            99.73,
+            99.65
+          ],
+          "min": 99.65,
+          "max": 99.73,
+          "range": 0.08
+        },
+        "appendix_rate": {
+          "runs": [
+            0.7,
+            0.7,
+            0.7
+          ],
+          "min": 0.7,
+          "max": 0.7,
+          "range": 0.0
+        },
+        "structural_precision": {
+          "runs": [
+            100.0,
+            100.0,
+            100.0
+          ],
+          "min": 100.0,
+          "max": 100.0,
+          "range": 0.0
+        },
+        "structural_recall": {
+          "runs": [
+            100.0,
+            100.0,
+            100.0
+          ],
+          "min": 100.0,
+          "max": 100.0,
+          "range": 0.0
+        },
+        "punctuation": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "added": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "dropped": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "wrongful_removals": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "provenance": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "pii": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "images": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "ordering_failures": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "label_failures": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "errors": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "retries": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "input_tokens": {
+          "runs": [
+            269974,
+            269974,
+            269974
+          ],
+          "min": 269974,
+          "max": 269974,
+          "range": 0
+        },
+        "output_tokens": {
+          "runs": [
+            105330,
+            105274,
+            105253
+          ],
+          "min": 105253,
+          "max": 105330,
+          "range": 77
+        },
+        "cost_usd": {
+          "runs": [
+            1.5932,
+            1.5927,
+            1.5925
+          ],
+          "min": 1.5925,
+          "max": 1.5932,
+          "range": 0.0007
+        },
+        "wall_time_seconds": {
+          "runs": [
+            163.3,
+            138.8,
+            138.5
+          ],
+          "min": 138.5,
+          "max": 163.3,
+          "range": 24.8
+        }
+      },
+      "gates_passed": 3,
+      "total_cost_usd": 4.7784
+    }
+  },
+  "total_cost_usd": {
+    "reference": 9.9728,
+    "haiku": 0.4228,
+    "sonnet": 4.7784
+  },
+  "extra_opus_run": {
+    "note": "Fourth Opus run, not part of the reference spread (the reference is the three CI runs). Run by accident on 2026-10-19 when CVR_LABEL_* was set inline on the smoke-run line only, so the three intended Haiku runs used the default Opus config; this one was kept.",
+    "source": "local, 2026-10-19, .cache/phase-1.5-runs/opus-2026-10-19/report.json",
+    "config": {
+      "provider": "anthropic",
+      "model": "claude-opus-5-5",
+      "effort": "medium",
+      "temperature": null,
+      "extra": {}
+    },
+    "versions": {
+      "prompt": {
+        "version": "1.3.0",
+        "hash": "f326caf4f478e95d"
+      },
+      "schema": {
+        "version": "1.0.0",
+        "hash": "3ee02723787bc1ee"
+      }
+    },
+    "gate_passed": true,
+    "cost_usd": 3.3247,
+    "wall_time_seconds": 217.8,
+    "tunable": {
+      "precision": 100.0,
+      "recall": 100.0,
+      "hits": 1128,
+      "actual": 1128,
+      "expected": 1128
+    },
+    "structural": {
+      "precision": 100.0,
+      "recall": 100.0,
+      "hits": 1072,
+      "actual": 1072,
+      "expected": 1072
+    },
+    "appendix_rate": 0.7,
+    "tokens": {
+      "input": 269974,
+      "output": 112241
+    }
+  },
+  "sources": {
+    "reference": [
+      {
+        "ci_run": "37065847534",
+        "date": "2026-10-02",
+        "artifact": "eval-report",
+        "retained_until": "about 2026-12-31"
+      },
+      {
+        "ci_run": "37066259507",
+        "date": "2026-10-02",
+        "artifact": "eval-report",
+        "retained_until": "about 2026-12-31"
+      },
+      {
+        "ci_run": "37536287167",
+        "date": "2026-10-06",
+        "artifact": "eval-report",
+        "retained_until": "about 2026-12-31"
+      }
+    ],
+    "haiku": [
+      {
+        "local_run": 1,
+        "date": "2026-10-19",
+        "path": ".cache/phase-1.5-runs/run-1/report.json (gitignored)"
+      },
+      {
+        "local_run": 2,
+        "date": "2026-10-19",
+        "path": ".cache/phase-1.5-runs/run-2/report.json (gitignored)"
+      },
+      {
+        "local_run": 3,
+        "date": "2026-10-19",
+        "path": ".cache/phase-1.5-runs/run-3/report.json (gitignored)"
+      }
+    ],
+    "sonnet": [
+      {
+        "local_run": 1,
+        "date": "2026-10-19",
+        "path": ".cache/phase-1.5-runs/sonnet-run-1/report.json (gitignored)"
+      },
+      {
+        "local_run": 2,
+        "date": "2026-10-19",
+        "path": ".cache/phase-1.5-runs/sonnet-run-2/report.json (gitignored)"
+      },
+      {
+        "local_run": 3,
+        "date": "2026-10-19",
+        "path": ".cache/phase-1.5-runs/sonnet-run-3/report.json (gitignored)"
+      }
+    ]
+  },
+  "notes": [
+    "The sides differ in effort as well as model: Opus 5.5 at medium (the reference), Haiku 5.5 at high, Sonnet 5.5 at medium. Haiku was given high to have a fair chance; Sonnet matches the reference, so Sonnet and Opus differ only in the model. Read each comparison as one between configurations.",
+    "Prompt 1.3.0 and schema 1.0.0 on all nine runs; 48 documents and 48 live calls each, cache never read, zero retries.",
+    "Both 5.5 candidates needed max_tokens 128000, set through CVR_LABEL_EXTRA='{\"max_tokens\": 128000}', because the locked langchain-anthropic has a model profile for claude-opus-5-5 but none for claude-haiku-5-5 or claude-sonnet-5-5 and falls back to 4,096 (the first Haiku smoke run was cut off at exactly 4,096 output tokens). Opus needs no override. Whichever candidate becomes the default must carry that cap in code.",
+    "Haiku failed all three runs on hard gates: 2, 4, 3 wrongful removals (runs 1 to 3) and structural placement misses in runs 2 and 3. Three patterns. (1) RM_REFEREE removes c04's content line 'with a reference available' (all three runs). (2) RM_PERSONAL removes c07's 'EU citizen' (runs 2 and 3). (3) Quotes clipped at commas and clause ends (c05, c08, c12 and c10: for example ', Moylish', ', Bray', ' (hybrid)', and sentence tails left to the appendix), which drops structural leaves in c05, c08 and c12 and pushes the appendix rate to 1.09 to 1.34% against Opus's 0.70%. No added or dropped text, provenance, PII, image, ordering or labelling failure in any Haiku run.",
+    "Sonnet passed every gate on every run with every hard-gate count at zero (added, dropped, wrongful removals, provenance, PII, images, ordering, punctuation, labelling failures, errors). Structural placement 100/100 in all three runs. Its only systematic difference from Opus: it files c04's second profile paragraph, 'Recently relocated to Dublin and available at short notice.', under Additional instead of Profile (3 of 4 Layouts in runs 1 and 2, all 4 in run 3). In run 1 it also split c10's text-box profile between Profile and Additional. No wording is lost; these are section choices and the only tunable misses.",
+    "Extra Opus run, kept out of the reference spread: claude-opus-5-5 at medium, 2026-10-19, prompt 1.3.0, PASS, $3.3247, 217.8 s (see extra_opus_run).",
+    "Price table (cvr.label.pricing), checked 2026-10-19: Sonnet 5.5 $2 in and $10 out per million tokens; Haiku 5.5 from the same ticket-01 entry. Cost in every report is the labelling cost from that table."
+  ],
+  "verdict": {
+    "rule": "Spec: any hard-gate breach, wrongful removal, labelling failure or non-provider error in any run disqualifies a candidate; thresholds applied unchanged; above the gate the call is the maintainer's, on the side-by-side numbers.",
+    "haiku": {
+      "result": "disqualified",
+      "gates_passed": "0 of 3 runs",
+      "reasoning": "Failed the hard gates in all three runs (wrongful removals 2 to 4 per run; structural recall 99.72 to 100.0). Cheaper ($0.1403 to $0.1418 a run) but not an acceptable trade for removed content lines. Maintainer's verdict: a wide gap; Haiku as configured is out. A Haiku-specific prompt approach might be tried later; nothing is planned."
+    },
+    "sonnet": {
+      "result": "recommended",
+      "gates_passed": "3 of 3 runs",
+      "reasoning": "Passed every gate on every run with every hard-gate count at zero. Structural 100/100; tunable precision 99.56 to 99.73, recall 99.65 to 99.73 (reference 99.91 to 100.0 and 99.91 to 100.0), against the unchanged 98% threshold; appendix rate 0.7% (reference 0.7%, threshold 2%). Cost $1.5925 to $1.5932 a run against $3.3161 to $3.3306 for Opus, 52% less; wall time 138.5 to 163.3 s against 213.6 to 237.8 s. The price is slightly lower tunable placement from the c04 section choice, with no loss of text."
+    },
+    "recommendation": "Make claude-sonnet-5-5 at effort medium the default labeller (with max_tokens 128000 carried in code).",
+    "maintainer_decision": {
+      "date": "2026-10-19",
+      "status": "made",
+      "haiku": "A wide gap; move on to Sonnet 5.5 (ticket 06).",
+      "sonnet": "Make Sonnet 5.5 at medium the default (ticket 04)."
+    }
+  }
+}
