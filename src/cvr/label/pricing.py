@@ -14,6 +14,7 @@ PRICE_TABLE: dict[str, tuple[float, float]] = {
     "claude-opus-5": (5.0, 25.0),
     "claude-opus-5-5": (4.0, 20.0),
     "claude-sonnet-5": (2.0, 10.0),
+    "claude-sonnet-5-5": (2.0, 10.0),
     # The base tier, prompts up to 100K tokens; every golden-set prompt is far below.
     "claude-haiku-5-5": (0.10, 0.50),
 }
