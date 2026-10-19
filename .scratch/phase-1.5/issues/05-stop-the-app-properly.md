@@ -19,10 +19,14 @@ Spec: `.scratch/phase-1.5/spec.md`.
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** in-review
 
-- [ ] The deploy job's close step deactivates the revision after closing ingress, under the same always-once-logged-in condition, and `tests/ci/test_workflow.py` pins both the order and the condition
-- [ ] `demo.sh up` activates before opening ingress, and `demo.sh down` deactivates after closing ingress and checks replicas, all pinned by `tests/ci/test_deploy_scripts.py`. Neither script prints an identifier
-- [ ] The ADR-0010 amendment and the doc fixes are done. No doc still says that closing ingress scales the app to zero
-- [ ] `uv run pytest -q`, `ruff check` and `ruff format --check` are green
+- [x] The deploy job's close step deactivates the revision after closing ingress, under the same always-once-logged-in condition, and `tests/ci/test_workflow.py` pins both the order and the condition
+- [x] `demo.sh up` activates before opening ingress, and `demo.sh down` deactivates after closing ingress and checks replicas, all pinned by `tests/ci/test_deploy_scripts.py`. Neither script prints an identifier
+- [x] The ADR-0010 amendment and the doc fixes are done. No doc still says that closing ingress scales the app to zero
+- [x] `uv run pytest -q`, `ruff check` and `ruff format --check` are green
 - [ ] After the merge: the deploy run finished, and `az containerapp replica list` for the new revision is empty. The output (with no identifiers) is recorded here
+
+## Comments
+
+**2026-10-19.** Done test-first. The deploy's final step is now "Close ingress and stop the app" (same `always() && steps.login.outcome == 'success'` condition): it closes ingress, looks the revision up with `properties.latestRevisionName`, deactivates it, then polls `az containerapp replica list` (12 tries, 5 s apart) and fails with an error annotation if a replica is still `Running`. `demo.sh up` activates the latest revision before opening ingress; `down` closes ingress only if an FQDN exists, always deactivates the revision, polls up to `STOP_SECONDS` (60) and exits 1 if a replica still runs, so an already-closed app is no longer an early exit but is still stopped. Decisions beyond the ticket: the poll treats an `az` failure as "unknown" (not zero), so it fails rather than passes; the ADR amendment also records that the earlier "scale to zero" paragraph holds only while ingress exists; README's stale claims were fixed along with CLAUDE.md and the development guide. No `az` command was run; the live check is the post-merge box.

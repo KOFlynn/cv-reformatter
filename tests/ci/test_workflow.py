@@ -251,6 +251,32 @@ def test_ingress_closes_last_even_when_the_smoke_test_fails(deploy: dict):
     )
 
 
+# Closing ingress deletes the app's only scale rule, so a replica the smoke
+# test woke never scales down (found 2026-10-19, ADR-0010 amendment): "off"
+# means the revision is deactivated, after ingress closes, in the same step.
+def test_the_close_step_deactivates_the_revision_after_closing_ingress(deploy: dict):
+    (step,) = steps(deploy, runs="az containerapp ingress disable")
+    script = step["run"]
+    assert "az containerapp revision deactivate" in script
+    assert script.index("ingress disable") < script.index("revision deactivate")
+    assert (
+        " ".join(step["if"].split()) == "always() && steps.login.outcome == 'success'"
+    )
+
+
+def test_the_revision_is_looked_up_at_run_time_and_no_id_is_printed(deploy: dict):
+    (step,) = steps(deploy, runs="az containerapp revision deactivate")
+    script = step["run"].replace("\\\n", " ")
+    assert "properties.latestRevisionName" in script
+    assert script.index("latestRevisionName") < script.index("revision deactivate")
+    assert "--revision" in script
+    assert "--revision cvr-ca--" not in script
+    az_calls = [c for c in script.split("az containerapp")[1:]]
+    assert az_calls
+    for call in az_calls:
+        assert "--output none" in call or "--output tsv" in call, call
+
+
 def test_smoke_test_sends_the_api_key_through_env(deploy: dict):
     (step,) = steps(deploy, runs="smoke-deploy.sh")
     assert step["env"]["CVR_API_KEY"] == "${{ secrets.CVR_API_KEY }}"

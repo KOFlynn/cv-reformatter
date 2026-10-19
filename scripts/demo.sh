@@ -3,8 +3,12 @@
 # default: any request through it wakes the app, and the URL is in public
 # history. `up` opens it with the provisioned settings and wakes the app
 # until /health answers, absorbing the cold start before the audience sees
-# it; `down` closes it again. The deploy job closes it after every deploy,
-# so a merge during a demo ends the demo.
+# it; `down` closes it again. Closing ingress deletes the app's only scale
+# rule (the HTTP one), so a running replica would never scale down: "off"
+# means the latest revision is deactivated, so `up` activates it first and
+# `down` deactivates it and checks that no replica runs. The deploy job
+# stops the app the same way after every deploy, so a merge during a demo
+# ends the demo.
 #
 #   sh scripts/demo.sh up   [resource-group] [app]
 #   sh scripts/demo.sh down [resource-group] [app]
@@ -23,18 +27,29 @@ APP=${3:-$(from_env AZURE_CONTAINER_APP || true)}
 RG=${RG:-cvr-rg}
 APP=${APP:-cvr-ca}
 WAKE_SECONDS=${WAKE_SECONDS:-180}
+STOP_SECONDS=${STOP_SECONDS:-60}
 
 fqdn() {
   az containerapp show --name "$APP" --resource-group "$RG" \
     --query properties.configuration.ingress.fqdn --output tsv | tr -d '\r'
 }
 
+revision() {
+  az containerapp show --name "$APP" --resource-group "$RG"     --query properties.latestRevisionName --output tsv | tr -d ''
+}
+
+# How many replicas of the revision are Running, as a number ("?" if az fails).
+running() {
+  az containerapp replica list --name "$APP" --resource-group "$RG"     --revision "$1" --only-show-errors     --query "[?properties.runningState=='Running'] | length(@)"     --output tsv 2>/dev/null | tr -d '' || echo "?"
+}
+
 case "$ACTION" in
   up)
-    echo "== opening ingress on $APP ($RG)"
-    az containerapp ingress enable --name "$APP" --resource-group "$RG" \
-      --type external --target-port 8000 --transport auto \
-      --only-show-errors --output none
+    rev=$(revision)
+    echo "== activating the latest revision of $APP ($RG)"
+    az containerapp revision activate --name "$APP" --resource-group "$RG"       --revision "$rev" --only-show-errors --output none
+    echo "== opening ingress on $APP"
+    az containerapp ingress enable --name "$APP" --resource-group "$RG"       --type external --target-port 8000 --transport auto       --only-show-errors --output none
     url="https://$(fqdn)"
     echo "== waking $url"
     start=$(date +%s)
@@ -51,15 +66,24 @@ case "$ACTION" in
     echo "When the demo is over: sh scripts/demo.sh down"
     ;;
   down)
-    if [ -z "$(fqdn)" ]; then
-      echo "Already closed: $APP has no ingress."
-      exit 0
+    if [ -n "$(fqdn)" ]; then
+      echo "== closing ingress on $APP ($RG)"
+      az containerapp ingress disable --name "$APP" --resource-group "$RG"         --only-show-errors --output none
+      [ -z "$(fqdn)" ] || { echo "FAIL: $APP still has an ingress FQDN"; exit 1; }
     fi
-    echo "== closing ingress on $APP ($RG)"
-    az containerapp ingress disable --name "$APP" --resource-group "$RG" \
-      --only-show-errors --output none
-    [ -z "$(fqdn)" ] || { echo "FAIL: $APP still has an ingress FQDN"; exit 1; }
-    echo "Closed: $APP has no ingress; it scales to zero."
+    rev=$(revision)
+    echo "== deactivating the latest revision of $APP"
+    az containerapp revision deactivate --name "$APP" --resource-group "$RG"       --revision "$rev" --only-show-errors --output none
+    # Termination takes a few seconds.
+    n=$(running "$rev")
+    waited=0
+    while [ "$n" != 0 ] && [ "$waited" -lt "$STOP_SECONDS" ]; do
+      sleep 5
+      waited=$((waited + 5))
+      n=$(running "$rev")
+    done
+    [ "$n" = 0 ] || { echo "FAIL: $n replica(s) of $APP still running after ${waited}s"; exit 1; }
+    echo "Stopped: $APP has no ingress, its revision is inactive and no replica is running."
     ;;
   *) usage ;;
 esac

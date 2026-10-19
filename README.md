@@ -175,14 +175,14 @@ pushes the image to a public GHCR package, pulls it back anonymously and repeats
 image's secret inspection, then moves the Azure Container Apps app `cvr-ca` to it. It
 then opens the app's ingress, runs a smoke test that posts a golden-set document to the
 live endpoint and checks that a request without the API key gets 401 and one with it
-gets a `.docx` with its `X-Run-Id`, and closes ingress again whatever the smoke test
-said.
+gets a `.docx` with its `X-Run-Id`, and then stops the app (closes ingress, deactivates the
+revision) whatever the smoke test said.
 
-The app runs on the consumption plan in `northeurope`: zero replicas when idle, one at
+The app runs on the consumption plan in `northeurope`: zero replicas when idle or stopped, one at
 most, probes on `/health`, and logs to Log Analytics. Its ingress is **off by
 default**: the URL is in this repository's history, and any request through ingress
 wakes the app, so it is opened only for a deploy's smoke test and for demos
-(`sh scripts/demo.sh up`, then `down`). While it is open, `POST /reformat` needs the
+(`sh scripts/demo.sh up`, then `down`, which deactivates the revision so no replica is left running). While it is open, `POST /reformat` needs the
 `X-API-Key` header, so a stranger cannot spend the LLM key's credit; wake-ups are
 bounded by the one replica. GitHub Actions signs in to Azure through an OIDC federated
 credential whose subject is this repository's `main` branch, so no Azure credential is

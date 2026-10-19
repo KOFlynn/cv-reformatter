@@ -74,3 +74,53 @@ def test_demo_reads_its_names_from_the_wizards_env_file(demo: str):
     body = code(demo)
     assert ".env.azure" in body
     assert "AZURE_RESOURCE_GROUP" in body and "AZURE_CONTAINER_APP" in body
+
+
+# Closing ingress deletes the app's only scale rule, so "off" is a
+# deactivated revision (ADR-0010 amendment, 2026-10-19).
+def branch(script: str, name: str) -> str:
+    """The body of one arm of the script's case statement."""
+    body = code(script).replace("\\\n", " ")
+    start = body.index(f"  {name})")
+    return body[start : body.index(";;", start)]
+
+
+def test_demo_up_activates_the_revision_before_opening_ingress(demo: str):
+    arm = branch(demo, "up")
+    assert "az containerapp revision activate" in arm
+    assert arm.index("revision activate") < arm.index("ingress enable")
+    assert arm.index("ingress enable") < arm.index("/health")
+
+
+def test_demo_down_deactivates_after_closing_ingress_and_checks_replicas(demo: str):
+    arm = branch(demo, "down")
+    assert "az containerapp revision deactivate" in arm
+    assert arm.index("ingress disable") < arm.index("revision deactivate")
+    # The replica count is a helper (`running`) over az's replica list.
+    helper = code(demo).replace("\\\n", " ")
+    assert "az containerapp replica list" in helper
+    assert "runningState=='Running'" in helper
+    assert arm.index("revision deactivate") < arm.index('running "$rev"')
+    assert "exit 1" in arm[arm.index('running "$rev"') :]
+
+
+def test_demo_down_does_not_exit_early_on_closed_ingress(demo: str):
+    # An already-closed app may still have an active revision.
+    arm = branch(demo, "down")
+    assert "exit 0" not in arm
+
+
+def test_demo_looks_the_revision_up_and_never_claims_scale_to_zero(demo: str):
+    body = code(demo)
+    assert "properties.latestRevisionName" in body
+    assert "--revision cvr-ca--" not in body
+    assert "scales to zero" not in demo and "scale to zero" not in demo
+
+
+def test_demo_az_calls_print_nothing_but_narrow_queries(demo: str):
+    body = code(demo).replace("\\\n", " ")
+    for call in body.split("az containerapp")[1:]:
+        call = call.split("\n")[0]
+        if "secret show" in call:  # the echoed hint, run by the maintainer
+            continue
+        assert "--output none" in call or "--query" in call, call

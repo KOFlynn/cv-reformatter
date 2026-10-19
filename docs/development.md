@@ -124,11 +124,11 @@ A push to `main` that passes `eval` is deployed by the `deploy` job of `ci.yml` 
 4. Run `az containerapp update --image` on the variable `AZURE_CONTAINER_APP` in the variable `AZURE_RESOURCE_GROUP`.
 5. Open ingress (external, port 8000, transport auto) and read the app's URL.
 6. Run `sh scripts/smoke-deploy.sh <app url>` with `CVR_API_KEY` from the repository secret of that name: a `/reformat` without the key must be a 401, one with it a `.docx` with `X-Run-Id`.
-7. Close ingress, whatever the smoke test said.
+7. Close ingress, then deactivate the latest revision (looked up, never named) and check no replica is still running, whatever the smoke test said. Closing ingress alone deletes the app's HTTP scale rule and leaves a woken replica running for ever, so the revision is what "off" means.
 
 No Azure credential is stored in GitHub, and the job is the only one with `id-token: write`. The three ids are identifiers, not credentials; they are secrets only so GitHub masks them in the logs of a public repository, and every `az` call runs with `--output none` or a narrow `--query`, so none prints a resource id.
 
-Ingress is off by default (since 2026-10-06; ADR-0010): any request through it wakes the app, and the URL is in public history. A deploy opens it for its smoke test and closes it again; open it for a demo with `sh scripts/demo.sh up` and close it after with `sh scripts/demo.sh down`. How demos open it is to be revisited when a later phase plans them.
+Ingress is off by default (since 2026-10-06; ADR-0010): any request through it wakes the app, and the URL is in public history. A deploy opens it for its smoke test and then stops the app; start it for a demo with `sh scripts/demo.sh up` (activates the revision, opens ingress) and stop it after with `sh scripts/demo.sh down`. Check with `az containerapp replica list -n cvr-ca -g cvr-rg --query "[?properties.runningState=='Running'] | length(@)" -o tsv`, which should print 0; the cost dashboard lags and hides the free grant. How demos open it is to be revisited when a later phase plans them.
 
 The Azure resources are provisioned once, by hand:
 
@@ -147,7 +147,7 @@ The wizard needs the Azure CLI (`winget install -e --id Microsoft.AzureCLI`), Do
 5. Push the `:bootstrap` image.
 6. Make the GHCR package public and give the repo's Actions write access to it (in the browser).
 7. Create the container app, with the Anthropic key typed hidden, and its API key: generated with `openssl rand` (or read back if it exists), stored as the Container Apps secret `cvr-api-key` behind `CVR_API_KEY=secretref:cvr-api-key` and as the GitHub secret `CVR_API_KEY`, never printed.
-8. Open ingress, run the smoke test, then close ingress.
+8. Open ingress, run the smoke test, then close ingress and deactivate the revision.
 9. Create the Entra app registration with its federated credential for `repo:KOFlynn@6141875/cv-reformatter@1367290670:ref:refs/heads/main` (GitHub's immutable subject format; the wizard reads the prefix from `gh api repos/<repo>/actions/oidc/customization/sub`).
 10. Set the three ids as repository secrets and the two names as repository variables.
 11. Set a cost budget (in the portal).
@@ -158,8 +158,8 @@ It remembers its values in `.env.azure` (gitignored, no secret in it) and can be
 Day-to-day operations:
 
 ```
-sh scripts/demo.sh up                            # open ingress and wake the app before a demo (it cold-starts, about 26 s)
-sh scripts/demo.sh down                          # close ingress after it; a deploy closes it too
+sh scripts/demo.sh up                            # activate the revision, open ingress and wake the app before a demo (it cold-starts, about 26 s)
+sh scripts/demo.sh down                          # close ingress, deactivate the revision, check no replica runs; a deploy does the same
 az containerapp secret show -n cvr-ca -g cvr-rg --secret-name cvr-api-key --query value -o tsv   # the API key, for a demo
 az containerapp revision list -n cvr-ca -g cvr-rg -o table
 az monitor log-analytics query --workspace <workspace id> --analytics-query "ContainerAppConsoleLogs_CL | where Log_s has '<run id>'"
