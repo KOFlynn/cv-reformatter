@@ -1,10 +1,10 @@
 """``LabellerConfig``: provider, model, effort, optional temperature and any
 other sampling knob, read from the environment and printed in every report.
-Temperature is sent only when set, because Opus 5 rejects an explicit value;
+Temperature is sent only when set, because Opus 5 rejected an explicit value;
 ``LabellerConfig.temperature`` is ``None`` unless the caller set it, and
 nothing downstream ever invents a default for it.
 
-Environment variables (all optional; unset means the spec's baseline):
+Environment variables (all optional; unset means the default, ADR-0011):
 
 ======================  ===========================================
 ``CVR_LABEL_PROVIDER``  LangChain provider id (default ``anthropic``)

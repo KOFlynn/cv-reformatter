@@ -1,8 +1,8 @@
 """One price table for the labeller's cost estimate, USD per million tokens.
 Checked against https://claude.com/pricing on 2026-10-19; update
 ``PRICE_TABLE_CHECKED`` whenever the table is re-checked. Quotes copy the
-CV, so output tokens dominate; the spec's baseline is roughly $7 per
-48-document run on Opus 5, $3 on Sonnet 5.
+CV, so output tokens dominate: a 48-document run is about $1.6 on the
+default, Sonnet 5.5, and was about $3.3 on Opus 5.5 (ADR-0011).
 """
 
 __all__ = ["PRICE_TABLE", "PRICE_TABLE_CHECKED", "estimate_cost"]

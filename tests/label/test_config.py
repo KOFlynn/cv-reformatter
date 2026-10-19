@@ -10,7 +10,7 @@ from cvr.label.config import (
 )
 
 
-def test_defaults_are_the_spec_baseline():
+def test_defaults_are_the_adr_0011_choice():
     config = LabellerConfig.from_env(env={})
     assert config.provider == DEFAULT_PROVIDER == "anthropic"
     assert config.model == DEFAULT_MODEL == "claude-sonnet-5-5"
