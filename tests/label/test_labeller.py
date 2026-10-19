@@ -14,8 +14,8 @@ from langchain_core.runnables import RunnableLambda
 from cvr.label.config import LabellerConfig
 from cvr.label.errors import LabellerMisconfigured, ProviderUnavailable
 from cvr.label.labeller import (
-    PROVIDER_RETRIES,
     MAX_OUTPUT_TOKENS,
+    PROVIDER_RETRIES,
     anthropic_kwargs,
     build_chat_model,
     label_blocks,
