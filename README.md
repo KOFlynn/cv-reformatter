@@ -33,7 +33,7 @@ brief's §10 has the exit criteria for each.
 | Eval baseline | 3 runs on prompt 1.1.0, every hard gate held, tunable placement 99.65–100%, appendix 0.73–0.76% | [`eval/baseline-2026-09-29.json`](eval/baseline-2026-09-29.json) |
 | Thresholds | tunable placement ≥ 98%, appendix ≤ 2%, punctuation fidelity hard | [`eval/thresholds.yaml`](eval/thresholds.yaml) |
 | Current prompt (1.3.0) | every hard gate held, tunable placement 100% (1128 of 1128), appendix 0.70% | ticket 19, [#34](https://github.com/KOFlynn/cv-reformatter/pull/34) |
-| Cost of one full eval run | about $3.30 and four minutes, 48 live labellings | the eval report's cost line |
+| Cost of one full eval run | about $1.60 and two and a half minutes on Sonnet 5.5 (ADR-0011; $3.30 and four minutes on Opus), 48 live labellings | the eval report's cost line |
 | Cost of one document | about $0.07 (about 5,400 tokens in, 2,400 out) | ticket 14's Log Analytics row |
 | Image | 325 MB, non-root, no key, no golden set or eval code | `scripts/check-image.sh` |
 | Cold start / warm | 25.9 s from zero replicas / 0.19 s; `scripts/demo.sh up` absorbs the cold start before a demo | ticket 14 |
@@ -149,8 +149,8 @@ queue this project deliberately does not build.
 
 Which LLM provider the service uses is decided by running the same eval against
 Anthropic and Azure OpenAI and comparing the numbers, not by preference set up front.
-**Phase 2:** only Anthropic is wired up (`cvr.label`, `claude-opus-5-5` at effort
-`medium`); Azure OpenAI arrives as a second provider in Phase 2, through a managed
+**Phase 2:** only Anthropic is wired up (`cvr.label`, `claude-sonnet-5-5` at effort
+`medium`, ADR-0011); Azure OpenAI arrives as a second provider in Phase 2, through a managed
 identity rather than a stored key, and the comparison and the choice are recorded in
 the ADR that follows it once real numbers exist. Phase 2 has not yet been broken into
 tickets. What already exists to make that comparison mechanical — the chat

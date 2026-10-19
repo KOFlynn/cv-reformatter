@@ -4,6 +4,10 @@
 # (claude-opus-5-5, effort medium, prompt 1.1.0); the runs, their spread and
 # the arithmetic are in baseline-2026-09-29.json beside this file.
 #
+# The default has since moved to claude-sonnet-5-5 at effort medium (ADR-0011).
+# The numbers below are unchanged on purpose: they are the product's bar, not
+# a description of Opus.
+#
 # The hard gates are not here and cannot be loosened: added, dropped,
 # wrongful removals, provenance, PII and image leaks at zero, ordering
 # exactly right, and structural leaves (name, title, employer, location,
