@@ -32,6 +32,17 @@ _Avoid_: label (as a noun), extraction, mapping, pointer
 The LLM's answer for a whole source document being unusable (malformed, not matching the schema, or a refusal). The job still completes: every block becomes residue and the output is the banner and the appendix. Distinct from a single bad reference, which loses one leaf and nothing else, and from a provider that is unavailable or rejects the request as configured, which stops the job because the fault is not in the CV.
 _Avoid_: crash, error, timeout (a timeout is the provider being unavailable, not a labelling failure)
 
+**Attempt**:
+One call to the labeller within a Run. The first attempt labels the whole source document; each later one is a retry.
+
+**Retry**:
+A further attempt, asked with feedback, whose answer may only add references to those already given, each addressed by a path into the earlier answer's tree (an existing slot, or a new entry); a path that addresses nothing is rejected. Verification then re-runs over all of them, earlier references first. A retry fires only while unplaced text remains, and an attempt makes progress only if it leaves less unplaced text than the one before. A Run makes at most N retries (default 2) and stops early when an attempt makes no progress. Whatever is still unplaced after the last attempt goes to the review appendix.
+_Avoid_: re-label (a retry never replaces the earlier answer), second pass
+
+**Feedback**:
+What verification tells the labeller before a retry: the references it rejected, with their reasons, and the unplaced text.
+_Avoid_: correction, critique
+
 **Span**:
 A verified slice of a block, identified by its position in the source. The only thing that ever reaches the rendered output.
 _Avoid_: quote (that is the LLM's unverified string), snippet
@@ -109,6 +120,10 @@ _Avoid_: job (the brief's word for the same thing, kept only in "the job always 
 The Run's complete record of everything done to the source text: removals, invisible normalisation, date normalisation, multi-span joins, residue, and the labelling failure if there was one. It is how a dropped word is proven to have been removed rather than lost. Never exposed as a queryable resource, because that would be the first half of a review queue.
 _Avoid_: audit trail, trace (that is the observability record, added in Phase 2), history
 
+**Trace**:
+The observability record of one Run, sent to Langfuse and identified by the run id itself. A structure trace carries no candidate text (ids, counts, timings, tokens, cost); a full trace also carries the blocks, the labeller's answers and the rejections. Distinct from the transform log, which belongs to the Run and is complete whatever the trace holds.
+_Avoid_: log, audit trail
+
 ### The golden set
 
 **Candidate**:
@@ -178,3 +193,7 @@ The one committed, dated eval report from which the thresholds were set.
 **Model comparison**:
 Three eval runs of a candidate labeller configuration set beside three runs of the reference configuration, on the same prompt and golden set. The candidate must pass the gate on every run; above that, the two are compared metric by metric and on cost and wall time. A model from another provider is compared the same way.
 _Avoid_: provider comparison, benchmark, baseline (that is the report the thresholds came from)
+
+**Deployed provider**:
+The provider, model and settings the deployed app labels with. The eval gate always runs the deployed provider, so the gate tests what production runs; any other provider is checked only by a model comparison.
+_Avoid_: default provider (ambiguous between config default and what is deployed)
