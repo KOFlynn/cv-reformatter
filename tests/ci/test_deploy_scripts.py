@@ -161,6 +161,7 @@ def test_demo_down_fails_when_the_ingress_lookup_fails(tmp_path: Path):
         capture_output=True,
         text=True,
         timeout=60,
+        check=False,
     )
     assert result.returncode != 0
     assert "Stopped" not in result.stdout
