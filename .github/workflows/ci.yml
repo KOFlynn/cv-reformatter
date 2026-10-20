@@ -274,28 +274,22 @@ jobs:
       # wakes the app, and it is open only for demos (scripts/demo.sh).
       # Closing ingress deletes the app's only scale rule (the HTTP one), so
       # the replica the smoke test woke would never scale down; the app is
-      # off only once its revision is deactivated (ADR-0010 amendment). The
-      # revision is looked up, never named: every deploy makes a new one.
+      # off only once its revision is deactivated (ADR-0010 amendment). This
+      # step stops the app the same way as `demo.sh down`, by running it:
+      # one copy of the stop logic, so the two cannot drift. demo.sh falls
+      # back to .env.azure and then to cvr-rg/cvr-ca on an empty argument, so
+      # empty variables fail here instead of acting on the defaults.
       - name: Close ingress and stop the app
         if: always() && steps.login.outcome == 'success'
         env:
           APP: ${{ vars.AZURE_CONTAINER_APP }}
           RG: ${{ vars.AZURE_RESOURCE_GROUP }}
         run: |
-          az containerapp ingress disable --name "$APP" --resource-group "$RG" \
-            --only-show-errors --output none
-          rev=$(az containerapp show --name "$APP" --resource-group "$RG" \
-            --query properties.latestRevisionName --output tsv)
-          az containerapp revision deactivate --name "$APP" --resource-group "$RG" \
-            --revision "$rev" --only-show-errors --output none
-          # Termination takes a few seconds; no replica may still be Running.
-          for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
-            n=$(az containerapp replica list --name "$APP" --resource-group "$RG" \
-              --revision "$rev" --only-show-errors \
-              --query "[?properties.runningState=='Running'] | length(@)" \
-              --output tsv || echo '?')
-            [ "$n" = 0 ] && exit 0
-            sleep 5
-          done
-          echo "::error::$APP still has a running replica"
-          exit 1
+          if [ -z "$RG" ] || [ -z "$APP" ]; then
+            echo "::error::AZURE_RESOURCE_GROUP and AZURE_CONTAINER_APP must both be set"
+            exit 1
+          fi
+          if ! sh scripts/demo.sh down "$RG" "$APP"; then
+            echo "::error::$APP may still be running; see the step log"
+            exit 1
+          fi
