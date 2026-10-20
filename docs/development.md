@@ -124,7 +124,7 @@ A push to `main` that passes `eval` is deployed by the `deploy` job of `ci.yml` 
 4. Run `az containerapp update --image` on the variable `AZURE_CONTAINER_APP` in the variable `AZURE_RESOURCE_GROUP`.
 5. Open ingress (external, port 8000, transport auto) and read the app's URL.
 6. Run `sh scripts/smoke-deploy.sh <app url>` with `CVR_API_KEY` from the repository secret of that name: a `/reformat` without the key must be a 401, one with it a `.docx` with `X-Run-Id`.
-7. Close ingress, then deactivate the latest revision (looked up, never named) and check no replica is still running, whatever the smoke test said. Closing ingress alone deletes the app's HTTP scale rule and leaves a woken replica running for ever, so the revision is what "off" means.
+7. Run `sh scripts/demo.sh down "$RG" "$APP"`, whatever the smoke test said: it closes ingress, deactivates the latest revision (looked up, never named) and checks no replica is still running. The step fails first, with an error annotation, if either variable is empty (the script would fall back to its defaults), and annotates a failed stop. Closing ingress alone deletes the app's HTTP scale rule and leaves a woken replica running for ever, so the revision is what "off" means.
 
 No Azure credential is stored in GitHub, and the job is the only one with `id-token: write`. The three ids are identifiers, not credentials; they are secrets only so GitHub masks them in the logs of a public repository, and every `az` call runs with `--output none` or a narrow `--query`, so none prints a resource id.
 
@@ -159,7 +159,7 @@ Day-to-day operations:
 
 ```
 sh scripts/demo.sh up                            # activate the revision, open ingress and wake the app before a demo (it cold-starts, about 26 s)
-sh scripts/demo.sh down                          # close ingress, deactivate the revision, check no replica runs; a deploy does the same
+sh scripts/demo.sh down                          # close ingress, deactivate the revision, check no replica runs; a deploy runs this same script
 az containerapp secret show -n cvr-ca -g cvr-rg --secret-name cvr-api-key --query value -o tsv   # the API key, for a demo
 az containerapp revision list -n cvr-ca -g cvr-rg -o table
 az monitor log-analytics query --workspace <workspace id> --analytics-query "ContainerAppConsoleLogs_CL | where Log_s has '<run id>'"

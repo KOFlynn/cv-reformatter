@@ -222,7 +222,7 @@ def test_steps_are_in_deploy_order(deploy: dict):
         < index(runs="az containerapp update")
         < index(runs="az containerapp ingress enable")
         < index(runs="smoke-deploy.sh")
-        < index(runs="az containerapp ingress disable")
+        < index(runs="demo.sh down")
     )
 
 
@@ -243,38 +243,60 @@ def test_the_smoke_url_is_read_after_ingress_opens(deploy: dict):
     assert 'echo "url=https://$fqdn" >> "$GITHUB_OUTPUT"' in script
 
 
+STOP_CONDITION = "always() && steps.login.outcome == 'success'"
+
+
 def test_ingress_closes_last_even_when_the_smoke_test_fails(deploy: dict):
-    (step,) = steps(deploy, runs="az containerapp ingress disable")
+    (step,) = steps(deploy, runs="demo.sh down")
     assert deploy["steps"][-1] is step
-    assert (
-        " ".join(step["if"].split()) == "always() && steps.login.outcome == 'success'"
-    )
+    assert step_index(deploy, runs="smoke-deploy.sh") < len(deploy["steps"]) - 1
+    assert " ".join(step["if"].split()) == STOP_CONDITION
 
 
 # Closing ingress deletes the app's only scale rule, so a replica the smoke
 # test woke never scales down (found 2026-10-19, ADR-0010 amendment): "off"
-# means the revision is deactivated, after ingress closes, in the same step.
-def test_the_close_step_deactivates_the_revision_after_closing_ingress(deploy: dict):
-    (step,) = steps(deploy, runs="az containerapp ingress disable")
+# means the revision is deactivated. The stop logic lives in one place,
+# `demo.sh down` (2026-10-20), so the deploy calls it instead of repeating
+# the az commands, which would drift.
+def test_the_stop_step_runs_demo_sh_down_with_the_variables(deploy: dict):
+    (step,) = steps(deploy, runs="demo.sh down")
+    assert step["env"]["APP"] == "${{ vars.AZURE_CONTAINER_APP }}"
+    assert step["env"]["RG"] == "${{ vars.AZURE_RESOURCE_GROUP }}"
+    assert 'sh scripts/demo.sh down "$RG" "$APP"' in step["run"]
+
+
+def test_the_stop_step_has_no_inline_az_commands(deploy: dict):
+    (step,) = steps(deploy, runs="demo.sh down")
+    assert "az " not in step["run"]
+    assert "revision deactivate" not in step["run"]
+    assert "ingress disable" not in step["run"]
+    assert "revision deactivate" not in run_text(deploy)
+    assert "ingress disable" not in run_text(deploy)
+
+
+# demo.sh falls back to .env.azure and then to cvr-rg/cvr-ca on an empty
+# argument; in CI an unset variable must fail, never act on the defaults.
+def test_empty_variables_fail_before_the_script_runs(deploy: dict):
+    (step,) = steps(deploy, runs="demo.sh down")
     script = step["run"]
-    assert "az containerapp revision deactivate" in script
-    assert script.index("ingress disable") < script.index("revision deactivate")
-    assert (
-        " ".join(step["if"].split()) == "always() && steps.login.outcome == 'success'"
+    guard = script.index("::error::")
+    assert guard < script.index("scripts/demo.sh down")
+    head = script[:guard]
+    assert '-z "$RG"' in head and '-z "$APP"' in head
+    assert "exit 1" in script[guard : script.index("scripts/demo.sh down")]
+
+
+def test_a_failed_stop_leaves_an_error_annotation_and_fails_the_step(deploy: dict):
+    (step,) = steps(deploy, runs="demo.sh down")
+    after = step["run"][step["run"].index("scripts/demo.sh down") :]
+    assert "::error::" in after and "may still be running" in after
+    assert "exit 1" in after
+
+
+def test_demo_sh_is_present_in_the_deploy_job(deploy: dict):
+    assert step_index(deploy, uses="actions/checkout") < step_index(
+        deploy, runs="demo.sh down"
     )
-
-
-def test_the_revision_is_looked_up_at_run_time_and_no_id_is_printed(deploy: dict):
-    (step,) = steps(deploy, runs="az containerapp revision deactivate")
-    script = step["run"].replace("\\\n", " ")
-    assert "properties.latestRevisionName" in script
-    assert script.index("latestRevisionName") < script.index("revision deactivate")
-    assert "--revision" in script
-    assert "--revision cvr-ca--" not in script
-    az_calls = [c for c in script.split("az containerapp")[1:]]
-    assert az_calls
-    for call in az_calls:
-        assert "--output none" in call or "--output tsv" in call, call
 
 
 def test_smoke_test_sends_the_api_key_through_env(deploy: dict):
