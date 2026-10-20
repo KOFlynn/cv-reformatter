@@ -50,6 +50,7 @@ from cvr.models import (
 )
 
 __all__ = [
+    "MAX_OUTPUT_TOKENS",
     "PROVIDER_RETRIES",
     "RealLabeller",
     "anthropic_error",
@@ -64,6 +65,13 @@ __all__ = [
 # and 5xx are retried; anything else is not.
 PROVIDER_RETRIES = 2
 
+# The output cap sent with every request: Sonnet 5.5's and Opus 5.5's documented
+# maximum. langchain-anthropic has no model profile for claude-sonnet-5-5, so
+# without this it falls back to 4096 tokens; adaptive thinking counts against
+# the cap, answers are truncated and become LabellingFailures (ADR-0011).
+# ``CVR_LABEL_EXTRA`` can override it.
+MAX_OUTPUT_TOKENS = 128_000
+
 
 def anthropic_kwargs(config: LabellerConfig) -> dict[str, Any]:
     """Anthropic-specific request options, isolated here so no other
@@ -74,6 +82,7 @@ def anthropic_kwargs(config: LabellerConfig) -> dict[str, Any]:
     kwargs: dict[str, Any] = {
         "reasoning_effort": config.effort,
         "max_retries": PROVIDER_RETRIES,
+        "max_tokens": MAX_OUTPUT_TOKENS,
     }
     if config.temperature is not None:
         kwargs["temperature"] = config.temperature

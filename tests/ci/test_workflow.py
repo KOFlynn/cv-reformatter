@@ -69,7 +69,7 @@ DOCS_ONLY = ["**/*.md", "docs/**", ".scratch/**"]
 
 
 def test_the_gate_runs_on_pull_requests_and_pushes_to_main_only(workflow: dict):
-    # A push to main runs the eval uncached, about $3.30, and redeploys; a
+    # A push to main runs the eval uncached, about $1.60, and redeploys; a
     # docs-only merge changes neither the gate's verdict nor the image.
     # Every pull request runs every job: a required check skipped by a path
     # filter never reports, and branch protection would hold the pull request
@@ -222,7 +222,7 @@ def test_steps_are_in_deploy_order(deploy: dict):
         < index(runs="az containerapp update")
         < index(runs="az containerapp ingress enable")
         < index(runs="smoke-deploy.sh")
-        < index(runs="az containerapp ingress disable")
+        < index(runs="demo.sh down")
     )
 
 
@@ -243,11 +243,59 @@ def test_the_smoke_url_is_read_after_ingress_opens(deploy: dict):
     assert 'echo "url=https://$fqdn" >> "$GITHUB_OUTPUT"' in script
 
 
+STOP_CONDITION = "always() && steps.login.outcome == 'success'"
+
+
 def test_ingress_closes_last_even_when_the_smoke_test_fails(deploy: dict):
-    (step,) = steps(deploy, runs="az containerapp ingress disable")
+    (step,) = steps(deploy, runs="demo.sh down")
     assert deploy["steps"][-1] is step
-    assert (
-        " ".join(step["if"].split()) == "always() && steps.login.outcome == 'success'"
+    assert step_index(deploy, runs="smoke-deploy.sh") < len(deploy["steps"]) - 1
+    assert " ".join(step["if"].split()) == STOP_CONDITION
+
+
+# Closing ingress deletes the app's only scale rule, so a replica the smoke
+# test woke never scales down (found 2026-10-19, ADR-0010 amendment): "off"
+# means the revision is deactivated. The stop logic lives in one place,
+# `demo.sh down` (2026-10-20), so the deploy calls it instead of repeating
+# the az commands, which would drift.
+def test_the_stop_step_runs_demo_sh_down_with_the_variables(deploy: dict):
+    (step,) = steps(deploy, runs="demo.sh down")
+    assert step["env"]["APP"] == "${{ vars.AZURE_CONTAINER_APP }}"
+    assert step["env"]["RG"] == "${{ vars.AZURE_RESOURCE_GROUP }}"
+    assert 'sh scripts/demo.sh down "$RG" "$APP"' in step["run"]
+
+
+def test_the_stop_step_has_no_inline_az_commands(deploy: dict):
+    (step,) = steps(deploy, runs="demo.sh down")
+    assert "az " not in step["run"]
+    assert "revision deactivate" not in step["run"]
+    assert "ingress disable" not in step["run"]
+    assert "revision deactivate" not in run_text(deploy)
+    assert "ingress disable" not in run_text(deploy)
+
+
+# demo.sh falls back to .env.azure and then to cvr-rg/cvr-ca on an empty
+# argument; in CI an unset variable must fail, never act on the defaults.
+def test_empty_variables_fail_before_the_script_runs(deploy: dict):
+    (step,) = steps(deploy, runs="demo.sh down")
+    script = step["run"]
+    guard = script.index("::error::")
+    assert guard < script.index("scripts/demo.sh down")
+    head = script[:guard]
+    assert '-z "$RG"' in head and '-z "$APP"' in head
+    assert "exit 1" in script[guard : script.index("scripts/demo.sh down")]
+
+
+def test_a_failed_stop_leaves_an_error_annotation_and_fails_the_step(deploy: dict):
+    (step,) = steps(deploy, runs="demo.sh down")
+    after = step["run"][step["run"].index("scripts/demo.sh down") :]
+    assert "::error::" in after and "may still be running" in after
+    assert "exit 1" in after
+
+
+def test_demo_sh_is_present_in_the_deploy_job(deploy: dict):
+    assert step_index(deploy, uses="actions/checkout") < step_index(
+        deploy, runs="demo.sh down"
     )
 
 

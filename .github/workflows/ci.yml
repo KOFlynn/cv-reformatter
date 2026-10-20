@@ -5,7 +5,7 @@ name: CI
 # runs for real: a skipped `eval` would still report a check run, and GitHub
 # counts a skipped job as satisfying a required check.
 # A push to main that changes only docs runs nothing: it would pay for an
-# uncached eval (about $3.30) and redeploy an unchanged image. Pull requests
+# uncached eval (about $1.60) and redeploy an unchanged image. Pull requests
 # always run every job, since branch protection waits on `check` and `eval`
 # and a check skipped by a path filter never reports.
 on:
@@ -270,13 +270,26 @@ jobs:
           CVR_API_KEY: ${{ secrets.CVR_API_KEY }}
         run: sh scripts/smoke-deploy.sh "$URL"
 
-      # Closed again whatever the smoke test said: any request through
-      # ingress wakes the app, and it is open only for demos (scripts/demo.sh).
-      - name: Close ingress
+      # Stopped whatever the smoke test said: any request through ingress
+      # wakes the app, and it is open only for demos (scripts/demo.sh).
+      # Closing ingress deletes the app's only scale rule (the HTTP one), so
+      # the replica the smoke test woke would never scale down; the app is
+      # off only once its revision is deactivated (ADR-0010 amendment). This
+      # step stops the app the same way as `demo.sh down`, by running it:
+      # one copy of the stop logic, so the two cannot drift. demo.sh falls
+      # back to .env.azure and then to cvr-rg/cvr-ca on an empty argument, so
+      # empty variables fail here instead of acting on the defaults.
+      - name: Close ingress and stop the app
         if: always() && steps.login.outcome == 'success'
         env:
           APP: ${{ vars.AZURE_CONTAINER_APP }}
           RG: ${{ vars.AZURE_RESOURCE_GROUP }}
         run: |
-          az containerapp ingress disable --name "$APP" --resource-group "$RG" \
-            --only-show-errors --output none
+          if [ -z "$RG" ] || [ -z "$APP" ]; then
+            echo "::error::AZURE_RESOURCE_GROUP and AZURE_CONTAINER_APP must both be set"
+            exit 1
+          fi
+          if ! sh scripts/demo.sh down "$RG" "$APP"; then
+            echo "::error::$APP may still be running; see the step log"
+            exit 1
+          fi

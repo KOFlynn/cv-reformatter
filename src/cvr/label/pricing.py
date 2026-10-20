@@ -1,19 +1,22 @@
 """One price table for the labeller's cost estimate, USD per million tokens.
-Checked against https://claude.com/pricing on 2026-09-23; update
+Checked against https://claude.com/pricing on 2026-10-19; update
 ``PRICE_TABLE_CHECKED`` whenever the table is re-checked. Quotes copy the
-CV, so output tokens dominate; the spec's baseline is roughly $7 per
-48-document run on Opus 5, $3 on Sonnet 5.
+CV, so output tokens dominate: a 48-document run is about $1.6 on the
+default, Sonnet 5.5, and was about $3.3 on Opus 5.5 (ADR-0011).
 """
 
 __all__ = ["PRICE_TABLE", "PRICE_TABLE_CHECKED", "estimate_cost"]
 
-PRICE_TABLE_CHECKED = "2026-09-23"
+PRICE_TABLE_CHECKED = "2026-10-19"
 
 # model name -> (input $ / million tokens, output $ / million tokens)
 PRICE_TABLE: dict[str, tuple[float, float]] = {
     "claude-opus-5": (5.0, 25.0),
     "claude-opus-5-5": (4.0, 20.0),
     "claude-sonnet-5": (2.0, 10.0),
+    "claude-sonnet-5-5": (2.0, 10.0),
+    # The base tier, prompts up to 100K tokens; every golden-set prompt is far below.
+    "claude-haiku-5-5": (0.10, 0.50),
 }
 
 

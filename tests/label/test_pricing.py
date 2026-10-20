@@ -17,6 +17,24 @@ def test_cost_is_tokens_times_the_table_price():
     assert cost == input_price + output_price
 
 
+def test_haiku_is_priced_so_its_runs_do_not_cost_zero():
+    assert "claude-haiku-5-5" in PRICE_TABLE
+    input_price, output_price = PRICE_TABLE["claude-haiku-5-5"]
+    cost = estimate_cost(
+        "claude-haiku-5-5", input_tokens=1_000_000, output_tokens=1_000_000
+    )
+    assert cost == input_price + output_price == 0.10 + 0.50
+
+
+def test_sonnet_5_5_is_priced_so_its_runs_do_not_cost_zero():
+    assert "claude-sonnet-5-5" in PRICE_TABLE
+    input_price, output_price = PRICE_TABLE["claude-sonnet-5-5"]
+    cost = estimate_cost(
+        "claude-sonnet-5-5", input_tokens=1_000_000, output_tokens=1_000_000
+    )
+    assert cost == input_price + output_price == 2.0 + 10.0
+
+
 def test_unknown_model_costs_zero_rather_than_raising():
     assert (
         estimate_cost("some-future-model", input_tokens=100, output_tokens=100) == 0.0

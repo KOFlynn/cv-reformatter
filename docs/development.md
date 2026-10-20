@@ -73,10 +73,10 @@ The real labeller is built on the first document, not at startup, so `/health` w
 | `CVR_API_KEY` | the app, once when it is created | (none) | the `X-API-Key` callers must send to `/reformat`; unset or empty closes it (503) |
 | `ANTHROPIC_API_KEY` | the labeller | (none) | required for `/reformat`, not for `/health` |
 | `CVR_LABEL_PROVIDER` | the labeller | `anthropic` | LangChain provider id |
-| `CVR_LABEL_MODEL` | the labeller | `claude-opus-5-5` | model name |
+| `CVR_LABEL_MODEL` | the labeller | `claude-sonnet-5-5` | model name |
 | `CVR_LABEL_EFFORT` | the labeller | `medium` | `low`, `medium`, `high`, `xhigh` or `max` |
 | `CVR_LABEL_TEMPERATURE` | the labeller | unset | sent only when set |
-| `CVR_LABEL_EXTRA` | the labeller | unset | JSON object of any other sampling kwarg |
+| `CVR_LABEL_EXTRA` | the labeller | unset | JSON object of any other sampling kwarg; it overrides the labeller's own `max_tokens` of 128000 (ADR-0011) |
 
 A change to any `CVR_LABEL_*` value counts as a model change: run the eval.
 
@@ -89,9 +89,9 @@ uv run python -m cvr.eval.run --candidate c04          # one Candidate (repeatab
 uv run python -m cvr.eval.run --no-cache               # a live call for every document (the baseline runs); still refreshes the cache
 ```
 
-Each document goes through `cvr.pipeline.reformat` with the real labeller (`CVR_LABEL_*` configure it; `ANTHROPIC_API_KEY` is needed only on a cache miss), out through the adapter and into every metric. The run writes `eval/report.json` and `eval/report.md` (both gitignored), prints a one-line verdict plus one line per failure naming the metric and the candidates, and exits 1 on any hard-gate breach (errors, added, dropped, provenance, PII, image, ordering, structural leaves) or missed threshold in `eval/thresholds.yaml` (placeholders until ticket 10). `--thresholds`, `--out` and `--cache-dir` point it elsewhere.
+Each document goes through `cvr.pipeline.reformat` with the real labeller (`CVR_LABEL_*` configure it; `ANTHROPIC_API_KEY` is needed only on a cache miss), out through the adapter and into every metric. The run writes `eval/report.json` and `eval/report.md` (both gitignored), prints a one-line verdict plus one line per failure naming the metric and the candidates, and exits 1 on any hard-gate breach (errors, added, dropped, provenance, PII, image, ordering, structural leaves) or missed threshold in `eval/thresholds.yaml` (set by ticket 10 from the Baseline). `--thresholds`, `--out` and `--cache-dir` point it elsewhere.
 
-In CI the `eval` job (after `check`, in `ci.yml`, which runs on pull requests and pushes to `main` only) runs this command with `ANTHROPIC_API_KEY` from the repository secret of that name (set it with `gh secret set ANTHROPIC_API_KEY`; the workflow never holds a key, and a missing one fails the job with a message saying so; a pull request from a fork gets no secrets, so it cannot pass). It restores `.cache/eval-responses/` from `actions/cache`, so a pull request that changes nothing the answers depend on replays them for free while one that changes the prompt, schema, `CVR_LABEL_*` or a document pays for live calls (a full uncached run is about $3.3 and four minutes); a push to `main` runs `--no-cache`, unless it changes only docs, which runs nothing. Whatever the verdict, the job uploads `report.json` and `report.md` as the `eval-report` artifact, appends the markdown to the job summary and, on a pull request, posts it as a comment that later runs edit in place. Runs of one workflow, event and ref cancel each other, except on `main`.
+In CI the `eval` job (after `check`, in `ci.yml`, which runs on pull requests and pushes to `main` only) runs this command with `ANTHROPIC_API_KEY` from the repository secret of that name (set it with `gh secret set ANTHROPIC_API_KEY`; the workflow never holds a key, and a missing one fails the job with a message saying so; a pull request from a fork gets no secrets, so it cannot pass). It restores `.cache/eval-responses/` from `actions/cache`, so a pull request that changes nothing the answers depend on replays them for free while one that changes the prompt, schema, `CVR_LABEL_*` or a document pays for live calls (a full uncached run is about $1.6 and two and a half minutes on the default, Sonnet 5.5 at `medium`); a push to `main` runs `--no-cache`, unless it changes only docs, which runs nothing. Whatever the verdict, the job uploads `report.json` and `report.md` as the `eval-report` artifact, appends the markdown to the job summary and, on a pull request, posts it as a comment that later runs edit in place. Runs of one workflow, event and ref cancel each other, except on `main`.
 
 The response cache is `.cache/eval-responses/`, one JSON file per answer, keyed on the whole `LabellerConfig`, the prompt and schema hashes and the source document's sha256: a second run over unchanged inputs makes no LLM call, and a change to any of them misses. It is gitignored and must stay out of the Docker image (ticket 12's `.dockerignore`). Delete the directory to clear it. Four documents are labelled at once (parse, render and scoring run one document at a time: python-docx shares one lxml parser, which is not thread-safe); a provider still unavailable after the client's own two retries (a 429, an overload) is retried up to five more times with exponential backoff and jitter, and the report counts every retry.
 
@@ -124,11 +124,11 @@ A push to `main` that passes `eval` is deployed by the `deploy` job of `ci.yml` 
 4. Run `az containerapp update --image` on the variable `AZURE_CONTAINER_APP` in the variable `AZURE_RESOURCE_GROUP`.
 5. Open ingress (external, port 8000, transport auto) and read the app's URL.
 6. Run `sh scripts/smoke-deploy.sh <app url>` with `CVR_API_KEY` from the repository secret of that name: a `/reformat` without the key must be a 401, one with it a `.docx` with `X-Run-Id`.
-7. Close ingress, whatever the smoke test said.
+7. Run `sh scripts/demo.sh down "$RG" "$APP"`, whatever the smoke test said: it closes ingress, deactivates the latest revision (looked up, never named) and checks no replica is still running. The step fails first, with an error annotation, if either variable is empty (the script would fall back to its defaults), and annotates a failed stop. Closing ingress alone deletes the app's HTTP scale rule and leaves a woken replica running for ever, so the revision is what "off" means.
 
 No Azure credential is stored in GitHub, and the job is the only one with `id-token: write`. The three ids are identifiers, not credentials; they are secrets only so GitHub masks them in the logs of a public repository, and every `az` call runs with `--output none` or a narrow `--query`, so none prints a resource id.
 
-Ingress is off by default (since 2026-10-06; ADR-0010): any request through it wakes the app, and the URL is in public history. A deploy opens it for its smoke test and closes it again; open it for a demo with `sh scripts/demo.sh up` and close it after with `sh scripts/demo.sh down`. How demos open it is to be revisited when a later phase plans them.
+Ingress is off by default (since 2026-10-06; ADR-0010): any request through it wakes the app, and the URL is in public history. A deploy opens it for its smoke test and then stops the app; start it for a demo with `sh scripts/demo.sh up` (activates the revision, opens ingress) and stop it after with `sh scripts/demo.sh down`. Check with `az containerapp replica list -n cvr-ca -g cvr-rg --query "[?properties.runningState=='Running'] | length(@)" -o tsv`, which should print 0; the cost dashboard lags and hides the free grant. How demos open it is to be revisited when a later phase plans them.
 
 The Azure resources are provisioned once, by hand:
 
@@ -147,7 +147,7 @@ The wizard needs the Azure CLI (`winget install -e --id Microsoft.AzureCLI`), Do
 5. Push the `:bootstrap` image.
 6. Make the GHCR package public and give the repo's Actions write access to it (in the browser).
 7. Create the container app, with the Anthropic key typed hidden, and its API key: generated with `openssl rand` (or read back if it exists), stored as the Container Apps secret `cvr-api-key` behind `CVR_API_KEY=secretref:cvr-api-key` and as the GitHub secret `CVR_API_KEY`, never printed.
-8. Open ingress, run the smoke test, then close ingress.
+8. Open ingress, run the smoke test, then close ingress and deactivate the revision.
 9. Create the Entra app registration with its federated credential for `repo:KOFlynn@6141875/cv-reformatter@1367290670:ref:refs/heads/main` (GitHub's immutable subject format; the wizard reads the prefix from `gh api repos/<repo>/actions/oidc/customization/sub`).
 10. Set the three ids as repository secrets and the two names as repository variables.
 11. Set a cost budget (in the portal).
@@ -158,8 +158,8 @@ It remembers its values in `.env.azure` (gitignored, no secret in it) and can be
 Day-to-day operations:
 
 ```
-sh scripts/demo.sh up                            # open ingress and wake the app before a demo (it cold-starts, about 26 s)
-sh scripts/demo.sh down                          # close ingress after it; a deploy closes it too
+sh scripts/demo.sh up                            # activate the revision, open ingress and wake the app before a demo (it cold-starts, about 26 s)
+sh scripts/demo.sh down                          # close ingress, deactivate the revision, check no replica runs; a deploy runs this same script
 az containerapp secret show -n cvr-ca -g cvr-rg --secret-name cvr-api-key --query value -o tsv   # the API key, for a demo
 az containerapp revision list -n cvr-ca -g cvr-rg -o table
 az monitor log-analytics query --workspace <workspace id> --analytics-query "ContainerAppConsoleLogs_CL | where Log_s has '<run id>'"

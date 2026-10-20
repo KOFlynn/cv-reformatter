@@ -174,3 +174,7 @@ _Avoid_: error, violation (except in `provenance_violations`), issue
 
 **Baseline**:
 The one committed, dated eval report from which the thresholds were set.
+
+**Model comparison**:
+Three eval runs of a candidate labeller configuration set beside three runs of the reference configuration, on the same prompt and golden set. The candidate must pass the gate on every run; above that, the two are compared metric by metric and on cost and wall time. A model from another provider is compared the same way.
+_Avoid_: provider comparison, benchmark, baseline (that is the report the thresholds came from)
