@@ -29,14 +29,22 @@ APP=${APP:-cvr-ca}
 WAKE_SECONDS=${WAKE_SECONDS:-180}
 STOP_SECONDS=${STOP_SECONDS:-60}
 
+# One value from az, with Windows' \r stripped. Fails when az fails: piping
+# az straight into tr would hide that behind tr's exit status, and an empty
+# FQDN would then read as "ingress already closed".
+value() {
+  v=$(az "$@" --output tsv) || return 1
+  printf '%s\n' "$v" | tr -d '\r'
+}
+
 fqdn() {
-  az containerapp show --name "$APP" --resource-group "$RG" \
-    --query properties.configuration.ingress.fqdn --output tsv | tr -d '\r'
+  value containerapp show --name "$APP" --resource-group "$RG" \
+    --query properties.configuration.ingress.fqdn
 }
 
 revision() {
-  az containerapp show --name "$APP" --resource-group "$RG" \
-    --query properties.latestRevisionName --output tsv | tr -d '\r'
+  value containerapp show --name "$APP" --resource-group "$RG" \
+    --query properties.latestRevisionName
 }
 
 # Whether the revision is active: "true" or "false".
@@ -80,11 +88,14 @@ case "$ACTION" in
     echo "When the demo is over: sh scripts/demo.sh down"
     ;;
   down)
-    if [ -n "$(fqdn)" ]; then
+    # Assigned, not tested inline, so a failed lookup stops the script.
+    host=$(fqdn)
+    if [ -n "$host" ]; then
       echo "== closing ingress on $APP ($RG)"
       az containerapp ingress disable --name "$APP" --resource-group "$RG" \
         --only-show-errors --output none
-      [ -z "$(fqdn)" ] || { echo "FAIL: $APP still has an ingress FQDN"; exit 1; }
+      host=$(fqdn)
+      [ -z "$host" ] || { echo "FAIL: $APP still has an ingress FQDN"; exit 1; }
     fi
     rev=$(revision)
     if [ "$(active "$rev")" != false ]; then

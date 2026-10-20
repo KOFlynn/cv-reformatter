@@ -1,8 +1,12 @@
 """The smoke test and the demo switch, read from the scripts without running
 them: both reach a live app, so what is pinned here is how they treat the
-API key and the ingress, not whether the app answers."""
+API key and the ingress, not whether the app answers. The one exception
+runs `demo.sh down` against a fake `az` that always fails."""
 
+import os
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -119,8 +123,44 @@ def test_demo_looks_the_revision_up_and_never_claims_scale_to_zero(demo: str):
 
 def test_demo_az_calls_print_nothing_but_narrow_queries(demo: str):
     body = code(demo).replace("\\\n", " ")
-    for call in body.split("az containerapp")[1:]:
+    # `value` runs az with --output tsv, so its calls need a --query too.
+    calls = re.split(r"\b(?:az|value) containerapp", body)[1:]
+    assert any("latestRevisionName" in call for call in calls)
+    for call in calls:
         call = call.split("\n")[0]
         if "secret show" in call:  # the echoed hint, run by the maintainer
             continue
         assert "--output none" in call or "--query" in call, call
+
+
+# A fake az where every call works except reading the ingress FQDN: the
+# revision is found and active, deactivating succeeds, no replica runs.
+FAKE_AZ = """#!/bin/sh
+case "$*" in
+  *ingress.fqdn*) echo 'az: simulated failure' >&2; exit 1 ;;
+  *latestRevisionName*) echo some-app--rev ;;
+  *properties.active*) echo true ;;
+  *"replica list"*) echo 0 ;;
+esac
+exit 0
+"""
+
+
+# The deploy stops the app through `down` (2026-10-20), so a failed FQDN
+# lookup must fail the script: an empty FQDN read as "ingress already
+# closed" would leave ingress open and still report the app stopped.
+@pytest.mark.skipif(shutil.which("sh") is None, reason="needs a POSIX sh")
+def test_demo_down_fails_when_the_ingress_lookup_fails(tmp_path: Path):
+    fake = tmp_path / "az"
+    fake.write_text(FAKE_AZ, newline="\n")
+    fake.chmod(0o755)
+    env = {**os.environ, "PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}"}
+    result = subprocess.run(
+        ["sh", str(SCRIPTS / "demo.sh"), "down", "some-rg", "some-app"],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode != 0
+    assert "Stopped" not in result.stdout
