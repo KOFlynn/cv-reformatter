@@ -20,6 +20,7 @@ from langgraph.graph import END, START, StateGraph
 from cvr.models import LabellingResult, LabelRun, Run, SourceBlock
 from cvr.parse import ParsedDocument, parse
 from cvr.render import render
+from cvr.tracing import RunTrace, Tracer
 from cvr.transform import TransformResult, transform_content
 from cvr.verify import VerifiedDocument, verify
 
@@ -43,26 +44,48 @@ class _State(TypedDict, total=False):
     output: bytes
 
 
-def _build_graph(labeller: Labeller):
+def _build_graph(labeller: Labeller, trace: RunTrace | None = None):
     """The five nodes in a line. Built per call so the labeller stays injected
-    and the node functions are looked up when they run."""
+    and the node functions are looked up when they run. ``trace`` records one
+    span per node visit (and one generation around the labeller call); with
+    none, nothing is traced."""
+    trace = trace if trace is not None else RunTrace(None)
 
     def parse_node(state: _State) -> _State:
-        return {"parsed": parse(state["source"])}
+        with trace.node("parse") as span:
+            parsed = parse(state["source"])
+            span.finish({"source": state["source"]}, {"parsed": parsed})
+        return {"parsed": parsed}
 
     def label_node(state: _State) -> _State:
-        return {"labelling": labeller(state["parsed"].blocks)}
+        blocks = state["parsed"].blocks
+        with trace.node("label") as span:
+            with span.generation() as generation:
+                labelling = labeller(blocks)
+                last_run = getattr(labeller, "last_run", None)
+                generation.finish(last_run if isinstance(last_run, LabelRun) else None)
+            span.finish({"blocks": blocks}, {"labelling": labelling})
+        return {"labelling": labelling}
 
     def verify_node(state: _State) -> _State:
-        return {"verified": verify(state["parsed"].blocks, state["labelling"])}
+        with trace.node("verify") as span:
+            verified = verify(state["parsed"].blocks, state["labelling"])
+            for rejection in verified.rejections:
+                span.rejection(rejection)
+            span.finish({}, {"verified": verified})
+        return {"verified": verified}
 
     def transform_node(state: _State) -> _State:
-        return {"transformed": transform_content(state["verified"].content)}
+        with trace.node("transform") as span:
+            transformed = transform_content(state["verified"].content)
+            span.finish({}, {"transformed": transformed})
+        return {"transformed": transformed}
 
     def render_node(state: _State) -> _State:
-        return {
-            "output": render(state["transformed"].content, state["verified"].unplaced)
-        }
+        with trace.node("render") as span:
+            output = render(state["transformed"].content, state["verified"].unplaced)
+            span.finish({}, {"output": output})
+        return {"output": output}
 
     graph = StateGraph(_State)
     graph.add_node("parse", parse_node)
@@ -80,7 +103,11 @@ def _build_graph(labeller: Labeller):
 
 
 def reformat(
-    source: bytes, labeller: Labeller, *, run_id: str | None = None
+    source: bytes,
+    labeller: Labeller,
+    *,
+    run_id: str | None = None,
+    tracer: Tracer | None = None,
 ) -> tuple[bytes, Run]:
     """Reformat the ``.docx`` bytes ``source`` with ``labeller``.
 
@@ -91,8 +118,14 @@ def reformat(
     ``run_id`` is the Run's id when the caller already has one (the API
     issues it before the upload is read, so a rejected upload carries it
     too); otherwise a fresh one is made here.
+
+    ``tracer`` traces the Run in Langfuse, with the run id as the trace id
+    (structure only: ids, counts, reasons, timings, tokens, cost). Without
+    one, nothing is traced.
     """
-    final = _build_graph(labeller).invoke({"source": source})
+    run_id = run_id if run_id is not None else uuid4().hex
+    with (tracer or Tracer.disabled()).trace(run_id) as trace:
+        final = _build_graph(labeller, trace).invoke({"source": source})
     parsed, verified, transformed = (
         final["parsed"],
         final["verified"],
@@ -100,7 +133,7 @@ def reformat(
     )
     last_run = getattr(labeller, "last_run", None)
     run = Run(
-        run_id=run_id if run_id is not None else uuid4().hex,
+        run_id=run_id,
         label=last_run if isinstance(last_run, LabelRun) else None,
         normalisations=parsed.normalisations,
         removals=[*parsed.removals, *verified.removals],
