@@ -85,6 +85,10 @@ def trace_env(environ: Mapping[str, str] | None = None) -> str:
     when it is one of ``prod``, ``eval`` or ``local``, else ``local``."""
     source = os.environ if environ is None else environ
     value = source.get(ENV_TRACE_ENV, "").strip().lower()
+    if value and value not in TRACE_ENVS:
+        # The value itself is not logged; a typo in a deployment's settings
+        # would otherwise mislabel its traces without a word.
+        logger.warning("%s is not one of %s; using local", ENV_TRACE_ENV, TRACE_ENVS)
     return value if value in TRACE_ENVS else DEFAULT_TRACE_ENV
 
 

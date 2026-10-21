@@ -510,6 +510,7 @@ if [[ -n "$LANGFUSE_PUBLIC_KEY" && -n "$LANGFUSE_SECRET_KEY" ]]; then
     "LANGFUSE_BASE_URL=$LANGFUSE_BASE_URL" CVR_TRACE_ENV=prod --output none
   set_secret LANGFUSE_PUBLIC_KEY "$LANGFUSE_PUBLIC_KEY"
   set_secret LANGFUSE_SECRET_KEY "$LANGFUSE_SECRET_KEY"
+  set_secret LANGFUSE_BASE_URL "$LANGFUSE_BASE_URL"
 else
   warn "Langfuse skipped: the app runs untraced. Re-run this stage to add the keys."
 fi
@@ -600,7 +601,7 @@ set_secret AZURE_SUBSCRIPTION_ID "$AZURE_SUBSCRIPTION_ID"
 set_var AZURE_RESOURCE_GROUP "$AZURE_RESOURCE_GROUP"
 set_var AZURE_CONTAINER_APP "$AZURE_CONTAINER_APP"
 say "The repository's secrets (expect ANTHROPIC_API_KEY, CVR_API_KEY, LANGFUSE_PUBLIC_KEY,"
-say "LANGFUSE_SECRET_KEY and the"
+say "LANGFUSE_SECRET_KEY, LANGFUSE_BASE_URL and the"
 say "three AZURE ids; no Azure credential, since the deploy signs in through OIDC):"
 gh secret list
 pause

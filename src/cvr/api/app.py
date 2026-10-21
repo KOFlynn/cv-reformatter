@@ -277,10 +277,6 @@ def create_app(
                     # whatever the labelling cost is still logged.
                     request.state.label = _last_run(labeller)
                     raise
-                finally:
-                    # Before the answer, so a scaled-to-zero replica has sent
-                    # its spans; tracing never fails the request.
-                    tracer.flush()
         except ProviderUnavailable as exc:
             request.state.error = _describe(exc)
             raise HTTPException(
@@ -289,6 +285,11 @@ def create_app(
         except LabellerMisconfigured as exc:
             request.state.error = _describe(exc)
             raise HTTPException(500, "the labeller is misconfigured") from exc
+        finally:
+            # Before the answer, so a scaled-to-zero replica has sent its
+            # spans, but outside the one-at-a-time lock so a slow export does
+            # not hold up the next document; tracing never fails the request.
+            tracer.flush()
         request.state.run = run
         return Response(
             content=output,
