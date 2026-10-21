@@ -12,13 +12,14 @@ import pytest
 from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableLambda
+from pydantic import ValidationError
 
 from cvr.label.config import LabellerConfig
 from cvr.label.errors import LabellerMisconfigured, ProviderUnavailable
 from cvr.label.labeller import (
+    FAILURE_LOCATIONS,
     MAX_OUTPUT_TOKENS,
     PROVIDER_RETRIES,
-    FAILURE_LOCATIONS,
     anthropic_kwargs,
     build_chat_model,
     label_blocks,
@@ -143,7 +144,11 @@ def test_malformed_answer_becomes_a_labelling_failure_without_raising():
         usage_metadata={"input_tokens": 80, "output_tokens": 10, "total_tokens": 90},
     )
     model = _fake_structured_model(
-        {"raw": raw, "parsed": None, "parsing_error": json.JSONDecodeError(CANARY, CANARY, 0)}
+        {
+            "raw": raw,
+            "parsed": None,
+            "parsing_error": json.JSONDecodeError(CANARY, CANARY, 0),
+        }
     )
 
     result, run = label_blocks(BLOCKS, model, config)
@@ -263,7 +268,7 @@ def test_every_run_carries_the_prompt_and_schema_identity():
 def _schema_error(data: dict[str, Any]) -> Exception:
     try:
         Labelling.model_validate(data)
-    except Exception as exc:  # pydantic.ValidationError
+    except ValidationError as exc:
         return exc
     raise AssertionError("expected a validation error")
 
