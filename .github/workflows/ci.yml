@@ -74,6 +74,9 @@ jobs:
       pull-requests: write
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Traces carry the text: the eval's documents are synthetic. The deployed
+      # app never sets this (tests/ci/test_workflow.py).
+      CVR_TRACE_MODE: full
     steps:
       - uses: actions/checkout@v4
 

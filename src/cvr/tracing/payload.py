@@ -1,9 +1,11 @@
 """The one place that decides what a trace may carry: a pure function from a
 node's inputs and outputs to the fields a span is given.
 
-In structure mode (the only mode, until ticket 09 adds ``full``) a span
-carries ids, counts, reasons from closed vocabularies, timings, tokens and
-cost, never candidate text. Everything leaves through :func:`allowlisted`,
+In structure mode (the default) a span carries ids, counts, reasons from
+closed vocabularies, timings, tokens and cost, never candidate text. In
+``full`` mode (the CI eval and local runs, synthetic fixtures only) the same
+spans also carry the blocks, the rendered prompt messages, the raw answer and
+the rejections' quotes; that is the only difference, and it is made here. Everything leaves through :func:`allowlisted`,
 which drops any key not in :data:`ALLOWED_KEYS`, so a new field reaches a
 trace only if someone adds its name there on purpose. The mask hook
 (``cvr.tracing.client``) applies the same allowlist a second time, to
@@ -16,12 +18,15 @@ nothing from the node packages (tracing is below the nodes in the layout:
 
 from collections import Counter
 from collections.abc import Collection, Mapping, Sequence
-from typing import Any
+from typing import Any, Literal
 
-from cvr.models import Labelling, LabelRun
+from cvr.models import LabelExchange, Labelling, LabelRun
 
 __all__ = [
     "ALLOWED_KEYS",
+    "FULL_KEYS",
+    "Mode",
+    "allowed_keys",
     "allowlisted",
     "generation_payload",
     "node_payload",
@@ -73,13 +78,31 @@ ALLOWED_KEYS = frozenset(
     }
 )
 
+type Mode = Literal["structure", "full"]
+
+# What full mode adds: the one metadata key that carries text (a rejection's
+# quote) and the top-level keys of the structured inputs and outputs.
+FULL_KEYS = frozenset({"quote", "blocks", "messages", "answer"})
+
 # The vocabulary of the verifier's rejection reasons, for a fixed set of keys.
 _REJECTION_REASONS = ("unlocatable", "conflict", "removed")
 
 
-def allowlisted(fields: Mapping[str, Any]) -> dict[str, Any]:
-    """``fields`` without any key that is not on the allowlist."""
-    return {key: value for key, value in fields.items() if key in ALLOWED_KEYS}
+def allowed_keys(mode: Mode) -> frozenset[str]:
+    return ALLOWED_KEYS | FULL_KEYS if mode == "full" else ALLOWED_KEYS
+
+
+def allowlisted(fields: Mapping[str, Any], mode: Mode = "structure") -> dict[str, Any]:
+    """``fields`` without any key that is not on the allowlist for ``mode``."""
+    keys = allowed_keys(mode)
+    return {key: value for key, value in fields.items() if key in keys}
+
+
+def _blocks(blocks: Any) -> list[dict[str, str]]:
+    return [
+        {"id": block.id, "kind": str(block.kind), "text": block.text}
+        for block in blocks
+    ]
 
 
 def _count(value: Any) -> int:
@@ -110,12 +133,18 @@ def _walk_references(node: Any) -> int:
 
 
 def node_payload(
-    node: str, inputs: Mapping[str, Any], outputs: Mapping[str, Any]
+    node: str,
+    inputs: Mapping[str, Any],
+    outputs: Mapping[str, Any],
+    *,
+    mode: Mode = "structure",
 ) -> dict[str, Any]:
     """The span fields for one visit of ``node``, from the node's inputs and
     outputs as the pipeline holds them. Returns the keyword arguments for the
-    observation (``metadata`` only, in structure mode)."""
+    observation (``metadata`` only, in structure mode; in full mode also the
+    blocks parse found and label was given, as ``output`` and ``input``)."""
     facts: dict[str, Any] = {}
+    extra: dict[str, Any] = {}
     if node == "parse":
         parsed = outputs["parsed"]
         facts = {
@@ -124,6 +153,8 @@ def node_payload(
             "image_count": _count(parsed.images),
             "normalisation_count": _count(parsed.normalisations),
         }
+        if mode == "full":
+            extra["output"] = {"blocks": _blocks(parsed.blocks)}
     elif node == "label":
         labelling = outputs["labelling"]
         failed = not isinstance(labelling, Labelling)
@@ -133,6 +164,8 @@ def node_payload(
             "reference_count": _reference_count(labelling),
             "removal_reference_count": 0 if failed else _count(labelling.removals),
         }
+        if mode == "full":
+            extra["input"] = {"blocks": _blocks(inputs["blocks"])}
     elif node == "verify":
         verified = outputs["verified"]
         by_reason = Counter(r.reason for r in verified.rejections)
@@ -155,36 +188,51 @@ def node_payload(
         }
     elif node == "render":
         facts = {"output_bytes": len(outputs["output"])}
-    return {"metadata": allowlisted(facts)}
+    return {"metadata": allowlisted(facts, mode), **extra}
 
 
-def rejection_payload(rejection: Any, block_ids: Collection[str]) -> dict[str, Any]:
-    """One rejection as an event: where in the tree, which block, why. Never
-    the quote. The block id is the model's, so it is reported only when it is
+def rejection_payload(
+    rejection: Any, block_ids: Collection[str], *, mode: Mode = "structure"
+) -> dict[str, Any]:
+    """One rejection as an event: where in the tree, which block, why. The
+    quote only in full mode. The block id is the model's, so it is reported only when it is
     one of ``block_ids`` (the parsed blocks'); otherwise it is ``unknown``."""
-    return {
-        "metadata": allowlisted(
-            {
-                "path": rejection.path,
-                "block_id": (
-                    rejection.block_id if rejection.block_id in block_ids else "unknown"
-                ),
-                "reason": rejection.reason,
-            }
-        )
+    facts: dict[str, Any] = {
+        "path": rejection.path,
+        "block_id": (
+            rejection.block_id if rejection.block_id in block_ids else "unknown"
+        ),
+        "reason": rejection.reason,
     }
+    if mode == "full":
+        facts["quote"] = rejection.quote
+    return {"metadata": allowlisted(facts, mode)}
 
 
-def generation_payload(label_run: LabelRun | None, *, attempt: int) -> dict[str, Any]:
+def generation_payload(
+    label_run: LabelRun | None,
+    *,
+    attempt: int,
+    exchange: LabelExchange | None = None,
+    mode: Mode = "structure",
+) -> dict[str, Any]:
     """The generation's fields for one labelling attempt: the model, its
     tokens and the cost the project's own price table gave (the labeller
     records both on its ``LabelRun``). A labeller that records no ``LabelRun``
-    (the test oracles) still gets a generation, with the attempt alone."""
+    (the test oracles) still gets a generation, with the attempt alone. In
+    full mode the generation also carries the rendered prompt messages as its
+    input and the raw answer as its output, when the labeller kept them."""
+    texts: dict[str, Any] = {}
+    if mode == "full" and exchange is not None:
+        texts["input"] = {"messages": exchange.messages}
+        if exchange.answer is not None:
+            texts["output"] = {"answer": exchange.answer}
     if label_run is None:
-        return {"metadata": allowlisted({"attempt": attempt})}
+        return {"metadata": allowlisted({"attempt": attempt}), **texts}
     config = label_run.config
     model = config.get("model")
     return {
+        **texts,
         "model": model if isinstance(model, str) else None,
         "usage_details": {
             "input": label_run.input_tokens,

@@ -60,6 +60,7 @@ from cvr.label.versions import (
     SCHEMA_VERSION,
 )
 from cvr.models import (
+    LabelExchange,
     Labelling,
     LabellingFailure,
     LabellingResult,
@@ -336,6 +337,44 @@ def label_blocks(
     return result, run
 
 
+def _answer_text(raw: Any) -> str | None:
+    """The text of a raw model message (its text blocks only: thinking is
+    not an answer), or ``None`` when there is none."""
+    content = getattr(raw, "content", None)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            part if isinstance(part, str) else str(part.get("text", ""))
+            for part in content
+            if isinstance(part, str)
+            or (isinstance(part, dict) and part.get("type") == "text")
+        )
+    return None
+
+
+class _Recording:
+    """Wraps the structured model so the exchange is kept for the full-text
+    trace without touching ``label_blocks``: ``invoke`` passes the messages and
+    the response through unchanged and notes both."""
+
+    def __init__(self, inner: Runnable[Any, dict[str, Any]]) -> None:
+        self._inner = inner
+        self.exchange: LabelExchange | None = None
+
+    def invoke(self, messages: Any) -> dict[str, Any]:
+        self.exchange = None
+        response = self._inner.invoke(messages)
+        self.exchange = LabelExchange(
+            messages=[
+                {"role": message.type, "content": str(message.content)}
+                for message in messages
+            ],
+            answer=_answer_text(response.get("raw")),
+        )
+        return response
+
+
 class RealLabeller:
     """A callable from blocks to a labelling result, matching the pipeline's
     labeller seam (``blocks -> labelling result``). Each call's full
@@ -352,13 +391,18 @@ class RealLabeller:
     ) -> None:
         self.config = config or LabellerConfig.from_env()
         model = chat_model or build_chat_model(self.config)
-        self._structured_model = _structured_model(model)
+        self._recording = _Recording(_structured_model(model))
         self.last_run: LabelRun | None = None
+        # The last call's prompt messages and raw answer, candidate text
+        # included, for the full-text trace only; never in the Run (ticket 09).
+        self.last_exchange: LabelExchange | None = None
 
     def __call__(self, blocks: Sequence[SourceBlock]) -> LabellingResult:
         self.last_run = None
-        result, run = label_blocks(blocks, self._structured_model, self.config)
+        self.last_exchange = None
+        result, run = label_blocks(blocks, self._recording, self.config)
         self.last_run = run
+        self.last_exchange = self._recording.exchange
         return result
 
 

@@ -126,12 +126,13 @@ def test_the_untraced_path_builds_no_payload(monkeypatch):
     reformat(d.source, Imperfect(Oracle(d.candidate, d.manifest), unlocatable_title))
 
 
-def test_the_mode_defaults_to_structure_and_only_that_is_accepted():
+def test_the_mode_defaults_to_structure_and_unknown_modes_are_refused():
+    # Ticket 07 accepted only structure; ticket 09 adds full (test_full_mode.py).
     assert Tracer.disabled().mode == "structure"
     with pytest.raises(ValueError):
-        Tracer(None, mode="full")
+        Tracer(None, mode="verbose")
     with pytest.raises(ValueError):
-        make_mask("full")
+        make_mask("verbose")
     assert make_mask("structure")(data="x") == "[redacted]"
 
 

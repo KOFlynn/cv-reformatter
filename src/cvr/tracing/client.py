@@ -25,21 +25,23 @@ import os
 from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
 from contextlib import ExitStack, contextmanager
 from types import TracebackType
-from typing import Any, Literal
+from typing import Any, get_args
 
 from langfuse import Langfuse, propagate_attributes
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SpanExporter
 
-from cvr.models import LabelRun
+from cvr.models import LabelExchange, LabelRun
 from cvr.tracing.payload import (
-    ALLOWED_KEYS,
+    Mode,
+    allowed_keys,
     generation_payload,
     node_payload,
     rejection_payload,
 )
 
 __all__ = [
+    "ENV_TRACE_MODE",
     "MARKER_ATTRIBUTE",
     "REDACTED",
     "SDK_SCOPE",
@@ -47,6 +49,7 @@ __all__ = [
     "NodeTrace",
     "RunTrace",
     "Tracer",
+    "UnknownTraceMode",
     "make_mask",
     "mask",
     "should_export",
@@ -57,12 +60,18 @@ logger = logging.getLogger(__name__)
 ENV_PUBLIC_KEY = "LANGFUSE_PUBLIC_KEY"
 ENV_SECRET_KEY = "LANGFUSE_SECRET_KEY"
 ENV_BASE_URL = "LANGFUSE_BASE_URL"
+ENV_TRACE_MODE = "CVR_TRACE_MODE"
 
 # The Langfuse SDK's own instrumentation scope (a test pins it to the SDK's).
 SDK_SCOPE = "langfuse-sdk"
 
-type Mode = Literal["structure"]
 DEFAULT_MODE: Mode = "structure"
+MODES: tuple[str, ...] = get_args(Mode.__value__)
+
+
+class UnknownTraceMode(ValueError):
+    """``CVR_TRACE_MODE`` (or ``Tracer(mode=)``) is not one of the modes."""
+
 
 REDACTED = "[redacted]"
 _MARKER = {"source": "cvr"}
@@ -89,8 +98,13 @@ def make_mask(mode: str = DEFAULT_MODE):
     """The SDK's mask hook for ``mode``, called on every input, output and
     metadata value before it is written. In structure mode a mapping keeps
     only allowlisted keys with scalar (or list-of-scalar) values; anything
-    else is redacted. A later mode changes this function and the allowlist."""
+    else is redacted. In full mode a mapping keeps only the structure keys
+    and the few that carry text (``FULL_KEYS``), with any value, so the
+    blocks, messages and answer pass; anything that is not a mapping is still
+    redacted, so a stray bare string never leaves."""
     _check_mode(mode)
+    keys = allowed_keys(mode)
+    structure = mode == "structure"
 
     def mask(*, data: Any, **_: Any) -> Any:
         if not isinstance(data, Mapping):
@@ -98,15 +112,18 @@ def make_mask(mode: str = DEFAULT_MODE):
         return {
             key: value
             for key, value in data.items()
-            if key in ALLOWED_KEYS and _scalar_or_scalars(value)
+            if key in keys and (not structure or _scalar_or_scalars(value))
         }
 
     return mask
 
 
 def _check_mode(mode: str) -> None:
-    if mode != DEFAULT_MODE:
-        raise ValueError(f"unsupported tracing mode {mode!r}: only 'structure'")
+    if mode not in MODES:
+        raise UnknownTraceMode(
+            f"unknown tracing mode {mode!r}: {ENV_TRACE_MODE} must be one of "
+            + " or ".join(repr(m) for m in MODES)
+        )
 
 
 mask = make_mask(DEFAULT_MODE)
@@ -176,21 +193,39 @@ class GenerationTrace(_Observation):
     immediately after: its start and end are the measured times around the
     call."""
 
-    def finish(self, label_run: LabelRun | None, *, attempt: int) -> None:
-        """Record what the attempt used, from the labeller's own ``LabelRun``."""
-        self._record(lambda: generation_payload(label_run, attempt=attempt))
+    def __init__(self, observation: Any | None, mode: Mode = DEFAULT_MODE) -> None:
+        super().__init__(observation)
+        self._mode = mode
+
+    def finish(
+        self,
+        label_run: LabelRun | None,
+        *,
+        attempt: int,
+        exchange: LabelExchange | None = None,
+    ) -> None:
+        """Record what the attempt used, from the labeller's own ``LabelRun``
+        (and, in full mode only, its prompt messages and raw answer)."""
+        self._record(
+            lambda: generation_payload(
+                label_run, attempt=attempt, exchange=exchange, mode=self._mode
+            )
+        )
 
 
 class NodeTrace(_Observation):
     """One visit of one node."""
 
-    def __init__(self, name: str, observation: Any | None) -> None:
+    def __init__(
+        self, name: str, observation: Any | None, mode: Mode = DEFAULT_MODE
+    ) -> None:
         super().__init__(observation)
         self._name = name
+        self._mode = mode
 
     def finish(self, inputs: Mapping[str, Any], outputs: Mapping[str, Any]) -> None:
         """Record what the node did, through the payload function."""
-        self._record(lambda: node_payload(self._name, inputs, outputs))
+        self._record(lambda: node_payload(self._name, inputs, outputs, mode=self._mode))
 
     def generation(self) -> GenerationTrace:
         if self._observation is None:
@@ -199,7 +234,8 @@ class NodeTrace(_Observation):
             return GenerationTrace(
                 self._observation.start_observation(
                     name="labelling", as_type="generation", metadata=dict(_MARKER)
-                )
+                ),
+                self._mode,
             )
         except Exception:  # noqa: BLE001 - tracing never fails a Run
             _guard("start generation")
@@ -212,7 +248,9 @@ class NodeTrace(_Observation):
         if self._observation is None:
             return
         try:
-            metadata = rejection_payload(rejection, block_ids)["metadata"]
+            metadata = rejection_payload(rejection, block_ids, mode=self._mode)[
+                "metadata"
+            ]
             self._observation.create_event(
                 name="rejection", metadata={**_MARKER, **metadata}
             )
@@ -223,20 +261,21 @@ class NodeTrace(_Observation):
 class RunTrace:
     """The trace of one Run: the root span plus its node spans."""
 
-    def __init__(self, root: Any | None) -> None:
+    def __init__(self, root: Any | None, mode: Mode = DEFAULT_MODE) -> None:
         self._root = root
+        self._mode = mode
 
     def node(self, name: str) -> NodeTrace:
         if self._root is None:
-            return NodeTrace(name, None)
+            return NodeTrace(name, None, self._mode)
         try:
             observation = self._root.start_observation(
                 name=name, metadata=dict(_MARKER)
             )
         except Exception:  # noqa: BLE001 - tracing never fails a Run
             _guard("start span")
-            return NodeTrace(name, None)
-        return NodeTrace(name, observation)
+            return NodeTrace(name, None, self._mode)
+        return NodeTrace(name, observation, self._mode)
 
 
 class Tracer:
@@ -253,15 +292,15 @@ class Tracer:
         _check_mode(mode)
         self._client = client
         self._tags = list(tags)
-        self.mode: Mode = DEFAULT_MODE
+        self.mode: Mode = mode  # type: ignore[assignment]  # checked above
 
     @property
     def enabled(self) -> bool:
         return self._client is not None
 
     @classmethod
-    def disabled(cls) -> "Tracer":
-        return cls(None)
+    def disabled(cls, *, mode: str = DEFAULT_MODE) -> "Tracer":
+        return cls(None, mode=mode)
 
     @classmethod
     def create(
@@ -293,17 +332,23 @@ class Tracer:
         cls, environ: Mapping[str, str] | None = None, *, tags: Sequence[str] = ()
     ) -> "Tracer":
         """From ``LANGFUSE_PUBLIC_KEY``, ``LANGFUSE_SECRET_KEY`` and
-        optionally ``LANGFUSE_BASE_URL``. Without both keys: disabled, quietly."""
+        optionally ``LANGFUSE_BASE_URL``, and the content mode from
+        ``CVR_TRACE_MODE`` (``structure``, the default, or ``full``; any other
+        value raises :class:`UnknownTraceMode`, even with no keys, so a typo
+        fails at startup). Without both keys: disabled, quietly."""
         source = os.environ if environ is None else environ
+        mode = source.get(ENV_TRACE_MODE) or DEFAULT_MODE
+        _check_mode(mode)
         public_key = source.get(ENV_PUBLIC_KEY, "")
         secret_key = source.get(ENV_SECRET_KEY, "")
         if not public_key or not secret_key:
-            return cls.disabled()
+            return cls.disabled(mode=mode)
         return cls.create(
             public_key=public_key,
             secret_key=secret_key,
             base_url=source.get(ENV_BASE_URL) or None,
             tags=tags,
+            mode=mode,
         )
 
     @contextmanager
@@ -332,7 +377,7 @@ class Tracer:
                         stack.enter_context(propagate_attributes(tags=self._tags))
                     except Exception:  # noqa: BLE001 - tracing never fails a Run
                         _guard("propagate attributes")
-                yield RunTrace(root)
+                yield RunTrace(root, self.mode)
         except BaseException as exc:
             error = exc
             raise
