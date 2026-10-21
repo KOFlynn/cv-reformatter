@@ -16,7 +16,7 @@ removed, letters and digits only) and for each word of a canary:
 
 * no canary in any exported span (``ReadableSpan.to_json``: names, attributes,
   events, status, resource attributes, links);
-* no PII canary in the logs (standard output, standard error and every logger,
+* no PII (nor model-echo) canary in the logs (standard output, standard error and every logger,
   at DEBUG), the API's error bodies, the exceptions that escape the labeller
   (with their cause and context chains) or the Run's failure reasons;
 * a second layer: no token of the source documents that is not the Layout's
@@ -56,7 +56,7 @@ from cvr.golden import LAYOUTS, Candidate, load_candidates
 from cvr.label import RealLabeller
 from cvr.label.errors import LabellerMisconfigured, ProviderUnavailable
 from cvr.label.versions import CONTENT_HASH, PROMPT_HASH, SCHEMA_HASH
-from cvr.models import Labelling, Run
+from cvr.models import Labelling
 from cvr.parse import parse
 from cvr.pipeline import reformat
 from cvr.template import template_tokens
@@ -126,6 +126,10 @@ class Canaries:
         return self._register(
             kind, f"https://www.{host}.example.invalid/{path}", host, path
         )
+
+    def phones(self) -> list[str]:
+        """The PII canaries shaped like a phone number (a leading ``+``)."""
+        return [c for c, k in self.kinds.items() if k == PII and c.startswith("+")]
 
     def of_kind(self, *kinds: str) -> list[str]:
         return [n for n, k in self.needles.items() if k in kinds]
@@ -235,9 +239,7 @@ def _scenarios(canaries: Canaries) -> dict[str, Callable[[Labelling], dict[str, 
     """How the fake model answers, by scenario name. The text a model or an
     error echoes carries a ``model`` canary and the document's own phone."""
     echo = canaries.text(MODEL, 4)
-    echoed_pii = next(
-        c for c, k in canaries.kinds.items() if k == PII and c.startswith("+")
-    )
+    echoed_pii = canaries.phones()[0]
     said = f"{echo} {echoed_pii}"
 
     def flawed(labelling: Labelling) -> dict[str, Any]:
@@ -302,7 +304,6 @@ class Channels:
     bodies: list[str] = field(default_factory=list)
     exceptions: list[str] = field(default_factory=list)
     reasons: list[str] = field(default_factory=list)
-    runs: list[Run] = field(default_factory=list)
     run_ids: list[str] = field(default_factory=list)
 
     def join(self, name: str) -> str:
@@ -388,7 +389,6 @@ def _run_direct(source, respond, oracle, run_id, mode="structure") -> Channels:
         except (ProviderUnavailable, LabellerMisconfigured) as error:
             observed.exceptions.append(_exception_text(error))
         else:
-            observed.runs.append(run)
             if run.label is not None and run.label.failure_reason:
                 observed.reasons.append(run.label.failure_reason)
     observed.logs.append(logs())
@@ -489,11 +489,7 @@ def test_the_source_documents_hold_the_canaries(harvest):
         # The phone the Layout printed is among the PII canaries.
         assert leaks(
             text,
-            [
-                c
-                for c, k in harvest.canaries.kinds.items()
-                if k == PII and c.startswith("+")
-            ],
+            harvest.canaries.phones(),
         )
 
 
@@ -588,6 +584,14 @@ def test_the_logs_still_hold_non_pii_text_and_the_run_id(harvest):
         assert leaks(observed.join("logs"), harvest.canaries.of_kind(CONTENT)), (
             "no content text in the logs"
         )
+
+
+def test_the_log_capture_sees_the_loggers_and_not_only_standard_output(harvest):
+    # A library logs the request through ``logging``: a capture that missed
+    # the loggers would pass blind.
+    for layout in harvest.sources:
+        logs = harvest.channels[layout, "defect", "api"].join("logs")
+        assert "HTTP Request: POST" in logs  # httpx's logger, not our stdout lines
 
 
 def test_no_canary_is_in_an_error_body_an_exception_or_a_failure_reason(harvest):
