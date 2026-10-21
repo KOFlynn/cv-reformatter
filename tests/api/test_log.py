@@ -60,7 +60,7 @@ def _blanked(run: Run) -> Run:
     pii = [
         r.subject
         for r in run.removals
-        if isinstance(r.subject, Span) and r.rule not in ("RM_HEADING", "RM_PHOTO")
+        if isinstance(r.subject, Span) and r.rule != RemovalRule.HEADING
     ]
 
     def blank(span: Span) -> Span:
@@ -260,12 +260,13 @@ def test_a_stripped_removal_keeps_rule_block_offsets_length_and_class():
     originals = {
         r.rule: r.subject
         for r in run.removals
-        if isinstance(r.subject, Span) and r.rule in ("RM_EMAIL", "RM_PHONE")
+        if isinstance(r.subject, Span)
+        and r.rule in (RemovalRule.EMAIL, RemovalRule.PHONE)
     }
-    logged = {r["rule"]: r["subject"] for r in _logged_removals(run)}
+    logged = {RemovalRule(r["rule"]): r["subject"] for r in _logged_removals(run)}
     for rule, shape in (
-        ("RM_EMAIL", "aaaaaa#9a9#aaaaaaa#aaaaaaa"),
-        ("RM_PHONE", "#99_9999_999_999"),
+        (RemovalRule.EMAIL, "aaaaaa#9a9#aaaaaaa#aaaaaaa"),
+        (RemovalRule.PHONE, "#99_9999_999_999"),
     ):
         span = originals[rule]
         assert logged[rule] == {

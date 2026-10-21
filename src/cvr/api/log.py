@@ -55,8 +55,9 @@ def _dump(model: BaseModel) -> object:
     return model.model_dump(mode="json")
 
 
-# The rules whose removed text is not PII: a heading is the source's own word.
-_NOT_PII = {RemovalRule.HEADING, RemovalRule.PHOTO}
+# The rules whose removed text is not PII: a heading is the source's own word
+# (a photo removal's subject is an Image, never a Span, so never here).
+_NOT_PII = {RemovalRule.HEADING}
 _REDACTED = "[pii]"
 
 
@@ -104,7 +105,12 @@ def _redact(error: str, run: Run | None) -> str:
     for _, start, end in reversed(pii_matches(error)):
         error = error[:start] + _REDACTED + error[end:]
     if run is not None:
-        texts = {r.subject.text for r in run.removals if _is_pii(r)}
+        # A very short text (a lone ``+``) would mangle the whole message.
+        texts = {
+            r.subject.text
+            for r in run.removals
+            if _is_pii(r) and len(r.subject.text) >= 4
+        }
         for text in sorted(texts, key=len, reverse=True):
             error = error.replace(text, _REDACTED)
     return error
