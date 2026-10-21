@@ -219,6 +219,39 @@ export MSYS_NO_PATHCONV=1
 # az on Windows ends its output lines with CR; strip it from captured values.
 azq() { az "$@" | tr -d '\r'; }
 
+# wait_app_ready: every change to the app (secret set, update) starts an
+# operation, and the next az call on the app fails with ContainerAppLockConflict
+# until it ends. Poll provisioningState until it is Succeeded, for at most
+# 5 minutes.
+wait_app_ready() {
+  local state=""
+  for _ in $(seq 60); do
+    state=$(azq containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+      --query properties.provisioningState -o tsv)
+    [[ "$state" == Succeeded ]] && return 0
+    [[ "$state" == Failed ]] && break
+    sleep 5
+  done
+  warn "$AZURE_CONTAINER_APP did not reach Succeeded (last state: ${state:-unknown}); see the portal"
+  exit 1
+}
+
+# env_var_is NAME EXPECTED: whether the app's container already has env var
+# NAME as EXPECTED, a literal value or secretref:<secret>. Read-only, so a
+# re-run that changes nothing creates no revision.
+env_var_is() {
+  local name="$1" want="$2" got
+  if [[ "$want" == secretref:* ]]; then
+    got=$(azq containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+      --query "properties.template.containers[0].env[?name=='$name'].secretRef | [0]" -o tsv)
+    got="secretref:$got"
+  else
+    got=$(azq containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+      --query "properties.template.containers[0].env[?name=='$name'].value | [0]" -o tsv)
+  fi
+  [[ "$got" == "$want" ]]
+}
+
 # az is a Windows program under Git Bash, and MSYS_NO_PATHCONV stops a /tmp
 # path being translated for it, so temp files are handed over in Windows form.
 winpath() {
@@ -456,6 +489,7 @@ if [[ "$has_key" == 0 ]]; then
   CVR_API_KEY=$(openssl rand -hex 32)
   az containerapp secret set --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
     --secrets "cvr-api-key=$CVR_API_KEY" --output none
+  wait_app_ready
   say "Generated a new key into cvr-api-key."
 else
   CVR_API_KEY=$(azq containerapp secret show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
@@ -464,8 +498,12 @@ else
 fi
 # For the smoke test in stage 8, which unsets it again.
 export CVR_API_KEY
-az containerapp update --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
-  --set-env-vars CVR_API_KEY=secretref:cvr-api-key --output none
+# An update makes a new revision, so only when the env is not already as wanted.
+if ! env_var_is CVR_API_KEY secretref:cvr-api-key; then
+  az containerapp update --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+    --set-env-vars CVR_API_KEY=secretref:cvr-api-key --output none
+  wait_app_ready
+fi
 set_secret CVR_API_KEY "$CVR_API_KEY"
 
 # Langfuse (Phase 2, ticket 08): every Run the app handles is traced as a
@@ -498,16 +536,23 @@ else
     else
       az containerapp secret set --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
         --secrets "langfuse-public-key=$LANGFUSE_PUBLIC_KEY" "langfuse-secret-key=$LANGFUSE_SECRET_KEY" --output none
+      wait_app_ready
       say "Stored langfuse-public-key and langfuse-secret-key."
     fi
   fi
 fi
 if [[ -n "$LANGFUSE_PUBLIC_KEY" && -n "$LANGFUSE_SECRET_KEY" ]]; then
   ask_default LANGFUSE_BASE_URL "Langfuse base URL (EU cloud)" "https://cloud.langfuse.com"
-  az containerapp update --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
-    --set-env-vars LANGFUSE_PUBLIC_KEY=secretref:langfuse-public-key \
-    LANGFUSE_SECRET_KEY=secretref:langfuse-secret-key \
-    "LANGFUSE_BASE_URL=$LANGFUSE_BASE_URL" CVR_TRACE_ENV=prod --output none
+  if ! { env_var_is LANGFUSE_PUBLIC_KEY secretref:langfuse-public-key &&
+    env_var_is LANGFUSE_SECRET_KEY secretref:langfuse-secret-key &&
+    env_var_is LANGFUSE_BASE_URL "$LANGFUSE_BASE_URL" &&
+    env_var_is CVR_TRACE_ENV prod; }; then
+    az containerapp update --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+      --set-env-vars LANGFUSE_PUBLIC_KEY=secretref:langfuse-public-key \
+      LANGFUSE_SECRET_KEY=secretref:langfuse-secret-key \
+      "LANGFUSE_BASE_URL=$LANGFUSE_BASE_URL" CVR_TRACE_ENV=prod --output none
+    wait_app_ready
+  fi
   set_secret LANGFUSE_PUBLIC_KEY "$LANGFUSE_PUBLIC_KEY"
   set_secret LANGFUSE_SECRET_KEY "$LANGFUSE_SECRET_KEY"
   set_secret LANGFUSE_BASE_URL "$LANGFUSE_BASE_URL"
@@ -518,23 +563,29 @@ unset LANGFUSE_PUBLIC_KEY LANGFUSE_SECRET_KEY
 pause
 
 # ── 8 ─────────────────────────────────────────────────────────────────────
-stage "Smoke test the live app, then close ingress"
-say "Opens ingress, wakes the app from zero (timing the cold start), checks that"
-say "/reformat refuses a request without the key, posts one golden-set document"
-say "with it and checks for a .docx with X-Run-Id. Calls the model once (cents)."
-say "Ingress is closed afterwards either way: it is opened for demos only."
-az containerapp ingress enable --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
-  --type external --target-port 8000 --transport auto --output none
-APP_URL="https://$(azq containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
-  --query properties.configuration.ingress.fqdn -o tsv)"
-write_env APP_URL "$APP_URL"
-note "URL: $APP_URL"
+stage "Smoke test the live app, then stop it"
+say "Activates the latest revision, opens ingress and wakes the app from zero"
+say "(scripts/demo.sh up), checks that /reformat refuses a request without the"
+say "key, posts one golden-set document with it and checks for a .docx with"
+say "X-Run-Id. Calls the model once (cents)."
+say "Whatever happens, the app is stopped afterwards (scripts/demo.sh down: ingress"
+say "closed, revision deactivated, no replica running): it is on for demos only."
 if confirm "Run it?"; then
-  sh scripts/smoke-deploy.sh "$APP_URL" || warn "the smoke test failed; see above"
+  if sh scripts/demo.sh up "$AZURE_RESOURCE_GROUP" "$AZURE_CONTAINER_APP"; then
+    APP_URL="https://$(azq containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+      --query properties.configuration.ingress.fqdn -o tsv)"
+    write_env APP_URL "$APP_URL"
+    note "URL: $APP_URL"
+    sh scripts/smoke-deploy.sh "$APP_URL" || warn "the smoke test failed; see above"
+  else
+    warn "the app did not start; see above"
+  fi
 fi
 unset CVR_API_KEY
-az containerapp ingress disable --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" --output none
-say "Ingress closed. Open it for a demo with: sh scripts/demo.sh up"
+if ! sh scripts/demo.sh down "$AZURE_RESOURCE_GROUP" "$AZURE_CONTAINER_APP"; then
+  warn "the app may still be running: run sh scripts/demo.sh down, and check az containerapp replica list"
+fi
+say "Stopped. Start it for a demo with: sh scripts/demo.sh up"
 pause
 
 # ── 9 ─────────────────────────────────────────────────────────────────────
