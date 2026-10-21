@@ -161,6 +161,11 @@ class CachedLabeller:
     last_run: LabelRun | None = None
     hit: bool = False
 
+    @property
+    def cached(self) -> bool:
+        """Whether the last answer was replayed (what a trace marks)."""
+        return self.hit
+
     def __call__(self, blocks: Sequence[SourceBlock]) -> LabellingResult:
         self.last_run = None
         if self.read and (cached := self.cache.get(self.key)) is not None:

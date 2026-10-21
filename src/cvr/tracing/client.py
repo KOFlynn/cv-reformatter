@@ -198,9 +198,14 @@ class GenerationTrace(_Observation):
     immediately after: its start and end are the measured times around the
     call."""
 
-    def finish(self, label_run: LabelRun | None, *, attempt: int) -> None:
-        """Record what the attempt used, from the labeller's own ``LabelRun``."""
-        self._record(lambda: generation_payload(label_run, attempt=attempt))
+    def finish(
+        self, label_run: LabelRun | None, *, attempt: int, cached: bool = False
+    ) -> None:
+        """Record what the attempt used, from the labeller's own ``LabelRun``;
+        ``cached`` for an answer replayed from a cache (zero tokens, zero cost)."""
+        self._record(
+            lambda: generation_payload(label_run, attempt=attempt, cached=cached)
+        )
 
 
 class NodeTrace(_Observation):

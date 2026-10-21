@@ -34,6 +34,7 @@ ALLOWED_KEYS = frozenset(
     {
         "run_id",
         "attempt",
+        "cached",
         # parse
         "source_bytes",
         "block_count",
@@ -175,25 +176,33 @@ def rejection_payload(rejection: Any, block_ids: Collection[str]) -> dict[str, A
     }
 
 
-def generation_payload(label_run: LabelRun | None, *, attempt: int) -> dict[str, Any]:
+def generation_payload(
+    label_run: LabelRun | None, *, attempt: int, cached: bool = False
+) -> dict[str, Any]:
     """The generation's fields for one labelling attempt: the model, its
     tokens and the cost the project's own price table gave (the labeller
     records both on its ``LabelRun``). A labeller that records no ``LabelRun``
-    (the test oracles) still gets a generation, with the attempt alone."""
+    (the test oracles) still gets a generation, with the attempt alone.
+
+    ``cached`` marks an answer replayed from the eval's response cache: no
+    call was made, so the generation carries zero tokens and zero cost
+    (the run's own totals still show what the stored answer cost)."""
     if label_run is None:
-        return {"metadata": allowlisted({"attempt": attempt})}
+        facts = {"attempt": attempt, **({"cached": True} if cached else {})}
+        return {"metadata": allowlisted(facts)}
     config = label_run.config
     model = config.get("model")
     return {
         "model": model if isinstance(model, str) else None,
         "usage_details": {
-            "input": label_run.input_tokens,
-            "output": label_run.output_tokens,
+            "input": 0 if cached else label_run.input_tokens,
+            "output": 0 if cached else label_run.output_tokens,
         },
-        "cost_details": {"total": label_run.cost_usd},
+        "cost_details": {"total": 0.0 if cached else label_run.cost_usd},
         "metadata": allowlisted(
             {
                 "attempt": attempt,
+                "cached": cached,
                 "provider": config.get("provider"),
                 "effort": config.get("effort"),
                 "temperature": config.get("temperature"),

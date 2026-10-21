@@ -67,7 +67,11 @@ def _build_graph(labeller: Labeller, trace: RunTrace | None = None):
                 # A last_run left over from an earlier call is not this attempt's.
                 fresh = last_run if last_run is not before else None
                 generation.finish(
-                    fresh if isinstance(fresh, LabelRun) else None, attempt=1
+                    fresh if isinstance(fresh, LabelRun) else None,
+                    attempt=1,
+                    # A labeller that replays a stored answer (the eval's
+                    # response cache) says so; nothing else sets this.
+                    cached=getattr(labeller, "cached", False) is True,
                 )
             span.finish({"blocks": blocks}, {"labelling": labelling})
         return {"labelling": labelling}
