@@ -408,3 +408,48 @@ def test_a_filename_header_is_always_safe_ascii():
     assert content_disposition("Zoë.docx") == (
         "attachment; filename=\"Zo_.docx\"; filename*=UTF-8''Zo%C3%AB.docx"
     )
+
+
+# --- The catch-all 500 and the local-only traceback flag
+
+CANARY = "CANARY-Jane-Doe-jane@example.invalid"
+
+
+def _canary_raising(blocks):
+    raise RuntimeError(f"the labeller choked on {CANARY}")
+
+
+def test_an_escaped_exception_is_a_generic_500_that_names_only_its_type(capsys, caplog):
+    doc = document(STEM)
+    client = TestClient(create_app(_canary_raising))
+    response = _post(client, "cv.docx", doc.source)
+    captured = capsys.readouterr()
+    assert response.status_code == 500
+    assert CANARY not in response.text
+    assert response.headers[RUN_ID_HEADER]
+    assert _summary(captured.out)["error"] == "RuntimeError"
+    assert CANARY not in captured.out + captured.err + caplog.text
+    assert "Traceback" not in captured.err + caplog.text
+
+
+def test_with_the_debug_flag_on_the_traceback_goes_to_standard_error(
+    monkeypatch, capsys
+):
+    monkeypatch.setenv("CVR_DEBUG_TRACEBACKS", "1")
+    doc = document(STEM)
+    response = _post(TestClient(create_app(_canary_raising)), "cv.docx", doc.source)
+    captured = capsys.readouterr()
+    assert response.status_code == 500
+    assert CANARY not in response.text
+    assert "Traceback" in captured.err
+    assert CANARY in captured.err
+    assert CANARY not in captured.out
+
+
+@pytest.mark.parametrize("value", [None, "", "0", "false"])
+def test_the_debug_flag_is_off_unless_switched_on(monkeypatch, capsys, value):
+    if value is not None:
+        monkeypatch.setenv("CVR_DEBUG_TRACEBACKS", value)
+    doc = document(STEM)
+    _post(TestClient(create_app(_canary_raising)), "cv.docx", doc.source)
+    assert "Traceback" not in capsys.readouterr().err
