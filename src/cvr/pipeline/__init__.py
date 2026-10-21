@@ -60,18 +60,24 @@ def _build_graph(labeller: Labeller, trace: RunTrace | None = None):
     def label_node(state: _State) -> _State:
         blocks = state["parsed"].blocks
         with trace.node("label") as span:
+            before = getattr(labeller, "last_run", None)
             with span.generation() as generation:
                 labelling = labeller(blocks)
                 last_run = getattr(labeller, "last_run", None)
-                generation.finish(last_run if isinstance(last_run, LabelRun) else None)
+                # A last_run left over from an earlier call is not this attempt's.
+                fresh = last_run if last_run is not before else None
+                generation.finish(
+                    fresh if isinstance(fresh, LabelRun) else None, attempt=1
+                )
             span.finish({"blocks": blocks}, {"labelling": labelling})
         return {"labelling": labelling}
 
     def verify_node(state: _State) -> _State:
         with trace.node("verify") as span:
             verified = verify(state["parsed"].blocks, state["labelling"])
+            block_ids = {block.id for block in state["parsed"].blocks}
             for rejection in verified.rejections:
-                span.rejection(rejection)
+                span.rejection(rejection, block_ids)
             span.finish({}, {"verified": verified})
         return {"verified": verified}
 

@@ -65,7 +65,9 @@ def test_no_source_token_appears_in_any_structure_payload():
         node_payload("verify", {}, {"verified": verified}),
         node_payload("transform", {}, {"transformed": transformed}),
         generation_payload(LABEL_RUN, attempt=1),
-        rejection_payload(Rejection("name", "body:1", "SECRET QUOTE", "unlocatable")),
+        rejection_payload(
+            Rejection("name", "body:1", "SECRET QUOTE", "unlocatable"), {"body:1"}
+        ),
     ]
     # Values only: key names are ours and may coincide with a word of the CV.
     blob = repr([list(p["metadata"].values()) for p in payloads]).lower()
@@ -87,7 +89,8 @@ def test_a_failed_labelling_counts_zero_references():
 
 def test_a_rejection_carries_path_block_and_reason_but_not_the_quote():
     out = rejection_payload(
-        Rejection("experience[0].bullets[1]", "body:7", "SECRET QUOTE", "conflict")
+        Rejection("experience[0].bullets[1]", "body:7", "SECRET QUOTE", "conflict"),
+        {"body:7"},
     )
     assert out["metadata"] == {
         "path": "experience[0].bullets[1]",
