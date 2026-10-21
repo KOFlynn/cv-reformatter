@@ -17,8 +17,8 @@ output parser and the provider SDKs all echo the model's output in theirs):
   timeout, 408, 409, 429, 5xx): :class:`ProviderUnavailable`;
 - the provider rejected the request as configured (401, 403, 404, 400, 422)
   or the provider is unsupported: :class:`LabellerMisconfigured`;
-- anything else that escapes the model call, or a parsing error that is
-  neither JSON nor schema (a defect, not the model's fault):
+- anything else that escapes the model call that is not about the model's
+  output (a parser or validation error is, and is a labelling failure below):
   :class:`LabellerMisconfigured` with a fixed message naming only the
   exception's type (maintainer decision, ticket 03). The API answers 500,
   the defect stays loud and nothing retries it as a model failure;
@@ -288,8 +288,12 @@ def label_blocks(
     try:
         response = structured_model.invoke(_messages(blocks))
     except Exception as exc:  # noqa: BLE001 - the boundary classifies everything
-        error = _provider_error(config, exc) or _unexpected(exc)
-        response = {}
+        error = _provider_error(config, exc)
+        if error is None and failure_reason(exc) is None:
+            error = _unexpected(exc)
+        # A parser or validation error raised by the call is about the
+        # model's output: handled below like one returned with the answer.
+        response = {"raw": None, "parsed": None, "parsing_error": exc}
     if error is not None:
         # Raised outside the ``except`` block, so the SDK exception (whose
         # message can echo model text) is neither __cause__ nor __context__.
