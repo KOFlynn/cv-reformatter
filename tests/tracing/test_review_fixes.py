@@ -1,7 +1,9 @@
 """Review fixes for ticket 07: model-controlled ids, tracing never failing a
 Run, the untraced path, the mode, the stale ``last_run``."""
 
+import io
 import json
+import zipfile
 from dataclasses import dataclass
 
 import pytest
@@ -54,6 +56,15 @@ def test_a_parsed_block_id_is_kept():
     assert rejection_payload(rejection, set())["metadata"]["block_id"] == "unknown"
 
 
+def _parts(docx: bytes) -> dict[str, bytes]:
+    """A document as its zip entries' contents. Two renders of one source are
+    identical in every part, but each zip entry carries the render time (to
+    the 2 seconds a zip stores), so comparing the bytes themselves fails
+    whenever a second boundary falls between the two."""
+    with zipfile.ZipFile(io.BytesIO(docx)) as archive:
+        return {name: archive.read(name) for name in archive.namelist()}
+
+
 def _baseline(d):
     return reformat(d.source, Oracle(d.candidate, d.manifest), run_id="r")
 
@@ -71,7 +82,7 @@ def test_a_raising_payload_function_leaves_the_run_unchanged(monkeypatch):
     out, run = reformat(
         d.source, Oracle(d.candidate, d.manifest), run_id="r", tracer=tracer
     )
-    assert (out, run) == (expected_bytes, expected_run)
+    assert (_parts(out), run) == (_parts(expected_bytes), expected_run)
 
 
 def test_a_raising_client_leaves_the_run_unchanged():
@@ -87,7 +98,7 @@ def test_a_raising_client_leaves_the_run_unchanged():
     out, run = reformat(
         d.source, Oracle(d.candidate, d.manifest), run_id="r", tracer=tracer
     )
-    assert (out, run) == (expected_bytes, expected_run)
+    assert (_parts(out), run) == (_parts(expected_bytes), expected_run)
 
 
 def test_a_raising_propagate_attributes_leaves_the_run_unchanged(monkeypatch):
@@ -103,7 +114,7 @@ def test_a_raising_propagate_attributes_leaves_the_run_unchanged(monkeypatch):
     out, run = reformat(
         d.source, Oracle(d.candidate, d.manifest), run_id="r", tracer=tracer
     )
-    assert (out, run) == (expected_bytes, expected_run)
+    assert (_parts(out), run) == (_parts(expected_bytes), expected_run)
 
 
 def test_propagate_attributes_is_not_entered_without_tags(monkeypatch):
