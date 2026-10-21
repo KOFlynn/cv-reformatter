@@ -31,6 +31,7 @@ import sys
 import threading
 import traceback
 import zipfile
+from contextlib import asynccontextmanager
 from io import BytesIO
 from typing import Annotated
 from urllib.parse import quote
@@ -48,6 +49,7 @@ from cvr.label import (
 )
 from cvr.models import LabelRun
 from cvr.pipeline import Labeller, reformat
+from cvr.tracing import Tracer, env_tag, trace_env
 
 __all__ = [
     "API_KEY_HEADER",
@@ -156,14 +158,38 @@ class _LabellerSource:
             return self._labeller
 
 
-def create_app(labeller: Labeller | None = None) -> FastAPI:
+def create_app(
+    labeller: Labeller | None = None, tracer: Tracer | None = None
+) -> FastAPI:
     """The application, labelling with ``labeller`` or, when none is given,
     with the real labeller built from ``CVR_LABEL_*`` on the first document.
     The key ``/reformat`` expects is ``CVR_API_KEY`` as it is when the app is
     created. FastAPI's generated ``/docs``, ``/redoc`` and ``/openapi.json``
-    are off: the service has two routes and no others."""
+    are off: the service has two routes and no others.
+
+    Every Run is traced in Langfuse with ``tracer``, or, when none is given,
+    with the tracer built from ``LANGFUSE_*`` and tagged ``env=<CVR_TRACE_ENV>``
+    (``local`` unless set) as they are when the app is created; without both
+    keys it is untraced. The trace id is the run id, so ``X-Run-Id`` finds
+    the trace. Spans are flushed before each answer, and the client is shut
+    down when the app stops."""
+    if tracer is None:
+        tracer = Tracer.from_env(tags=[env_tag(trace_env())])
+
+    # Untraced, reformat is called exactly as it was before tracing existed.
+    traced = {"tracer": tracer} if tracer.enabled else {}
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        yield
+        tracer.shutdown()
+
     app = FastAPI(
-        title="cv-reformatter", docs_url=None, redoc_url=None, openapi_url=None
+        title="cv-reformatter",
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+        lifespan=lifespan,
     )
     expected_key = os.environ.get(ENV_API_KEY, "")
     debug_tracebacks = os.environ.get(ENV_DEBUG_TRACEBACKS, "").strip().lower() in {
@@ -243,12 +269,18 @@ def create_app(labeller: Labeller | None = None) -> FastAPI:
             labeller = source.get()
             with one_at_a_time:
                 try:
-                    output, run = reformat(body, labeller, run_id=request.state.run_id)
+                    output, run = reformat(
+                        body, labeller, run_id=request.state.run_id, **traced
+                    )
                 except Exception:
                     # A node after the labeller failed, or the labeller did:
                     # whatever the labelling cost is still logged.
                     request.state.label = _last_run(labeller)
                     raise
+                finally:
+                    # Before the answer, so a scaled-to-zero replica has sent
+                    # its spans; tracing never fails the request.
+                    tracer.flush()
         except ProviderUnavailable as exc:
             request.state.error = _describe(exc)
             raise HTTPException(
