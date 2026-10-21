@@ -49,7 +49,7 @@ Reading the results: `quotaId` starting `FreeTrial` means Free Trial (reported t
 | `gpt-5.4` offers `DataZoneStandard` from a northeurope resource (model list) | Yes: version `2026-03-05`, skus `GlobalStandard`, `DataZoneStandard`, `GlobalProvisionedManaged` (two identical entries), so a `DataZoneStandard` deployment from northeurope is offered |
 | `cvr-log` workspace | sku `PerGB2018`, retention 30 days |
 | `cvr-log` per-table retention | `ContainerAppSystemLogs`, `ContainerAppConsoleLogs`, `ContainerAppHTTPLogs`, `ContainerAppSystemLogs_CL`, `ContainerAppConsoleLogs_CL`: plan Analytics, retention 30, total 30 |
-| Retention figure for ticket 06 (maintainer's decision) | The ContainerApp tables go to 4 days, the per-table minimum |
+| Retention figure for ticket 06 (maintainer's decision) | The ContainerApp tables go to 4 days, the per-table minimum (superseded 2026-10-21: only the empty non-`_CL` tables could; the populated `_CL` ones stay at 30, see ticket 06) |
 
 ### Spec Further Notes: what this settles
 
@@ -64,4 +64,4 @@ Registering `Microsoft.CognitiveServices` on `cvr_sub` is a change, not a read, 
 
 ## Comments
 
-- 2026-10-21: Docs researched and the maintainer's read-only run recorded. `cvr_sub` is Pay-As-You-Go; `gpt-5.4` 2026-03-05 offers `DataZoneStandard` from northeurope; `cvr-log` is at 30 days (ContainerApp tables to 4 days in ticket 06); quota is not visible because `Microsoft.CognitiveServices` is `NotRegistered`, so it is deferred to ticket 18.
+- 2026-10-21: Docs researched and the maintainer's read-only run recorded. `cvr_sub` is Pay-As-You-Go; `gpt-5.4` 2026-03-05 offers `DataZoneStandard` from northeurope; `cvr-log` is at 30 days (ContainerApp tables to 4 days in ticket 06; corrected 2026-10-21: only the non-`_CL` ones, the `_CL` ones keep 30); quota is not visible because `Microsoft.CognitiveServices` is `NotRegistered`, so it is deferred to ticket 18.

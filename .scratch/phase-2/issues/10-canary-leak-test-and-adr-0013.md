@@ -34,6 +34,6 @@ ADR-0013 records the content boundary:
 
 **Allowlist break (scratch, not committed).** (1) `allowlisted()` returning everything and `rejection_payload` always adding `quote`: the test still passes, because the mask hook (the second layer) drops the key; both layers are doing their job. (2) `quote` added to `ALLOWED_KEYS` with the same payload change: fails (`no_canary_is_in_any_exported_span`, the source-token test and `no_pii_canary_is_in_the_logs`, the last because the SDK's DEBUG logging echoes the span). (3) Break 1 plus a mask that lets everything through: the same three fail. Each change was reverted afterwards.
 
-**ADR-0013** written (`docs/adr/0013-content-boundary.md`); the README's table of ADRs lists it (and the missing 0011). Retention: 4 days per ContainerApp table, set by the wizard's stage 12; the maintainer's read-back stays with ticket 06. ADR-0012 is left for the retry ticket.
+**ADR-0013** written (`docs/adr/0013-content-boundary.md`); the README's table of ADRs lists it (and the missing 0011). Retention: 4 days for the non-`_CL` ContainerApp tables, set by the wizard's stage 12 (corrected 2026-10-21, ticket 06: the populated `_CL` tables keep the workspace's 30 days); the maintainer's read-back stays with ticket 06. ADR-0012 is left for the retry ticket.
 
 **Maintainer.** The screenshot of one full-mode eval trace with its run id, committed for the README: unticked.

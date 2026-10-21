@@ -76,8 +76,9 @@ def test_the_app_is_left_stopped_after_the_smoke_test(script: str) -> None:
     assert down > smoke
 
 
-# Phase 2 ticket 06: the ContainerApp tables of cvr-log keep 4 days, the
-# per-table minimum (the workspace itself stays at the PerGB2018 minimum, 30).
+# Phase 2 ticket 06: the ContainerApp tables of cvr-log that accept it keep 4
+# days, the per-table minimum; the classic _CL ones refuse and keep the
+# workspace's 30, the PerGB2018 minimum (option A).
 @pytest.fixture(scope="module")
 def retention_stage(script: str) -> str:
     start = script.index('stage "Log retention')
