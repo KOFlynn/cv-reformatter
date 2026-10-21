@@ -325,6 +325,27 @@ def test_residue_overlapping_a_pii_removal_is_stripped():
     assert "other" in out
 
 
+def test_residue_of_a_failed_labelling_is_stripped_whole():
+    """With no labelling nothing says which text is PII (an address, a date of
+    birth, a referee), and the residue is the whole document: only its shape
+    is logged (found by the canary test, ticket 10)."""
+    run = Run(
+        run_id="r",
+        label_failed=True,
+        residue=[
+            Residue(
+                span=Span(block_id="body:0", start=0, end=14, text="22 Larkspur Cl"),
+                separator=False,
+            ),
+        ],
+    )
+    out = "".join(request_lines("r", 200, run=run))
+    assert "Larkspur" not in out
+    (block,) = [json.loads(line) for line in request_lines("r", 200, run=run)][1:]
+    assert block["residue"][0]["span"]["length"] == 14
+    assert block["residue"][0]["span"]["class"] == "99_aaaaaaaa_aa"
+
+
 def test_an_error_field_is_stripped_of_pii_shaped_text():
     (line,) = request_lines(
         "abc", 500, error=f"ValueError: bad {CANARY_EMAIL} and {CANARY_PHONE}"
