@@ -17,14 +17,18 @@ output parser and the provider SDKs all echo the model's output in theirs):
   timeout, 408, 409, 429, 5xx): :class:`ProviderUnavailable`;
 - the provider rejected the request as configured (401, 403, 404, 400, 422)
   or the provider is unsupported: :class:`LabellerMisconfigured`;
-- the model answered but unusably, or anything else escaped the call: a
-  :class:`~cvr.models.LabellingFailure` value, and the job completes with
-  every block in the review appendix. Its reason is a fixed category
-  (``the model refused to answer``, ``invalid JSON``, ``schema mismatch``
-  and ``unexpected`` for whatever else) plus, for a schema mismatch, the
+- anything else that escapes the model call, or a parsing error that is
+  neither JSON nor schema (a defect, not the model's fault):
+  :class:`LabellerMisconfigured` with a fixed message naming only the
+  exception's type (maintainer decision, ticket 03). The API answers 500,
+  the defect stays loud and nothing retries it as a model failure;
+- the model answered but unusably: a :class:`~cvr.models.LabellingFailure`
+  value, and the job completes with every block in the review appendix. Its
+  reason is a fixed category (``the model refused to answer``,
+  ``invalid JSON`` or ``schema mismatch``) plus, for a schema mismatch, the
   error locations reduced to the schema's own field names and integers.
 
-The two provider errors are raised outside the ``except`` block: the SDK
+Every raised error is raised outside the ``except`` block: the original
 exception, whose message may echo text, is on neither ``__cause__`` nor
 ``__context__`` for a logger or tracer to print.
 Retrying a labelling failure is Phase 2.
@@ -231,12 +235,12 @@ def _causes(exc: BaseException) -> list[BaseException]:
     return chain
 
 
-def failure_reason(exc: BaseException) -> str:
+def failure_reason(exc: BaseException) -> str | None:
     """A fixed-category reason for ``exc``, never any of its message. Walks
     the cause chain (LangChain's output parser wraps pydantic's and json's
     errors): a validation error is a schema mismatch with its allowlisted
     locations, a JSON decode error or a bare parser error is invalid JSON,
-    anything else is unexpected."""
+    anything else is ``None``: not a labelling failure."""
     chain = _causes(exc)
     for error in chain:
         if isinstance(error, ValidationError):
@@ -252,7 +256,16 @@ def failure_reason(exc: BaseException) -> str:
             return "schema mismatch at " + ", ".join(locations)
     if any(isinstance(e, json.JSONDecodeError | OutputParserException) for e in chain):
         return "invalid JSON"
-    return "unexpected"
+    return None
+
+
+def _unexpected(exc: BaseException) -> LabellerMisconfigured:
+    """The fixed-message error for a defect: the exception's type name only."""
+    return LabellerMisconfigured(
+        f"unexpected {type(exc).__name__} while labelling; this is a defect, "
+        "not a provider or CV problem (the exception's message is withheld "
+        "because it may contain model text)"
+    )
 
 
 def label_blocks(
@@ -264,20 +277,19 @@ def label_blocks(
     labelling schema with ``include_raw=True``) over ``blocks`` and turn its
     answer into a usable :class:`Labelling` or a
     :class:`~cvr.models.LabellingFailure` (malformed, schema-invalid,
-    refused or unexpected, with whatever tokens and cost the answer
-    reported).
+    or refused, with whatever tokens and cost the answer reported).
 
     Raises :class:`ProviderUnavailable` or :class:`LabellerMisconfigured`
-    when the request itself fails for one of those reasons; any other
-    exception becomes a labelling failure whose reason is a fixed category.
-    See the module docstring: no message or cause of any exception is
-    carried onward."""
+    when the request itself fails for one of those reasons, and
+    :class:`LabellerMisconfigured` naming only the type for any other
+    exception. See the module docstring: no message or cause of any
+    exception is carried onward."""
     error: LabellerError | None = None
     try:
         response = structured_model.invoke(_messages(blocks))
     except Exception as exc:  # noqa: BLE001 - the boundary classifies everything
-        error = _provider_error(config, exc)
-        response = {"raw": None, "parsed": None, "parsing_error": exc}
+        error = _provider_error(config, exc) or _unexpected(exc)
+        response = {}
     if error is not None:
         # Raised outside the ``except`` block, so the SDK exception (whose
         # message can echo model text) is neither __cause__ nor __context__.
@@ -295,6 +307,8 @@ def label_blocks(
         reason = "the model refused to answer"
     elif response.get("parsing_error") is not None:
         reason = failure_reason(response["parsing_error"])
+        if reason is None:
+            raise _unexpected(response["parsing_error"])
     elif not isinstance(parsed, Labelling):
         reason = "schema mismatch"
     label_failed = reason is not None
