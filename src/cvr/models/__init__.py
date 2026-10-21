@@ -33,6 +33,7 @@ __all__ = [
     "ExperienceEntry",
     "ExperienceReference",
     "Image",
+    "LabelExchange",
     "LabelRun",
     "Labelling",
     "LabellingFailure",
@@ -494,6 +495,17 @@ class LabelRun(StrictModel):
     cost_usd: float = 0.0
     label_failed: bool = False
     failure_reason: str | None = None
+
+
+class LabelExchange(StrictModel):
+    """What one labelling call sent and got back, as text: the rendered
+    prompt messages (``role``, ``content``) and the model's raw answer. It
+    holds candidate text, so it is **never** part of the ``Run``: a labeller
+    keeps it on ``last_exchange`` for the full-text trace (ticket 09) and
+    nothing else reads it."""
+
+    messages: list[dict[str, str]]
+    answer: str | None = None
 
 
 class Run(StrictModel):

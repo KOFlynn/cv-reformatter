@@ -17,14 +17,18 @@ output parser and the provider SDKs all echo the model's output in theirs):
   timeout, 408, 409, 429, 5xx): :class:`ProviderUnavailable`;
 - the provider rejected the request as configured (401, 403, 404, 400, 422)
   or the provider is unsupported: :class:`LabellerMisconfigured`;
-- the model answered but unusably, or anything else escaped the call: a
-  :class:`~cvr.models.LabellingFailure` value, and the job completes with
-  every block in the review appendix. Its reason is a fixed category
-  (``the model refused to answer``, ``invalid JSON``, ``schema mismatch``
-  and ``unexpected`` for whatever else) plus, for a schema mismatch, the
+- anything else that escapes the model call that is not about the model's
+  output (a parser or validation error is, and is a labelling failure below):
+  :class:`LabellerMisconfigured` with a fixed message naming only the
+  exception's type (maintainer decision, ticket 03). The API answers 500,
+  the defect stays loud and nothing retries it as a model failure;
+- the model answered but unusably: a :class:`~cvr.models.LabellingFailure`
+  value, and the job completes with every block in the review appendix. Its
+  reason is a fixed category (``the model refused to answer``,
+  ``invalid JSON`` or ``schema mismatch``) plus, for a schema mismatch, the
   error locations reduced to the schema's own field names and integers.
 
-The two provider errors are raised outside the ``except`` block: the SDK
+Every raised error is raised outside the ``except`` block: the original
 exception, whose message may echo text, is on neither ``__cause__`` nor
 ``__context__`` for a logger or tracer to print.
 Retrying a labelling failure is Phase 2.
@@ -56,6 +60,7 @@ from cvr.label.versions import (
     SCHEMA_VERSION,
 )
 from cvr.models import (
+    LabelExchange,
     Labelling,
     LabellingFailure,
     LabellingResult,
@@ -231,12 +236,12 @@ def _causes(exc: BaseException) -> list[BaseException]:
     return chain
 
 
-def failure_reason(exc: BaseException) -> str:
+def failure_reason(exc: BaseException) -> str | None:
     """A fixed-category reason for ``exc``, never any of its message. Walks
     the cause chain (LangChain's output parser wraps pydantic's and json's
     errors): a validation error is a schema mismatch with its allowlisted
     locations, a JSON decode error or a bare parser error is invalid JSON,
-    anything else is unexpected."""
+    anything else is ``None``: not a labelling failure."""
     chain = _causes(exc)
     for error in chain:
         if isinstance(error, ValidationError):
@@ -252,7 +257,16 @@ def failure_reason(exc: BaseException) -> str:
             return "schema mismatch at " + ", ".join(locations)
     if any(isinstance(e, json.JSONDecodeError | OutputParserException) for e in chain):
         return "invalid JSON"
-    return "unexpected"
+    return None
+
+
+def _unexpected(exc: BaseException) -> LabellerMisconfigured:
+    """The fixed-message error for a defect: the exception's type name only."""
+    return LabellerMisconfigured(
+        f"unexpected {type(exc).__name__} while labelling; this is a defect, "
+        "not a provider or CV problem (the exception's message is withheld "
+        "because it may contain model text)"
+    )
 
 
 def label_blocks(
@@ -264,19 +278,22 @@ def label_blocks(
     labelling schema with ``include_raw=True``) over ``blocks`` and turn its
     answer into a usable :class:`Labelling` or a
     :class:`~cvr.models.LabellingFailure` (malformed, schema-invalid,
-    refused or unexpected, with whatever tokens and cost the answer
-    reported).
+    or refused, with whatever tokens and cost the answer reported).
 
     Raises :class:`ProviderUnavailable` or :class:`LabellerMisconfigured`
-    when the request itself fails for one of those reasons; any other
-    exception becomes a labelling failure whose reason is a fixed category.
-    See the module docstring: no message or cause of any exception is
-    carried onward."""
+    when the request itself fails for one of those reasons, and
+    :class:`LabellerMisconfigured` naming only the type for any other
+    exception. See the module docstring: no message or cause of any
+    exception is carried onward."""
     error: LabellerError | None = None
     try:
         response = structured_model.invoke(_messages(blocks))
     except Exception as exc:  # noqa: BLE001 - the boundary classifies everything
         error = _provider_error(config, exc)
+        if error is None and failure_reason(exc) is None:
+            error = _unexpected(exc)
+        # A parser or validation error raised by the call is about the
+        # model's output: handled below like one returned with the answer.
         response = {"raw": None, "parsed": None, "parsing_error": exc}
     if error is not None:
         # Raised outside the ``except`` block, so the SDK exception (whose
@@ -295,6 +312,8 @@ def label_blocks(
         reason = "the model refused to answer"
     elif response.get("parsing_error") is not None:
         reason = failure_reason(response["parsing_error"])
+        if reason is None:
+            raise _unexpected(response["parsing_error"])
     elif not isinstance(parsed, Labelling):
         reason = "schema mismatch"
     label_failed = reason is not None
@@ -318,6 +337,44 @@ def label_blocks(
     return result, run
 
 
+def _answer_text(raw: Any) -> str | None:
+    """The text of a raw model message (its text blocks only: thinking is
+    not an answer), or ``None`` when there is none."""
+    content = getattr(raw, "content", None)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            part if isinstance(part, str) else str(part.get("text", ""))
+            for part in content
+            if isinstance(part, str)
+            or (isinstance(part, dict) and part.get("type") == "text")
+        )
+    return None
+
+
+class _Recording:
+    """Wraps the structured model so the exchange is kept for the full-text
+    trace without touching ``label_blocks``: ``invoke`` passes the messages and
+    the response through unchanged and notes both."""
+
+    def __init__(self, inner: Runnable[Any, dict[str, Any]]) -> None:
+        self._inner = inner
+        self.exchange: LabelExchange | None = None
+
+    def invoke(self, messages: Any) -> dict[str, Any]:
+        self.exchange = None
+        response = self._inner.invoke(messages)
+        self.exchange = LabelExchange(
+            messages=[
+                {"role": message.type, "content": str(message.content)}
+                for message in messages
+            ],
+            answer=_answer_text(response.get("raw")),
+        )
+        return response
+
+
 class RealLabeller:
     """A callable from blocks to a labelling result, matching the pipeline's
     labeller seam (``blocks -> labelling result``). Each call's full
@@ -334,13 +391,18 @@ class RealLabeller:
     ) -> None:
         self.config = config or LabellerConfig.from_env()
         model = chat_model or build_chat_model(self.config)
-        self._structured_model = _structured_model(model)
+        self._recording = _Recording(_structured_model(model))
         self.last_run: LabelRun | None = None
+        # The last call's prompt messages and raw answer, candidate text
+        # included, for the full-text trace only; never in the Run (ticket 09).
+        self.last_exchange: LabelExchange | None = None
 
     def __call__(self, blocks: Sequence[SourceBlock]) -> LabellingResult:
         self.last_run = None
-        result, run = label_blocks(blocks, self._structured_model, self.config)
+        self.last_exchange = None
+        result, run = label_blocks(blocks, self._recording, self.config)
         self.last_run = run
+        self.last_exchange = self._recording.exchange
         return result
 
 

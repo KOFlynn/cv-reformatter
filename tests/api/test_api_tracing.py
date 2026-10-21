@@ -164,3 +164,18 @@ def test_the_client_is_shut_down_when_the_app_stops():
     with TestClient(app):
         assert calls == []
     assert calls == ["shutdown"]
+
+
+def test_full_mode_in_the_api_is_logged_as_a_warning(caplog):
+    tracer, _ = _tracer()
+    tracer.mode = "full"
+    with caplog.at_level("WARNING", logger="cvr.api.app"):
+        _app(tracer)
+    assert any("full mode" in r.getMessage() for r in caplog.records)
+
+
+def test_structure_mode_in_the_api_logs_no_warning(caplog):
+    tracer, _ = _tracer()
+    with caplog.at_level("WARNING", logger="cvr.api.app"):
+        _app(tracer)
+    assert not caplog.records

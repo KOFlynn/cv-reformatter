@@ -175,6 +175,14 @@ def create_app(
     down when the app stops."""
     if tracer is None:
         tracer = Tracer.from_env(tags=[env_tag(trace_env())])
+    if tracer.enabled and tracer.mode == "full":
+        # Full traces carry CV text to a third party. They are for the eval's
+        # and local runs' synthetic documents; no deployment sets the mode
+        # (a static test pins it), so reaching here is a misconfiguration.
+        logger.warning(
+            "tracing in full mode: traces carry the text of every CV this "
+            "service handles; use it with synthetic documents only"
+        )
 
     # Untraced, reformat is called exactly as it was before tracing existed.
     traced = {"tracer": tracer} if tracer.enabled else {}

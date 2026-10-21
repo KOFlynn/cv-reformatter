@@ -4,15 +4,15 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** in-progress (docs researched; waiting on the maintainer's read-only run)
+**Status:** done
 
-- [ ] `cvr_sub`'s offer type (Free Trial, Pay-As-You-Go, …) and its Azure OpenAI quota tier recorded
-- [ ] Available Data Zone Standard (EU) quota for gpt-5.4 recorded, and whether a deployment from a `northeurope` resource is possible
-- [ ] The exact gpt-5.4 model identifier and version checked against the current Azure docs (the spec's name is not taken on trust)
-- [ ] The managed identity token scope the service currently requires (`https://cognitiveservices.azure.com/.default` or `https://ai.azure.com/.default`) confirmed from Microsoft docs
-- [ ] The minimum retention `cvr-log` can be set to recorded, at workspace level and per table, with a source
-- [ ] The commands are given as a short read-only snippet the maintainer can paste; no secret or id is committed
-- [ ] Each fact in the spec's Further Notes that this ticket settles is marked as settled in the answer
+- [x] `cvr_sub`'s offer type (Free Trial, Pay-As-You-Go, …) and its Azure OpenAI quota tier recorded
+- [x] Available Data Zone Standard (EU) quota for gpt-5.4 recorded, and whether a deployment from a `northeurope` resource is possible
+- [x] The exact gpt-5.4 model identifier and version checked against the current Azure docs (the spec's name is not taken on trust)
+- [x] The managed identity token scope the service currently requires (`https://cognitiveservices.azure.com/.default` or `https://ai.azure.com/.default`) confirmed from Microsoft docs
+- [x] The minimum retention `cvr-log` can be set to recorded, at workspace level and per table, with a source
+- [x] The commands are given as a short read-only snippet the maintainer can paste; no secret or id is committed
+- [x] Each fact in the spec's Further Notes that this ticket settles is marked as settled in the answer
 
 ## Answer
 
@@ -45,7 +45,7 @@ Reading the results: `quotaId` starting `FreeTrial` means Free Trial (reported t
 | Item | Result |
 |---|---|
 | `cvr_sub` offer type (`quotaId`, `spendingLimit`) | `PayAsYouGo_2014-09-01`, spending limit `Off`: Pay-As-You-Go, not Free Trial |
-| `gpt-5.4` Data Zone Standard (EU) quota in northeurope | pending: broader query. The usage list filtered on `gpt-5.4` returned no rows, which is not conclusive (the usage names probably do not contain the literal `gpt-5.4`) |
+| `gpt-5.4` Data Zone Standard (EU) quota in northeurope | Settled as: not visible until the provider is registered; deferred to ticket 18. `az cognitiveservices usage list -l northeurope --query "length(@)"` returned 0 (no usage rows of any kind), `az provider show -n Microsoft.CognitiveServices --query registrationState` returned `NotRegistered`, and the ARM `GET .../providers/Microsoft.CognitiveServices/locations/northeurope/usages?api-version=2024-10-01` returned 0 rows. The empty quota is explained by the unregistered resource provider on `cvr_sub` (never used for AI services); it is not evidence of zero quota |
 | `gpt-5.4` offers `DataZoneStandard` from a northeurope resource (model list) | Yes: version `2026-03-05`, skus `GlobalStandard`, `DataZoneStandard`, `GlobalProvisionedManaged` (two identical entries), so a `DataZoneStandard` deployment from northeurope is offered |
 | `cvr-log` workspace | sku `PerGB2018`, retention 30 days |
 | `cvr-log` per-table retention | `ContainerAppSystemLogs`, `ContainerAppConsoleLogs`, `ContainerAppHTTPLogs`, `ContainerAppSystemLogs_CL`, `ContainerAppConsoleLogs_CL`: plan Analytics, retention 30, total 30 |
@@ -57,3 +57,11 @@ Reading the results: `quotaId` starting `FreeTrial` means Free Trial (reported t
 - Still open, settled only by the maintainer's run: `cvr_sub`'s offer and quota tier, and the actual gpt-5.4 Data Zone Standard quota.
 - Not touched by this ticket (stay in their own tickets): Langfuse SDK features and `uuid4().hex` as a trace id, the PR OIDC subject, both schemas against Azure's strict-mode limits.
 - The Further Notes line on gpt-5.4 prices ($2.75 / $16.50 per million tokens on Data Zone) was not re-checked here.
+
+### Note for ticket 18 (provisioning)
+
+Registering `Microsoft.CognitiveServices` on `cvr_sub` is a change, not a read, so it belongs to ticket 18. Ticket 18 must register the provider, then confirm the gpt-5.4 `DataZoneStandard` quota in northeurope (usage list or ARM usages) before deploying. If the quota is then zero, ticket 18 stops and reports (quota request versus recording the path as blocked).
+
+## Comments
+
+- 2026-10-21: Docs researched and the maintainer's read-only run recorded. `cvr_sub` is Pay-As-You-Go; `gpt-5.4` 2026-03-05 offers `DataZoneStandard` from northeurope; `cvr-log` is at 30 days (ContainerApp tables to 4 days in ticket 06); quota is not visible because `Microsoft.CognitiveServices` is `NotRegistered`, so it is deferred to ticket 18.

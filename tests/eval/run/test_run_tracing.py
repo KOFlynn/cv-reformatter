@@ -4,13 +4,15 @@ keys the runner is untraced and unchanged. In-memory exporter, dummy keys,
 oracle labellers: no network, no model."""
 
 import json
+import time
+from typing import ClassVar
 from uuid import uuid4
 
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from run_support import ORACLE, oracle
 
 from cvr.eval.run import main
-from cvr.models import LabelRun
+from cvr.models import LabelExchange, LabelRun
 from cvr.tracing import Tracer
 
 LABEL_RUN = LabelRun(
@@ -172,3 +174,71 @@ def test_with_keys_the_runner_tags_eval_whatever_cvr_trace_env_says(
     assert _main(tmp_path) == 0
     assert list(created["tags"]) == ["env=eval"]
     assert len(_roots(exporter)) == 4
+
+
+class MarkedExchange(WithLabelRun):
+    """Keeps a ``last_exchange`` naming the blocks it was called with, so a
+    trace can be matched to the labelling that made it. A pause makes the
+    four concurrent labellings overlap."""
+
+    instances: ClassVar[list] = []
+
+    def __init__(self, inner):
+        super().__init__(inner)
+        self.last_exchange = None
+        MarkedExchange.instances.append(self)
+
+    def __call__(self, blocks):
+        self.last_exchange = None
+        time.sleep(0.05)
+        result = super().__call__(blocks)
+        self.last_exchange = LabelExchange(
+            messages=[{"role": "human", "content": blocks[0].text}],
+            answer="answer for " + blocks[0].text,
+        )
+        return result
+
+
+def _full_tracer():
+    exporter = InMemorySpanExporter()
+    tracer = Tracer.create(
+        public_key=f"pk-lf-{uuid4().hex}",
+        secret_key="sk-lf-dummy",
+        base_url="http://127.0.0.1:1",
+        span_exporter=exporter,
+        tags=["env=eval"],
+        mode="full",
+    )
+    return tracer, exporter
+
+
+def test_concurrent_full_traces_each_carry_their_own_labellings_exchange(tmp_path):
+    """The runner labels four documents at once; each labelling has its own
+    labeller instance, so a trace's prompt and answer are never another
+    document's (``last_run`` and ``last_exchange`` are per instance)."""
+    MarkedExchange.instances = []
+    tracer, exporter = _full_tracer()
+    code = main(
+        [
+            "--candidate",
+            "c04",
+            "--out",
+            str(tmp_path / "out"),
+            "--cache-dir",
+            str(tmp_path / "cache"),
+        ],
+        labeller=(lambda d: MarkedExchange(oracle(d)), ORACLE),
+        tracer=tracer,
+    )
+    assert code == 0
+    assert len({id(i) for i in MarkedExchange.instances}) == 4
+    gens = [
+        s
+        for s in exporter.get_finished_spans()
+        if s.attributes["langfuse.observation.type"] == "generation"
+    ]
+    assert len(gens) == 4
+    for gen in gens:
+        sent = json.loads(gen.attributes["langfuse.observation.input"])
+        got = json.loads(gen.attributes["langfuse.observation.output"])
+        assert got["answer"] == "answer for " + sent["messages"][0]["content"]

@@ -345,3 +345,23 @@ def test_the_deploy_job_holds_no_langfuse_secret(deploy: dict):
     # The app's keys are Container Apps secrets, set by the provisioning
     # wizard; the deploy only swaps the image and keeps the app's settings.
     assert "LANGFUSE" not in yaml.safe_dump(deploy)
+
+
+def test_the_eval_job_traces_in_full_and_no_deploy_configuration_sets_the_mode(
+    workflow: dict,
+):
+    """The eval and local runs use synthetic fixtures, so the CI eval traces
+    with the text (``CVR_TRACE_MODE=full``); the deployed app, which may one
+    day see real CVs, never sets it and so stays on ``structure``."""
+    assert workflow["jobs"]["eval"]["env"]["CVR_TRACE_MODE"] == "full"
+    assert "CVR_TRACE_MODE" not in yaml.safe_dump(workflow["jobs"]["deploy"])
+    assert "CVR_TRACE_MODE" not in yaml.safe_dump(workflow["jobs"]["check"])
+    paths = [
+        BRANCH_WORKFLOW,
+        REPO_ROOT / "scripts" / "provision-azure.sh",
+        *(REPO_ROOT / "scripts").glob("*"),
+        REPO_ROOT / "Dockerfile",
+    ]
+    for path in paths:
+        if path.is_file():
+            assert "CVR_TRACE_MODE" not in path.read_text(encoding="utf-8"), path

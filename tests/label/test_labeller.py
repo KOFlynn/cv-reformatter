@@ -212,14 +212,16 @@ def test_a_rejected_request_is_labeller_misconfigured(exc: Exception):
     assert raised.value.__context__ is None
 
 
-def test_anything_else_is_classified_as_unexpected_and_carries_no_message():
-    result, run = label_blocks(
-        BLOCKS, _raising(RuntimeError(f"a bug {CANARY}")), LabellerConfig()
-    )
-    assert result == LabellingFailure(reason="unexpected")
-    assert run.label_failed is True
-    assert run.failure_reason == "unexpected"
-    assert CANARY not in run.model_dump_json()
+def test_anything_else_raises_misconfigured_naming_only_its_type():
+    with pytest.raises(LabellerMisconfigured) as raised:
+        label_blocks(
+            BLOCKS, _raising(RuntimeError(f"a bug {CANARY}")), LabellerConfig()
+        )
+    assert "RuntimeError" in str(raised.value)
+    assert CANARY not in str(raised.value)
+    assert CANARY not in repr(raised.value)
+    assert raised.value.__cause__ is None
+    assert raised.value.__context__ is None
 
 
 def test_a_refusal_is_a_labelling_failure():
@@ -332,11 +334,17 @@ def test_a_bare_parser_error_is_invalid_json():
     _assert_canary_nowhere(result, run)
 
 
-def test_an_unrecognised_parsing_error_is_unexpected():
-    result, run = _failure_from(RuntimeError(CANARY))
-
-    assert result.reason == "unexpected"
-    _assert_canary_nowhere(result, run)
+def test_an_unrecognised_parsing_error_raises_misconfigured_without_its_text():
+    raw = AIMessage(content=CANARY)
+    model = _fake_structured_model(
+        {"raw": raw, "parsed": None, "parsing_error": RuntimeError(CANARY)}
+    )
+    with pytest.raises(LabellerMisconfigured) as raised:
+        label_blocks(BLOCKS, model, LabellerConfig())
+    assert "RuntimeError" in str(raised.value)
+    assert CANARY not in repr(raised.value)
+    assert raised.value.__cause__ is None
+    assert raised.value.__context__ is None
 
 
 def test_a_parsed_value_of_the_wrong_type_is_a_schema_mismatch():
@@ -402,3 +410,22 @@ def test_a_provider_error_that_embeds_model_text_does_not_carry_it(cls, status):
     # Not in the chain either: logger.exception prints __cause__ and __context__.
     assert raised.value.__cause__ is None
     assert raised.value.__context__ is None
+
+
+def test_a_parser_error_raised_by_the_call_is_a_labelling_failure():
+    exc = OutputParserException(f"Failed to parse: {CANARY}", llm_output=CANARY)
+
+    result, run = label_blocks(BLOCKS, _raising(exc), LabellerConfig())
+
+    assert result == LabellingFailure(reason="invalid JSON")
+    assert run.label_failed is True
+    _assert_canary_nowhere(result, run)
+
+
+def test_a_validation_error_raised_by_the_call_is_a_schema_mismatch():
+    exc = _schema_error({"content": {"name": 3}, "removals": [], CANARY: CANARY})
+
+    result, run = label_blocks(BLOCKS, _raising(exc), LabellerConfig())
+
+    assert result.reason.startswith("schema mismatch")
+    _assert_canary_nowhere(result, run)

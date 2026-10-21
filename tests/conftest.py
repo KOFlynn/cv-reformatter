@@ -17,5 +17,6 @@ def no_langfuse_in_the_environment(monkeypatch):
         "LANGFUSE_SECRET_KEY",
         "LANGFUSE_BASE_URL",
         "CVR_TRACE_ENV",
+        "CVR_TRACE_MODE",
     ):
         monkeypatch.delenv(name, raising=False)

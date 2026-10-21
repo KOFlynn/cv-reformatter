@@ -17,7 +17,7 @@ from uuid import uuid4
 
 from langgraph.graph import END, START, StateGraph
 
-from cvr.models import LabellingResult, LabelRun, Run, SourceBlock
+from cvr.models import LabelExchange, LabellingResult, LabelRun, Run, SourceBlock
 from cvr.parse import ParsedDocument, parse
 from cvr.render import render
 from cvr.tracing import RunTrace, Tracer
@@ -66,12 +66,18 @@ def _build_graph(labeller: Labeller, trace: RunTrace | None = None):
                 last_run = getattr(labeller, "last_run", None)
                 # A last_run left over from an earlier call is not this attempt's.
                 fresh = last_run if last_run is not before else None
+                exchange = getattr(labeller, "last_exchange", None)
                 generation.finish(
                     fresh if isinstance(fresh, LabelRun) else None,
                     attempt=1,
                     # A labeller that replays a stored answer (the eval's
                     # response cache) says so; nothing else sets this.
                     cached=getattr(labeller, "cached", False) is True,
+                    exchange=(
+                        exchange
+                        if fresh is not None and isinstance(exchange, LabelExchange)
+                        else None
+                    ),
                 )
             span.finish({"blocks": blocks}, {"labelling": labelling})
         return {"labelling": labelling}
@@ -130,7 +136,8 @@ def reformat(
     too); otherwise a fresh one is made here.
 
     ``tracer`` traces the Run in Langfuse, with the run id as the trace id
-    (structure only: ids, counts, reasons, timings, tokens, cost). Without
+    (structure by default: ids, counts, reasons, timings, tokens, cost; the
+    tracer's ``full`` mode adds the text, for synthetic fixtures only). Without
     one, nothing is traced.
     """
     run_id = run_id if run_id is not None else uuid4().hex

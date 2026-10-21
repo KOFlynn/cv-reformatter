@@ -96,6 +96,12 @@ class _Unlocked:
         return label_run_of(self.labeller)
 
     @property
+    def last_exchange(self):
+        """What the wrapped labeller sent and got (full-text traces); the
+        wrapper is per labelling, so this is never another document's."""
+        return getattr(self.labeller, "last_exchange", None)
+
+    @property
     def cached(self) -> bool:
         return getattr(self.labeller, "cached", False) is True
 
@@ -130,6 +136,12 @@ class _Counted:
     @property
     def last_run(self) -> LabelRun | None:
         return label_run_of(self.labeller)
+
+    @property
+    def last_exchange(self):
+        """What the wrapped labeller sent and got (full-text traces); the
+        wrapper is per labelling, so this is never another document's."""
+        return getattr(self.labeller, "last_exchange", None)
 
     def __call__(self, blocks):
         self.stats.record_live_call()

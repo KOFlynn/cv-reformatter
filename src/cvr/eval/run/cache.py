@@ -25,6 +25,7 @@ from pydantic import BaseModel
 
 from cvr.eval.run.documents import REPO_ROOT
 from cvr.models import (
+    LabelExchange,
     Labelling,
     LabellingFailure,
     LabellingResult,
@@ -159,6 +160,7 @@ class CachedLabeller:
     stats: CacheStats
     read: bool = True
     last_run: LabelRun | None = None
+    last_exchange: LabelExchange | None = None
     hit: bool = False
 
     @property
@@ -168,6 +170,7 @@ class CachedLabeller:
 
     def __call__(self, blocks: Sequence[SourceBlock]) -> LabellingResult:
         self.last_run = None
+        self.last_exchange = None
         if self.read and (cached := self.cache.get(self.key)) is not None:
             self.hit = True
             self.stats.record_hit()
@@ -177,5 +180,7 @@ class CachedLabeller:
         self.stats.record_live_call()
         result = labeller(blocks)
         self.last_run = label_run_of(labeller)
+        exchange = getattr(labeller, "last_exchange", None)
+        self.last_exchange = exchange if isinstance(exchange, LabelExchange) else None
         self.cache.put(self.key, result, self.last_run)
         return result
