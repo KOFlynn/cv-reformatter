@@ -13,13 +13,16 @@ from cvr.models import LabelRun
 from cvr.tracing import Tracer
 
 
-def make_tracer(mode: str = "structure") -> tuple[Tracer, InMemorySpanExporter]:
+def make_tracer(
+    mode: str = "structure", tags=()
+) -> tuple[Tracer, InMemorySpanExporter]:
     exporter = InMemorySpanExporter()
     tracer = Tracer.create(
         public_key=f"pk-lf-{uuid4().hex}",
         secret_key="sk-lf-dummy",
         base_url="http://127.0.0.1:1",
         span_exporter=exporter,
+        tags=tags,
         mode=mode,
     )
     return tracer, exporter

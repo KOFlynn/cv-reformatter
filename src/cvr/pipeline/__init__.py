@@ -70,6 +70,9 @@ def _build_graph(labeller: Labeller, trace: RunTrace | None = None):
                 generation.finish(
                     fresh if isinstance(fresh, LabelRun) else None,
                     attempt=1,
+                    # A labeller that replays a stored answer (the eval's
+                    # response cache) says so; nothing else sets this.
+                    cached=getattr(labeller, "cached", False) is True,
                     exchange=(
                         exchange
                         if fresh is not None and isinstance(exchange, LabelExchange)

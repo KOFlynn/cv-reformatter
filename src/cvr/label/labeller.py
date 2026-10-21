@@ -311,9 +311,11 @@ def label_blocks(
     if stop_reason == "refusal":
         reason = "the model refused to answer"
     elif response.get("parsing_error") is not None:
-        reason = failure_reason(response["parsing_error"])
-        if reason is None:
-            raise _unexpected(response["parsing_error"])
+        # Whatever the structured output returns in its parsing-error slot
+        # is the model's answer failing to parse (ticket 03's decision): a
+        # labelling failure, "invalid JSON" unless it is a schema validation
+        # error. No exception's message is carried.
+        reason = failure_reason(response["parsing_error"]) or "invalid JSON"
     elif not isinstance(parsed, Labelling):
         reason = "schema mismatch"
     label_failed = reason is not None

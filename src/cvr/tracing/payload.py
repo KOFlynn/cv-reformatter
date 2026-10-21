@@ -39,6 +39,7 @@ ALLOWED_KEYS = frozenset(
     {
         "run_id",
         "attempt",
+        "cached",
         # parse
         "source_bytes",
         "block_count",
@@ -213,6 +214,7 @@ def generation_payload(
     label_run: LabelRun | None,
     *,
     attempt: int,
+    cached: bool = False,
     exchange: LabelExchange | None = None,
     mode: Mode = "structure",
 ) -> dict[str, Any]:
@@ -221,27 +223,33 @@ def generation_payload(
     records both on its ``LabelRun``). A labeller that records no ``LabelRun``
     (the test oracles) still gets a generation, with the attempt alone. In
     full mode the generation also carries the rendered prompt messages as its
-    input and the raw answer as its output, when the labeller kept them."""
+    input and the raw answer as its output, when the labeller kept them.
+
+    ``cached`` marks an answer replayed from the eval's response cache: no
+    call was made, so the generation carries zero tokens and zero cost
+    (the run's own totals still show what the stored answer cost)."""
     texts: dict[str, Any] = {}
     if mode == "full" and exchange is not None:
         texts["input"] = {"messages": exchange.messages}
         if exchange.answer is not None:
             texts["output"] = {"answer": exchange.answer}
     if label_run is None:
-        return {"metadata": allowlisted({"attempt": attempt}), **texts}
+        facts = {"attempt": attempt, **({"cached": True} if cached else {})}
+        return {"metadata": allowlisted(facts, mode), **texts}
     config = label_run.config
     model = config.get("model")
     return {
         **texts,
         "model": model if isinstance(model, str) else None,
         "usage_details": {
-            "input": label_run.input_tokens,
-            "output": label_run.output_tokens,
+            "input": 0 if cached else label_run.input_tokens,
+            "output": 0 if cached else label_run.output_tokens,
         },
-        "cost_details": {"total": label_run.cost_usd},
+        "cost_details": {"total": 0.0 if cached else label_run.cost_usd},
         "metadata": allowlisted(
             {
                 "attempt": attempt,
+                "cached": cached,
                 "provider": config.get("provider"),
                 "effort": config.get("effort"),
                 "temperature": config.get("temperature"),

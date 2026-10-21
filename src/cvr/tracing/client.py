@@ -41,18 +41,23 @@ from cvr.tracing.payload import (
 )
 
 __all__ = [
+    "DEFAULT_TRACE_ENV",
+    "ENV_TRACE_ENV",
     "ENV_TRACE_MODE",
     "MARKER_ATTRIBUTE",
     "REDACTED",
     "SDK_SCOPE",
+    "TRACE_ENVS",
     "GenerationTrace",
     "NodeTrace",
     "RunTrace",
     "Tracer",
     "UnknownTraceMode",
+    "env_tag",
     "make_mask",
     "mask",
     "should_export",
+    "trace_env",
 ]
 
 logger = logging.getLogger(__name__)
@@ -60,6 +65,10 @@ logger = logging.getLogger(__name__)
 ENV_PUBLIC_KEY = "LANGFUSE_PUBLIC_KEY"
 ENV_SECRET_KEY = "LANGFUSE_SECRET_KEY"
 ENV_BASE_URL = "LANGFUSE_BASE_URL"
+# Where a trace came from, set on every trace as the tag ``env=<value>``.
+ENV_TRACE_ENV = "CVR_TRACE_ENV"
+TRACE_ENVS = ("prod", "eval", "local")
+DEFAULT_TRACE_ENV = "local"
 ENV_TRACE_MODE = "CVR_TRACE_MODE"
 
 # The Langfuse SDK's own instrumentation scope (a test pins it to the SDK's).
@@ -78,6 +87,23 @@ _MARKER = {"source": "cvr"}
 # How the SDK writes one metadata key onto a span: the value JSON-encoded.
 MARKER_ATTRIBUTE = "langfuse.observation.metadata.source"
 _MARKER_VALUE = json.dumps(_MARKER["source"])
+
+
+def trace_env(environ: Mapping[str, str] | None = None) -> str:
+    """The environment a process's traces are tagged with: ``CVR_TRACE_ENV``
+    when it is one of ``prod``, ``eval`` or ``local``, else ``local``."""
+    source = os.environ if environ is None else environ
+    value = source.get(ENV_TRACE_ENV, "").strip().lower()
+    if value and value not in TRACE_ENVS:
+        # The value itself is not logged; a typo in a deployment's settings
+        # would otherwise mislabel its traces without a word.
+        logger.warning("%s is not one of %s; using local", ENV_TRACE_ENV, TRACE_ENVS)
+    return value if value in TRACE_ENVS else DEFAULT_TRACE_ENV
+
+
+def env_tag(env: str) -> str:
+    """The trace tag for an environment, ``env=<env>``."""
+    return f"env={env}"
 
 
 def should_export(span: ReadableSpan) -> bool:
@@ -202,13 +228,19 @@ class GenerationTrace(_Observation):
         label_run: LabelRun | None,
         *,
         attempt: int,
+        cached: bool = False,
         exchange: LabelExchange | None = None,
     ) -> None:
         """Record what the attempt used, from the labeller's own ``LabelRun``
-        (and, in full mode only, its prompt messages and raw answer)."""
+        (and, in full mode only, its prompt messages and raw answer);
+        ``cached`` for an answer replayed from a cache (zero tokens, zero cost)."""
         self._record(
             lambda: generation_payload(
-                label_run, attempt=attempt, exchange=exchange, mode=self._mode
+                label_run,
+                attempt=attempt,
+                cached=cached,
+                exchange=exchange,
+                mode=self._mode,
             )
         )
 
@@ -388,6 +420,15 @@ class Tracer:
                 root_context.__exit__(None, None, None)
             except Exception:  # noqa: BLE001 - tracing never fails a Run
                 _guard("end trace")
+
+    def shutdown(self) -> None:
+        """Flush and stop the client's background exporter; the process is
+        ending. Never raises."""
+        if self._client is not None:
+            try:
+                self._client.shutdown()
+            except Exception:  # noqa: BLE001 - tracing never fails a Run
+                _guard("shutdown")
 
     def flush(self) -> None:
         if self._client is not None:

@@ -113,3 +113,33 @@ def test_retention_prints_no_ids(retention_stage: str) -> None:
     assert "customerId" not in retention_stage
     assert "--query id" not in retention_stage
     assert "--output none" in retention_stage
+
+
+# Phase 2 ticket 08: the app's Langfuse keys are Container Apps secrets read
+# through secretref, the tag says prod, and the keys are never printed.
+def test_langfuse_keys_are_container_app_secrets_read_by_secretref(
+    script: str,
+) -> None:
+    assert "langfuse-public-key=$LANGFUSE_PUBLIC_KEY" in script
+    assert "langfuse-secret-key=$LANGFUSE_SECRET_KEY" in script
+    assert "LANGFUSE_PUBLIC_KEY=secretref:langfuse-public-key" in script
+    assert "LANGFUSE_SECRET_KEY=secretref:langfuse-secret-key" in script
+    assert "CVR_TRACE_ENV=prod" in script
+    assert "LANGFUSE_BASE_URL=$LANGFUSE_BASE_URL" in script
+
+
+def test_langfuse_secrets_are_set_once_and_kept_on_a_rerun(script: str) -> None:
+    # Idempotent: the secrets are listed first and only created when absent.
+    listed = script.index("langfuse-public-key' || name=='langfuse-secret-key'")
+    assert script.index("az containerapp secret set", listed) > listed
+    assert 'if [[ "$has_langfuse" == 2 ]]' in script
+    assert "--secret-name langfuse-secret-key" in script
+
+
+def test_langfuse_keys_go_to_github_and_are_never_printed(script: str) -> None:
+    assert 'set_secret LANGFUSE_PUBLIC_KEY "$LANGFUSE_PUBLIC_KEY"' in script
+    assert 'set_secret LANGFUSE_SECRET_KEY "$LANGFUSE_SECRET_KEY"' in script
+    for line in script.splitlines():
+        if re.search(r"\b(say|note|warn|step|echo|printf)\b", line):
+            assert "$LANGFUSE_SECRET_KEY" not in line, line
+            assert "$LANGFUSE_PUBLIC_KEY" not in line, line

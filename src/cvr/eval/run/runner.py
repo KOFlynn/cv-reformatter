@@ -40,6 +40,7 @@ from cvr.eval.run.score import Scores, score
 from cvr.label.errors import ProviderUnavailable
 from cvr.models import LabelRun
 from cvr.pipeline import Labeller, reformat
+from cvr.tracing import Tracer
 
 __all__ = [
     "BACKOFF_BASE",
@@ -94,6 +95,16 @@ class _Unlocked:
     def last_run(self) -> LabelRun | None:
         return label_run_of(self.labeller)
 
+    @property
+    def last_exchange(self):
+        """What the wrapped labeller sent and got (full-text traces); the
+        wrapper is per labelling, so this is never another document's."""
+        return getattr(self.labeller, "last_exchange", None)
+
+    @property
+    def cached(self) -> bool:
+        return getattr(self.labeller, "cached", False) is True
+
     def __call__(self, blocks):
         _DOCUMENTS.release()
         try:
@@ -102,11 +113,13 @@ class _Unlocked:
             _DOCUMENTS.acquire()
 
 
-def _reformat_and_score(document: Document, labeller: Labeller):
+def _reformat_and_score(
+    document: Document, labeller: Labeller, tracer: Tracer | None = None
+):
     """``reformat`` then ``score``, holding ``_DOCUMENTS`` for everything but
     the labeller call."""
     with _DOCUMENTS:
-        output, run = reformat(document.source, _Unlocked(labeller))
+        output, run = reformat(document.source, _Unlocked(labeller), tracer=tracer)
         scores = score(
             document.candidate, document.source, output, run, document.manifest.headings
         )
@@ -123,6 +136,12 @@ class _Counted:
     @property
     def last_run(self) -> LabelRun | None:
         return label_run_of(self.labeller)
+
+    @property
+    def last_exchange(self):
+        """What the wrapped labeller sent and got (full-text traces); the
+        wrapper is per labelling, so this is never another document's."""
+        return getattr(self.labeller, "last_exchange", None)
 
     def __call__(self, blocks):
         self.stats.record_live_call()
@@ -154,6 +173,7 @@ async def _one(
     semaphore: asyncio.Semaphore,
     sleep: Callable[[float], Awaitable[None]],
     jitter: Callable[[], float],
+    tracer: Tracer | None = None,
 ) -> DocumentResult:
     async with semaphore:
         started = perf_counter()
@@ -162,7 +182,7 @@ async def _one(
             labeller = make()
             try:
                 run, scores = await asyncio.to_thread(
-                    _reformat_and_score, document, labeller
+                    _reformat_and_score, document, labeller, tracer
                 )
             except ProviderUnavailable as exc:
                 if retries < MAX_RETRIES:
@@ -204,11 +224,12 @@ async def _all(
     concurrency: int,
     sleep: Callable[[float], Awaitable[None]],
     jitter: Callable[[], float],
+    tracer: Tracer | None = None,
 ) -> list[DocumentResult]:
     semaphore = asyncio.Semaphore(concurrency)
     return await asyncio.gather(
         *(
-            _one(document, make, semaphore, sleep, jitter)
+            _one(document, make, semaphore, sleep, jitter, tracer)
             for document, make in zip(documents, makers, strict=True)
         )
     )
@@ -224,13 +245,16 @@ def run_documents(
     concurrency: int = CONCURRENCY,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     jitter: Callable[[], float] = random.random,
+    tracer: Tracer | None = None,
 ) -> tuple[list[DocumentResult], CacheStats]:
     """Run and score every document, in the order given.
 
     ``live`` builds a document's live labeller; it is called afresh for each
     attempt, and through the cache only on a miss. ``cache=None`` runs with
     no cache at all; ``read_cache=False`` (``--no-cache``) skips lookups but
-    still stores what each live call answered.
+    still stores what each live call answered. ``tracer`` traces each
+    document's Run (one trace per attempt: a retried document leaves its
+    failed attempts' traces behind, marked as errors).
     """
     stats = CacheStats()
     makers = [
@@ -241,5 +265,5 @@ def run_documents(
         )
         for document in documents
     ]
-    results = asyncio.run(_all(documents, makers, concurrency, sleep, jitter))
+    results = asyncio.run(_all(documents, makers, concurrency, sleep, jitter, tracer))
     return results, stats
