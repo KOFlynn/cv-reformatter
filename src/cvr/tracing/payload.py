@@ -15,7 +15,7 @@ nothing from the node packages (tracing is below the nodes in the layout:
 """
 
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from typing import Any
 
 from cvr.models import Labelling, LabelRun
@@ -158,14 +158,17 @@ def node_payload(
     return {"metadata": allowlisted(facts)}
 
 
-def rejection_payload(rejection: Any) -> dict[str, Any]:
+def rejection_payload(rejection: Any, block_ids: Collection[str]) -> dict[str, Any]:
     """One rejection as an event: where in the tree, which block, why. Never
-    the quote."""
+    the quote. The block id is the model's, so it is reported only when it is
+    one of ``block_ids`` (the parsed blocks'); otherwise it is ``unknown``."""
     return {
         "metadata": allowlisted(
             {
                 "path": rejection.path,
-                "block_id": rejection.block_id,
+                "block_id": (
+                    rejection.block_id if rejection.block_id in block_ids else "unknown"
+                ),
                 "reason": rejection.reason,
             }
         )

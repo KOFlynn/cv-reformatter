@@ -34,3 +34,15 @@
 - Observed: this box's ruff also enforces BLE001 (existing code carries `# noqa: BLE001`); the new broad catches do the same.
 
 **Results.** `pytest -q` 1337 passed, 1 skipped; `pytest -q -m slow` 914 passed; ruff check and format clean. Existing tests unchanged. The image check was not run (it needs Docker and a real model call); the Langfuse and OpenTelemetry packages add to the image, to be measured in ticket 08's PR.
+
+**Review fixes (2026-10-21).**
+- The block id of a rejection event is the model's own answer, so it is exported only when it is one of the parsed blocks' ids and is `unknown` otherwise (`rejection_payload(rejection, block_ids)`, `NodeTrace.rejection(rejection, block_ids)`); canary test with a bogus block id.
+- Tracing can no longer fail a Run: payloads are built inside the guard (`_record`), `propagate_attributes` is entered only when there are tags and its failure is swallowed. Tests: a raising payload function, a raising client and a raising `propagate_attributes` each leave the output bytes and Run unchanged.
+- The untraced path builds no payload at all (tested by making every payload function raise).
+- `Tracer(mode=)` (default and only value `structure`; any other raises `ValueError`) and `make_mask(mode)`, a closure built in `Tracer.create`; `mask` stays as the structure mask. Ticket 09 changes the payload functions' output and `make_mask` / `ALLOWED_KEYS` per mode, nothing else.
+- `SDK_SCOPE = "langfuse-sdk"` replaces the private SDK import, with a test that it equals the SDK's constant.
+- `GenerationTrace.finish(..., attempt=)` is a required keyword; `label_node` passes 1.
+- A generation records the labeller's `LabelRun` only if `last_run` changed identity across the call (a stale one from an earlier call is ignored).
+- `_guard`'s docstring corrected (it logs the action only). The import-layering test already existed (`tests/tracing/test_layout.py`).
+- **For ticket 08:** `reformat` does not flush. The API and the eval runner must call `Tracer.flush()` (and shut the client down at exit), or spans can be lost in the batch exporter.
+- Results: `pytest -q` 1376 passed, 1 skipped; `-m slow` 914 passed; ruff clean.

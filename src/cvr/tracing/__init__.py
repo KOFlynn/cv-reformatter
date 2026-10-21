@@ -14,6 +14,7 @@ from cvr.tracing.client import (
     NodeTrace,
     RunTrace,
     Tracer,
+    make_mask,
     mask,
     should_export,
 )
@@ -34,6 +35,7 @@ __all__ = [
     "Tracer",
     "allowlisted",
     "generation_payload",
+    "make_mask",
     "mask",
     "node_payload",
     "rejection_payload",
