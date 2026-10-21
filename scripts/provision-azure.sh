@@ -691,7 +691,12 @@ for table in "${log_tables[@]}"; do
   wanted="$LOG_TABLE_RETENTION_DAYS $LOG_TABLE_RETENTION_DAYS"
   if [[ "$current" != "$wanted" ]]; then
     note "$table: retention and total were '$current'; setting $wanted."
-    az monitor log-analytics workspace table update --resource-group "$AZURE_RESOURCE_GROUP"       --workspace-name "$LOG_WORKSPACE" --name "$table"       --retention-time "$LOG_TABLE_RETENTION_DAYS" --total-retention-time "$LOG_TABLE_RETENTION_DAYS" --output none
+    if ! err=$(az monitor log-analytics workspace table update --resource-group "$AZURE_RESOURCE_GROUP"       --workspace-name "$LOG_WORKSPACE" --name "$table"       --retention-time "$LOG_TABLE_RETENTION_DAYS" --total-retention-time "$LOG_TABLE_RETENTION_DAYS" --output none 2>&1); then
+      # A classic custom table (the _CL ones) refuses the table API until it is migrated, and
+      # migrating cannot be undone, so it is left alone: warn and go on (stage 13 still runs).
+      warn "$table: could not set retention, left at '$current' ($(printf '%s' "$err" | head -n 1))"
+      continue
+    fi
   else
     note "$table: already $wanted; leaving it."
   fi
