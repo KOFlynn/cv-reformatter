@@ -81,13 +81,12 @@ per-block claim ledger, so that removals always win over placement, conflicting 
 are rejected loudly, and anything left over is logged as residue. `transform` is pure
 code: removal rules, a regex PII backstop, date normalisation, and reverse-chronological
 ordering. `render` fills the committed template through `docxtpl`, including the review
-appendix for whatever verification never placed. Phase 2 turns the same five nodes into
-a LangGraph state machine and adds a bounded retry loop between `verify` and `label`;
-Phase 1 is a plain function pipeline with identical boundaries, so that swap is a change
-of orchestration, not of code. All five nodes (`parse`, `label`, `verify`, `transform`
-and `render`) are packages under `src/cvr/`, `cvr.pipeline.reformat` wires them
-together, and `cvr.api` serves it as `POST /reformat` and `GET /health`. The `graph`
-wrapper is Phase 2 and the `mcp` server Phase 3.
+appendix for whatever verification never placed. `cvr.pipeline.reformat` runs the
+five nodes (`parse`, `label`, `verify`, `transform` and `render`, each a package under
+`src/cvr/`) as a LangGraph state machine: the Phase 1 node boundaries carried over, so
+the swap was a change of orchestration, not of code, and the graph changes no
+behaviour. Phase 2 adds a bounded retry loop between `verify` and `label`, and `cvr.api`
+serves the pipeline as `POST /reformat` and `GET /health`. The `mcp` server is Phase 3.
 
 ## Decisions
 
