@@ -3,17 +3,21 @@ Anthropic-specific request options (temperature sent only when set, the
 client's retries), turning a structured-output response into a labelling
 result or a labelling failure, and the four kinds of failure."""
 
+import json
 from typing import Any
 
 import anthropic
 import httpx
 import pytest
+from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableLambda
+from pydantic import ValidationError
 
 from cvr.label.config import LabellerConfig
 from cvr.label.errors import LabellerMisconfigured, ProviderUnavailable
 from cvr.label.labeller import (
+    FAILURE_LOCATIONS,
     MAX_OUTPUT_TOKENS,
     PROVIDER_RETRIES,
     anthropic_kwargs,
@@ -35,6 +39,8 @@ from cvr.models import (
     Reference,
     SourceBlock,
 )
+
+CANARY = "CANARY-7f3a-model-text"
 
 BLOCKS = [
     SourceBlock(id="body:0", text="Padraig Lonergan", kind="body"),
@@ -138,13 +144,17 @@ def test_malformed_answer_becomes_a_labelling_failure_without_raising():
         usage_metadata={"input_tokens": 80, "output_tokens": 10, "total_tokens": 90},
     )
     model = _fake_structured_model(
-        {"raw": raw, "parsed": None, "parsing_error": ValueError("bad json")}
+        {
+            "raw": raw,
+            "parsed": None,
+            "parsing_error": json.JSONDecodeError(CANARY, CANARY, 0),
+        }
     )
 
     result, run = label_blocks(BLOCKS, model, config)
 
     assert isinstance(result, LabellingFailure)
-    assert "bad json" in result.reason
+    assert result.reason == "invalid JSON"
     assert run.label_failed is True
     assert run.failure_reason == result.reason
     assert run.input_tokens == 80
@@ -181,7 +191,8 @@ def _status_error(cls: type[anthropic.APIStatusError], status: int) -> Exception
 def test_a_transient_provider_error_is_provider_unavailable(exc: Exception):
     with pytest.raises(ProviderUnavailable, match="try again later") as raised:
         label_blocks(BLOCKS, _raising(exc), LabellerConfig())
-    assert raised.value.__cause__ is exc
+    assert raised.value.__cause__ is None
+    assert raised.value.__context__ is None
 
 
 @pytest.mark.parametrize(
@@ -197,12 +208,18 @@ def test_a_transient_provider_error_is_provider_unavailable(exc: Exception):
 def test_a_rejected_request_is_labeller_misconfigured(exc: Exception):
     with pytest.raises(LabellerMisconfigured, match="ANTHROPIC_API_KEY") as raised:
         label_blocks(BLOCKS, _raising(exc), LabellerConfig())
-    assert raised.value.__cause__ is exc
+    assert raised.value.__cause__ is None
+    assert raised.value.__context__ is None
 
 
-def test_anything_else_is_a_defect_and_propagates_unchanged():
-    with pytest.raises(RuntimeError, match="a bug"):
-        label_blocks(BLOCKS, _raising(RuntimeError("a bug")), LabellerConfig())
+def test_anything_else_is_classified_as_unexpected_and_carries_no_message():
+    result, run = label_blocks(
+        BLOCKS, _raising(RuntimeError(f"a bug {CANARY}")), LabellerConfig()
+    )
+    assert result == LabellingFailure(reason="unexpected")
+    assert run.label_failed is True
+    assert run.failure_reason == "unexpected"
+    assert CANARY not in run.model_dump_json()
 
 
 def test_a_refusal_is_a_labelling_failure():
@@ -243,3 +260,145 @@ def test_every_run_carries_the_prompt_and_schema_identity():
     assert run.prompt_version == PROMPT_VERSION
     assert run.schema_version == SCHEMA_VERSION
     assert run.content_hash == CONTENT_HASH
+
+
+# --- No model text in any failure (ticket 03) -------------------------------
+
+
+def _schema_error(data: dict[str, Any]) -> Exception:
+    try:
+        Labelling.model_validate(data)
+    except ValidationError as exc:
+        return exc
+    raise AssertionError("expected a validation error")
+
+
+def _parser_error_around(cause: Exception) -> OutputParserException:
+    try:
+        raise OutputParserException(f"Failed to parse: {CANARY}", llm_output=CANARY)
+    except OutputParserException as exc:
+        exc.__cause__ = cause
+        return exc
+
+
+def _failure_from(parsing_error: Exception):
+    raw = AIMessage(content=CANARY)
+    model = _fake_structured_model(
+        {"raw": raw, "parsed": None, "parsing_error": parsing_error}
+    )
+    return label_blocks(BLOCKS, model, LabellerConfig())
+
+
+def _assert_canary_nowhere(result: Any, run: LabelRun) -> None:
+    assert CANARY not in repr(result)
+    assert CANARY not in run.model_dump_json()
+
+
+def test_a_schema_invalid_answer_names_where_but_never_what():
+    bad = {
+        "content": {"name": {"block_id": "body:0", "quote": 7}, CANARY: CANARY},
+        "removals": [],
+    }
+    result, run = _failure_from(_schema_error(bad))
+
+    assert isinstance(result, LabellingFailure)
+    assert result.reason.startswith("schema mismatch")
+    assert "content.name.quote" in result.reason
+    assert run.failure_reason == result.reason
+    _assert_canary_nowhere(result, run)
+
+
+def test_a_malformed_answer_reports_only_the_category():
+    cause = json.JSONDecodeError(f"Expecting value {CANARY}", CANARY, 0)
+    result, run = _failure_from(_parser_error_around(cause))
+
+    assert result.reason == "invalid JSON"
+    _assert_canary_nowhere(result, run)
+
+
+def test_a_parser_error_around_a_schema_error_is_a_schema_mismatch():
+    bad = {"content": {"name": 3}, "removals": []}
+    result, run = _failure_from(_parser_error_around(_schema_error(bad)))
+
+    assert result.reason.startswith("schema mismatch")
+    assert "content.name" in result.reason
+    _assert_canary_nowhere(result, run)
+
+
+def test_a_bare_parser_error_is_invalid_json():
+    result, run = _failure_from(_parser_error_around(ValueError(CANARY)))
+
+    assert result.reason == "invalid JSON"
+    _assert_canary_nowhere(result, run)
+
+
+def test_an_unrecognised_parsing_error_is_unexpected():
+    result, run = _failure_from(RuntimeError(CANARY))
+
+    assert result.reason == "unexpected"
+    _assert_canary_nowhere(result, run)
+
+
+def test_a_parsed_value_of_the_wrong_type_is_a_schema_mismatch():
+    raw = AIMessage(content=CANARY)
+    model = _fake_structured_model(
+        {"raw": raw, "parsed": {"x": CANARY}, "parsing_error": None}
+    )
+    result, run = label_blocks(BLOCKS, model, LabellerConfig())
+
+    assert result.reason == "schema mismatch"
+    _assert_canary_nowhere(result, run)
+
+
+def test_error_locations_keep_schema_field_names_and_integers_only():
+    bad = {
+        "content": {
+            "name": {"block_id": "body:0", "quote": "x"},
+            "experience": [{"title": 5}],
+            CANARY: {CANARY: 1},
+        },
+        CANARY: 1,
+        "removals": [{"rule": CANARY, "block_id": "body:0", "quote": "x"}],
+    }
+    result, _ = _failure_from(_schema_error(bad))
+
+    locations = result.reason.removeprefix("schema mismatch at ").split(", ")
+    assert locations
+    for location in locations:
+        for segment in location.split("."):
+            assert segment.isdigit() or segment in FAILURE_LOCATIONS
+    assert CANARY not in result.reason
+    assert any("experience.0" in location for location in locations)
+
+
+def test_a_segment_outside_the_allowlist_is_dropped():
+    from cvr.label.labeller import _safe_location
+
+    assert _safe_location(("content", CANARY, "experience", 0, "Reference")) == (
+        "content.experience.0"
+    )
+    assert _safe_location((CANARY,)) is None
+
+
+@pytest.mark.parametrize(
+    ("cls", "status"),
+    [
+        (anthropic.RateLimitError, 429),
+        (anthropic.AuthenticationError, 401),
+        (anthropic.BadRequestError, 400),
+    ],
+    ids=["unavailable", "misconfigured-auth", "misconfigured-bad-request"],
+)
+def test_a_provider_error_that_embeds_model_text_does_not_carry_it(cls, status):
+    exc = cls(
+        f"echoed: {CANARY}",
+        response=httpx.Response(status, request=_REQUEST),
+        body={"error": CANARY},
+    )
+    with pytest.raises((ProviderUnavailable, LabellerMisconfigured)) as raised:
+        label_blocks(BLOCKS, _raising(exc), LabellerConfig())
+    assert CANARY not in str(raised.value)
+    assert CANARY not in repr(raised.value)
+    # Not in the chain either: logger.exception prints __cause__ and __context__.
+    assert raised.value.__cause__ is None
+    assert raised.value.__context__ is None
