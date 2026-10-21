@@ -26,7 +26,8 @@ here, so the Run, the eval and ``removal_precision`` still see everything:
 - a ledger claim carries only offsets and the claimant, never text, and
   stays as it is;
 - residue that overlaps such a removal is logged as the same text-free
-  subject;
+  subject, and when the labelling failed every residue is (nothing then says
+  which text is PII, and the residue is the whole document);
 - an ``error`` has every email, phone number and URL in it, and every text a
   PII removal of the Run holds, replaced by ``[pii]``.
 """
@@ -89,9 +90,11 @@ def _dump_removal(removal: Removal) -> object:
     return _dump(removal)
 
 
-def _dump_residue(residue: Residue, pii_spans: list[Span]) -> object:
+def _dump_residue(
+    residue: Residue, pii_spans: list[Span], *, label_failed: bool = False
+) -> object:
     span = residue.span
-    if any(
+    if label_failed or any(
         p.block_id == span.block_id and span.start < p.end and p.start < span.end
         for p in pii_spans
     ):
@@ -146,7 +149,9 @@ def _block_lines(run: Run) -> list[dict[str, object]]:
     for normalisation in run.normalisations:
         line(normalisation.block_id)["normalisations"].append(_dump(normalisation))
     for residue in run.residue:
-        line(residue.span.block_id)["residue"].append(_dump_residue(residue, pii_spans))
+        line(residue.span.block_id)["residue"].append(
+            _dump_residue(residue, pii_spans, label_failed=run.label_failed)
+        )
     for date, span in run.date_map:
         line(span.block_id)["dates"].append([date, _dump(span)])
     for path, spans in run.split_map.items():
