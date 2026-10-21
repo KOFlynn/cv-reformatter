@@ -410,3 +410,22 @@ def test_a_provider_error_that_embeds_model_text_does_not_carry_it(cls, status):
     # Not in the chain either: logger.exception prints __cause__ and __context__.
     assert raised.value.__cause__ is None
     assert raised.value.__context__ is None
+
+
+def test_a_parser_error_raised_by_the_call_is_a_labelling_failure():
+    exc = OutputParserException(f"Failed to parse: {CANARY}", llm_output=CANARY)
+
+    result, run = label_blocks(BLOCKS, _raising(exc), LabellerConfig())
+
+    assert result == LabellingFailure(reason="invalid JSON")
+    assert run.label_failed is True
+    _assert_canary_nowhere(result, run)
+
+
+def test_a_validation_error_raised_by_the_call_is_a_schema_mismatch():
+    exc = _schema_error({"content": {"name": 3}, "removals": [], CANARY: CANARY})
+
+    result, run = label_blocks(BLOCKS, _raising(exc), LabellerConfig())
+
+    assert result.reason.startswith("schema mismatch")
+    _assert_canary_nowhere(result, run)
