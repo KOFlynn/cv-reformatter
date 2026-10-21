@@ -65,3 +65,51 @@ def test_ingress_is_left_closed(script: str) -> None:
     enable = script.index("az containerapp ingress enable")
     smoke = script.index("scripts/smoke-deploy.sh", enable)
     assert script.index("az containerapp ingress disable", smoke) > smoke
+
+
+# Phase 2 ticket 06: the ContainerApp tables of cvr-log keep 4 days, the
+# per-table minimum (the workspace itself stays at the PerGB2018 minimum, 30).
+@pytest.fixture(scope="module")
+def retention_stage(script: str) -> str:
+    start = script.index('stage "Log retention')
+    return script[start : script.index("\nstage ", start)]
+
+
+def test_retention_stage_precedes_the_record(script: str) -> None:
+    assert script.index('stage "Log retention') < script.index('stage "Record for')
+
+
+def test_total_stages_counts_every_stage(script: str) -> None:
+    declared = int(re.findall(r"^TOTAL_STAGES=(\d+)$", script, re.MULTILINE)[-1])
+    assert declared == len(re.findall(r'^stage "', script, re.MULTILINE))
+
+
+def test_retention_is_four_days_in_one_place(retention_stage: str) -> None:
+    assert "LOG_TABLE_RETENTION_DAYS=4" in retention_stage
+    assert "--retention-time 4" not in retention_stage
+    for flag in ("--retention-time", "--total-retention-time"):
+        assert f'{flag} "$LOG_TABLE_RETENTION_DAYS"' in retention_stage
+
+
+def test_retention_covers_only_the_tables_that_exist(retention_stage: str) -> None:
+    assert "monitor log-analytics workspace table list" in retention_stage
+    assert "ContainerApp" in retention_stage
+    assert "monitor log-analytics workspace table update" in retention_stage
+
+
+def test_retention_reads_before_it_writes(retention_stage: str) -> None:
+    read = retention_stage.index("workspace table show")
+    write = retention_stage.index("workspace table update")
+    assert read < write
+    # Only updated when different: the update sits inside a conditional.
+    assert re.search(r"if \[\[ .*!=.*\]\]", retention_stage[read:write])
+
+
+def test_retention_leaves_the_workspace_alone(retention_stage: str) -> None:
+    assert "workspace update" not in retention_stage
+
+
+def test_retention_prints_no_ids(retention_stage: str) -> None:
+    assert "customerId" not in retention_stage
+    assert "--query id" not in retention_stage
+    assert "--output none" in retention_stage

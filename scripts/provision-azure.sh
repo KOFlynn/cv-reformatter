@@ -238,7 +238,7 @@ need() {
   command -v "$1" >/dev/null 2>&1 || { warn "$1 not found: $2"; exit 1; }
 }
 
-TOTAL_STAGES=12
+TOTAL_STAGES=13
 
 banner "cv-reformatter: Azure Container Apps, deployed through OIDC"
 
@@ -569,6 +569,39 @@ ask_default BUDGET_AMOUNT "Monthly amount you set (subscription currency)" 5
 pause
 
 # ── 12 ────────────────────────────────────────────────────────────────────
+stage "Log retention: the ContainerApp tables keep 4 days"
+say "$LOG_WORKSPACE stays at 30 days, the least PerGB2018 allows for the workspace."
+say "Each ContainerApp table (system, console, HTTP logs and their _CL variants) is"
+say "set to 4 days of retention and 4 in total, the per-table minimum, so the logs of"
+say "a request are kept no longer than a few days. The first 31 days cost nothing"
+say "extra: this is about keeping data less long, not about cost. Reads each table"
+say "first and updates only one that differs, so a re-run changes nothing."
+note "A table appears after the app's first logs; one that does not exist yet is"
+note "skipped, and a later re-run of this stage picks it up."
+LOG_TABLE_RETENTION_DAYS=4
+mapfile -t log_tables < <(azq monitor log-analytics workspace table list --resource-group "$AZURE_RESOURCE_GROUP"   --workspace-name "$LOG_WORKSPACE" --query "[?starts_with(name, 'ContainerApp')].name" -o tsv)
+if [[ "${#log_tables[@]}" == 0 ]]; then
+  warn "no ContainerApp table exists in $LOG_WORKSPACE yet; run the smoke test (stage 8), wait a few minutes and re-run this stage."
+fi
+for table in "${log_tables[@]}"; do
+  [[ -n "$table" ]] || continue
+  current=$(azq monitor log-analytics workspace table show --resource-group "$AZURE_RESOURCE_GROUP"     --workspace-name "$LOG_WORKSPACE" --name "$table" --query "[retentionInDays, totalRetentionInDays]" -o tsv | tr '	
+' '  ')
+  current=${current% }
+  wanted="$LOG_TABLE_RETENTION_DAYS $LOG_TABLE_RETENTION_DAYS"
+  if [[ "$current" != "$wanted" ]]; then
+    note "$table: retention and total were '$current'; setting $wanted."
+    az monitor log-analytics workspace table update --resource-group "$AZURE_RESOURCE_GROUP"       --workspace-name "$LOG_WORKSPACE" --name "$table"       --retention-time "$LOG_TABLE_RETENTION_DAYS" --total-retention-time "$LOG_TABLE_RETENTION_DAYS" --output none
+  else
+    note "$table: already $wanted; leaving it."
+  fi
+  # Read back: the value recorded on ticket 06 for ADR-0013.
+  say "$table: $(azq monitor log-analytics workspace table show --resource-group "$AZURE_RESOURCE_GROUP"     --workspace-name "$LOG_WORKSPACE" --name "$table" --query "[retentionInDays, totalRetentionInDays]" -o tsv | tr '	
+' '  ')(retention, total, days)"
+done
+pause
+
+# ── 13 ────────────────────────────────────────────────────────────────────
 stage "Record for ADR-0010"
 say "Paste this into the ticket 14 PR and check ADR-0010's table matches:"
 printf '\n'
@@ -583,6 +616,7 @@ note "  image             $IMAGE (public)"
 note "  entra app         $ENTRA_APP (client id $AZURE_CLIENT_ID)"
 note "  oidc subject      $FED_SUBJECT"
 note "  budget            $BUDGET_AMOUNT a month"
+note "  log retention     workspace 30 days; ContainerApp tables ${LOG_TABLE_RETENTION_DAYS:-4} days (stage 12)"
 printf '\n'
 say "Next: merge to main; the deploy job moves the app from :bootstrap to the commit's image."
 pause "Press Enter to finish"
