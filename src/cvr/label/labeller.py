@@ -24,8 +24,9 @@ output parser and the provider SDKs all echo the model's output in theirs):
   and ``unexpected`` for whatever else) plus, for a schema mismatch, the
   error locations reduced to the schema's own field names and integers.
 
-The two provider errors are raised ``from None``: the SDK exception, whose
-message may echo text, is not left on the chain for a logger to print.
+The two provider errors are raised outside the ``except`` block: the SDK
+exception, whose message may echo text, is on neither ``__cause__`` nor
+``__context__`` for a logger or tracer to print.
 Retrying a labelling failure is Phase 2.
 """
 
@@ -142,8 +143,8 @@ def _structured_model(chat_model: BaseChatModel) -> Runnable[Any, dict[str, Any]
 
 def anthropic_error(exc: Exception) -> LabellerError | None:
     """The labeller error an Anthropic client exception stands for, or
-    ``None`` when it is not a provider failure at all (a defect, left to
-    propagate). Isolated here so no other function knows Anthropic's error
+    ``None`` when it is not a provider failure at all (the caller then
+    classifies it as a labelling failure). Isolated here so no other function knows Anthropic's error
     types. Raised only after the client's own retries are spent."""
     # The exception's message is left out on purpose: it can echo model text.
     detail = (
@@ -271,13 +272,16 @@ def label_blocks(
     exception becomes a labelling failure whose reason is a fixed category.
     See the module docstring: no message or cause of any exception is
     carried onward."""
+    error: LabellerError | None = None
     try:
         response = structured_model.invoke(_messages(blocks))
     except Exception as exc:  # noqa: BLE001 - the boundary classifies everything
         error = _provider_error(config, exc)
-        if error is not None:
-            raise error from None
         response = {"raw": None, "parsed": None, "parsing_error": exc}
+    if error is not None:
+        # Raised outside the ``except`` block, so the SDK exception (whose
+        # message can echo model text) is neither __cause__ nor __context__.
+        raise error
 
     raw = response.get("raw")
     parsed = response.get("parsed")

@@ -13,7 +13,7 @@ key, no access, unknown model, invalid request) or the configuration names
 a provider with no support. Not transient: the operator must fix the
 configuration.
 
-Anything else raised while labelling is a defect and is left to propagate.
+Anything else raised by the model call is classified as a labelling failure with the reason `unexpected` (see `cvr.label.labeller`), never propagated with its message.
 """
 
 __all__ = ["LabellerError", "LabellerMisconfigured", "ProviderUnavailable"]

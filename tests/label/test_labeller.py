@@ -192,7 +192,7 @@ def test_a_transient_provider_error_is_provider_unavailable(exc: Exception):
     with pytest.raises(ProviderUnavailable, match="try again later") as raised:
         label_blocks(BLOCKS, _raising(exc), LabellerConfig())
     assert raised.value.__cause__ is None
-    assert raised.value.__suppress_context__
+    assert raised.value.__context__ is None
 
 
 @pytest.mark.parametrize(
@@ -209,7 +209,7 @@ def test_a_rejected_request_is_labeller_misconfigured(exc: Exception):
     with pytest.raises(LabellerMisconfigured, match="ANTHROPIC_API_KEY") as raised:
         label_blocks(BLOCKS, _raising(exc), LabellerConfig())
     assert raised.value.__cause__ is None
-    assert raised.value.__suppress_context__
+    assert raised.value.__context__ is None
 
 
 def test_anything_else_is_classified_as_unexpected_and_carries_no_message():
@@ -401,4 +401,4 @@ def test_a_provider_error_that_embeds_model_text_does_not_carry_it(cls, status):
     assert CANARY not in repr(raised.value)
     # Not in the chain either: logger.exception prints __cause__ and __context__.
     assert raised.value.__cause__ is None
-    assert raised.value.__suppress_context__
+    assert raised.value.__context__ is None
