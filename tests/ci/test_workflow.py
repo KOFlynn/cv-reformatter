@@ -344,6 +344,7 @@ def test_the_eval_job_traces_in_full_and_no_deploy_configuration_sets_the_mode(
     assert "CVR_TRACE_MODE" not in yaml.safe_dump(workflow["jobs"]["check"])
     paths = [
         BRANCH_WORKFLOW,
+        REPO_ROOT / "scripts" / "provision-azure.sh",
         *(REPO_ROOT / "scripts").glob("*"),
         REPO_ROOT / "Dockerfile",
     ]

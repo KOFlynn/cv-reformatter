@@ -25,7 +25,7 @@ import os
 from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
 from contextlib import ExitStack, contextmanager
 from types import TracebackType
-from typing import Any
+from typing import Any, get_args
 
 from langfuse import Langfuse, propagate_attributes
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
@@ -66,7 +66,7 @@ ENV_TRACE_MODE = "CVR_TRACE_MODE"
 SDK_SCOPE = "langfuse-sdk"
 
 DEFAULT_MODE: Mode = "structure"
-MODES: tuple[Mode, ...] = ("structure", "full")
+MODES: tuple[str, ...] = get_args(Mode.__value__)
 
 
 class UnknownTraceMode(ValueError):
@@ -292,7 +292,7 @@ class Tracer:
         _check_mode(mode)
         self._client = client
         self._tags = list(tags)
-        self.mode: Mode = mode  # type: ignore[assignment]
+        self.mode: Mode = mode  # type: ignore[assignment]  # checked above
 
     @property
     def enabled(self) -> bool:
