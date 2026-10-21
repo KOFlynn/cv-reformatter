@@ -334,17 +334,15 @@ def test_a_bare_parser_error_is_invalid_json():
     _assert_canary_nowhere(result, run)
 
 
-def test_an_unrecognised_parsing_error_raises_misconfigured_without_its_text():
-    raw = AIMessage(content=CANARY)
-    model = _fake_structured_model(
-        {"raw": raw, "parsed": None, "parsing_error": RuntimeError(CANARY)}
-    )
-    with pytest.raises(LabellerMisconfigured) as raised:
-        label_blocks(BLOCKS, model, LabellerConfig())
-    assert "RuntimeError" in str(raised.value)
-    assert CANARY not in repr(raised.value)
-    assert raised.value.__cause__ is None
-    assert raised.value.__context__ is None
+@pytest.mark.parametrize("error", [RuntimeError, ValueError, KeyError, TypeError])
+def test_any_exception_in_the_parsing_error_slot_is_invalid_json(error):
+    # Ticket 03's decision: what the structured output returns as a parsing
+    # error is about the model's answer, whatever its type. Only an exception
+    # raised by the call that is not about parsing is a misconfiguration.
+    result, run = _failure_from(error(CANARY))
+
+    assert result.reason == "invalid JSON"
+    _assert_canary_nowhere(result, run)
 
 
 def test_a_parsed_value_of_the_wrong_type_is_a_schema_mismatch():
