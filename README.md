@@ -92,7 +92,7 @@ serves the pipeline as `POST /reformat` and `GET /health`. The `mcp` server is P
 
 Nine decisions, one per §12 of the brief, each linking the ADR that holds the detail.
 Written early in Phase 1, while the reasoning from the design sessions was fresh, and
-revised at its end with the numbers that now exist. The ten ADRs are listed after the
+revised at its end with the numbers that now exist. The ADRs are listed after the
 nine decisions.
 
 ### 1. The LLM labels, code transforms
@@ -245,6 +245,8 @@ review-by-exception halves are already recorded: [ADR-0003](docs/adr/0003-docx-o
 | [0008](docs/adr/0008-claim-ledger.md) | `verify` through a per-block claim ledger |
 | [0009](docs/adr/0009-structured-labelling.md) | Structured labelling through LangChain |
 | [0010](docs/adr/0010-deployment.md) | Deployment: OIDC, a public image, scale to zero |
+| [0011](docs/adr/0011-sonnet-is-the-default-model.md) | Sonnet 5.5 is the default model |
+| [0013](docs/adr/0013-content-boundary.md) | The content boundary: what reaches the provider, Langfuse and the logs, and the canary test |
 
 ## Running it
 
