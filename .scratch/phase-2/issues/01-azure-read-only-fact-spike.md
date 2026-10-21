@@ -40,15 +40,16 @@ az monitor log-analytics workspace table list -g cvr-rg --workspace-name cvr-log
 
 Reading the results: `quotaId` starting `FreeTrial` means Free Trial (reported to have zero OpenAI quota); `PayAsYouGo`, `EnterpriseAgreement` or similar means paid. In the usage list, look for a row like `OpenAI.DataZoneStandard.gpt-5.4`: `limit` above 0 means quota exists. Zero everywhere means stop and report (quota request, or record the path as blocked). The model list shows whether `DataZoneStandard` is offered for `gpt-5.4` from a northeurope resource.
 
-### Results (pending maintainer run)
+### Results (maintainer's read-only run, 2026-10-21)
 
 | Item | Result |
 |---|---|
-| `cvr_sub` offer type (`quotaId`, `spendingLimit`) | pending maintainer run |
-| OpenAI quota tier / `gpt-5.4` Data Zone Standard (EU) limit in northeurope | pending maintainer run |
-| `gpt-5.4` offers `DataZoneStandard` from a northeurope resource (model list) | pending maintainer run |
-| `cvr-log` workspace retention | pending maintainer run |
-| `cvr-log` per-table retention (ContainerApp tables) | pending maintainer run |
+| `cvr_sub` offer type (`quotaId`, `spendingLimit`) | `PayAsYouGo_2014-09-01`, spending limit `Off`: Pay-As-You-Go, not Free Trial |
+| `gpt-5.4` Data Zone Standard (EU) quota in northeurope | pending: broader query. The usage list filtered on `gpt-5.4` returned no rows, which is not conclusive (the usage names probably do not contain the literal `gpt-5.4`) |
+| `gpt-5.4` offers `DataZoneStandard` from a northeurope resource (model list) | Yes: version `2026-03-05`, skus `GlobalStandard`, `DataZoneStandard`, `GlobalProvisionedManaged` (two identical entries), so a `DataZoneStandard` deployment from northeurope is offered |
+| `cvr-log` workspace | sku `PerGB2018`, retention 30 days |
+| `cvr-log` per-table retention | `ContainerAppSystemLogs`, `ContainerAppConsoleLogs`, `ContainerAppHTTPLogs`, `ContainerAppSystemLogs_CL`, `ContainerAppConsoleLogs_CL`: plan Analytics, retention 30, total 30 |
+| Retention figure for ticket 06 (maintainer's decision) | The ContainerApp tables go to 4 days, the per-table minimum |
 
 ### Spec Further Notes: what this settles
 
