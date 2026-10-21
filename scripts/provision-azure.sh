@@ -467,6 +467,53 @@ export CVR_API_KEY
 az containerapp update --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
   --set-env-vars CVR_API_KEY=secretref:cvr-api-key --output none
 set_secret CVR_API_KEY "$CVR_API_KEY"
+
+# Langfuse (Phase 2, ticket 08): every Run the app handles is traced as a
+# structure trace (ids, counts, timings, tokens, cost; never CV text). The two
+# keys are Container Apps secrets, read by the container as LANGFUSE_PUBLIC_KEY
+# and LANGFUSE_SECRET_KEY, and GitHub secrets of the same names for the eval
+# job. Idempotent like cvr-api-key: a re-run keeps the secrets it finds and
+# reads them back for GitHub. Like cvr-api-key, they are on az's command line
+# for the one call that sets them. Without them the app runs untraced.
+say "Langfuse tracing: Container Apps secrets langfuse-public-key and"
+say "langfuse-secret-key (read as LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY),"
+say "LANGFUSE_BASE_URL, and CVR_TRACE_ENV=prod, which tags the app's traces."
+say "Create a key pair in your private Langfuse project (Settings > API Keys)."
+has_langfuse=$(azq containerapp secret list --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+  --query "length([?name=='langfuse-public-key' || name=='langfuse-secret-key'])" -o tsv)
+if [[ "$has_langfuse" == 2 ]]; then
+  say "langfuse-public-key and langfuse-secret-key already exist; keeping them."
+  LANGFUSE_PUBLIC_KEY=$(azq containerapp secret show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+    --secret-name langfuse-public-key --query value -o tsv)
+  LANGFUSE_SECRET_KEY=$(azq containerapp secret show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+    --secret-name langfuse-secret-key --query value -o tsv)
+else
+  open_url "https://cloud.langfuse.com"
+  ask_secret LANGFUSE_PUBLIC_KEY "Public key, pk-lf-... (hidden; Enter skips tracing):"
+  if [[ -n "$LANGFUSE_PUBLIC_KEY" ]]; then
+    ask_secret LANGFUSE_SECRET_KEY "Secret key, sk-lf-... (hidden):"
+    if [[ -z "$LANGFUSE_SECRET_KEY" ]]; then
+      warn "no secret key entered; skipping tracing"
+      LANGFUSE_PUBLIC_KEY=""
+    else
+      az containerapp secret set --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+        --secrets "langfuse-public-key=$LANGFUSE_PUBLIC_KEY" "langfuse-secret-key=$LANGFUSE_SECRET_KEY" --output none
+      say "Stored langfuse-public-key and langfuse-secret-key."
+    fi
+  fi
+fi
+if [[ -n "$LANGFUSE_PUBLIC_KEY" && -n "$LANGFUSE_SECRET_KEY" ]]; then
+  ask_default LANGFUSE_BASE_URL "Langfuse base URL (EU cloud)" "https://cloud.langfuse.com"
+  az containerapp update --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+    --set-env-vars LANGFUSE_PUBLIC_KEY=secretref:langfuse-public-key \
+    LANGFUSE_SECRET_KEY=secretref:langfuse-secret-key \
+    "LANGFUSE_BASE_URL=$LANGFUSE_BASE_URL" CVR_TRACE_ENV=prod --output none
+  set_secret LANGFUSE_PUBLIC_KEY "$LANGFUSE_PUBLIC_KEY"
+  set_secret LANGFUSE_SECRET_KEY "$LANGFUSE_SECRET_KEY"
+else
+  warn "Langfuse skipped: the app runs untraced. Re-run this stage to add the keys."
+fi
+unset LANGFUSE_PUBLIC_KEY LANGFUSE_SECRET_KEY
 pause
 
 # ── 8 ─────────────────────────────────────────────────────────────────────
@@ -552,7 +599,8 @@ set_secret AZURE_TENANT_ID "$AZURE_TENANT_ID"
 set_secret AZURE_SUBSCRIPTION_ID "$AZURE_SUBSCRIPTION_ID"
 set_var AZURE_RESOURCE_GROUP "$AZURE_RESOURCE_GROUP"
 set_var AZURE_CONTAINER_APP "$AZURE_CONTAINER_APP"
-say "The repository's secrets (expect ANTHROPIC_API_KEY, CVR_API_KEY and the"
+say "The repository's secrets (expect ANTHROPIC_API_KEY, CVR_API_KEY, LANGFUSE_PUBLIC_KEY,"
+say "LANGFUSE_SECRET_KEY and the"
 say "three AZURE ids; no Azure credential, since the deploy signs in through OIDC):"
 gh secret list
 pause
