@@ -71,6 +71,7 @@ The real labeller is built on the first document, not at startup, so `/health` w
 | `CVR_API_HOST` | `python -m cvr.api` | `127.0.0.1` | interface to bind; a container sets `0.0.0.0` |
 | `CVR_API_PORT` | `python -m cvr.api` | `8000` | port to listen on |
 | `CVR_API_KEY` | the app, once when it is created | (none) | the `X-API-Key` callers must send to `/reformat`; unset or empty closes it (503) |
+| `CVR_DEBUG_TRACEBACKS` | the app, once when it is created | unset (off) | `1`, `true` or `yes` prints an escaped exception's full traceback to standard error. Local runs only: never set it in a deployment, since Container Apps ships standard error to Log Analytics and a traceback's message can carry CV text. Off, an escaped exception is a generic 500 with `X-Run-Id` and one log line naming only its type |
 | `ANTHROPIC_API_KEY` | the labeller | (none) | required for `/reformat`, not for `/health` |
 | `CVR_LABEL_PROVIDER` | the labeller | `anthropic` | LangChain provider id |
 | `CVR_LABEL_MODEL` | the labeller | `claude-sonnet-5-5` | model name |
