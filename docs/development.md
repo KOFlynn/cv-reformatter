@@ -73,6 +73,9 @@ The real labeller is built on the first document, not at startup, so `/health` w
 | `CVR_API_KEY` | the app, once when it is created | (none) | the `X-API-Key` callers must send to `/reformat`; unset or empty closes it (503) |
 | `CVR_DEBUG_TRACEBACKS` | the app, once when it is created | unset (off) | `1`, `true` or `yes` prints an escaped exception's full traceback to standard error. Local runs only: never set it in a deployment, since Container Apps ships standard error to Log Analytics and a traceback's message can carry CV text. Off, an escaped exception is a generic 500 with `X-Run-Id` and one log line naming only its type |
 | `ANTHROPIC_API_KEY` | the labeller | (none) | required for `/reformat`, not for `/health` |
+| `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | the app, once when it is created; the eval runner | (none) | both set: every Run is traced in Langfuse, the trace id being the run id (`X-Run-Id`); either missing: untraced, quietly. In Azure they are the Container Apps secrets `langfuse-public-key` and `langfuse-secret-key` (set by the wizard), in CI the repository secrets of the same names |
+| `LANGFUSE_BASE_URL` | the same | the SDK's (`https://cloud.langfuse.com`, EU) | the Langfuse host |
+| `CVR_TRACE_ENV` | the app, once when it is created | `local` | `prod`, `eval` or `local`: the trace tag `env=<value>` (anything else is `local`). The deployed app sets `prod`; the eval runner always tags `eval` and does not read it. Traces flush before each `/reformat` answer and the client shuts down when the app stops |
 | `CVR_LABEL_PROVIDER` | the labeller | `anthropic` | LangChain provider id |
 | `CVR_LABEL_MODEL` | the labeller | `claude-sonnet-5-5` | model name |
 | `CVR_LABEL_EFFORT` | the labeller | `medium` | `low`, `medium`, `high`, `xhigh` or `max` |
