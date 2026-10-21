@@ -75,7 +75,7 @@ case "$ACTION" in
     url="https://$(fqdn)"
     echo "== waking $url"
     start=$(date +%s)
-    until curl -fsS --max-time 60 -o /dev/null "$url/health"; do
+    until curl -fsS --max-time 60 "$url/health" > /dev/null; do
       elapsed=$(($(date +%s) - start))
       [ "$elapsed" -lt "$WAKE_SECONDS" ] || { echo "FAIL: no /health after ${elapsed}s"; exit 1; }
       sleep 5

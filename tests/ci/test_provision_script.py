@@ -114,6 +114,20 @@ def test_retention_reads_before_it_writes(retention_stage: str) -> None:
     assert re.search(r"if \[\[ .*!=.*\]\]", retention_stage[read:write])
 
 
+def test_a_table_that_cannot_be_updated_warns_and_the_wizard_goes_on(
+    retention_stage: str,
+) -> None:
+    # Classic _CL tables refuse the table API unless migrated; set -e must
+    # not end the wizard there.
+    write = retention_stage.index("workspace table update")
+    line_start = retention_stage.rindex("\n", 0, write)
+    assert "if ! " in retention_stage[line_start:write]
+    after = retention_stage[write:]
+    loop_end = after.index("\ndone")
+    assert "warn " in after[:loop_end]
+    assert "continue" in after[:loop_end]
+
+
 def test_retention_leaves_the_workspace_alone(retention_stage: str) -> None:
     assert "workspace update" not in retention_stage
 
