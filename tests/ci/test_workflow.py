@@ -317,3 +317,17 @@ def test_expressions_reach_scripts_through_env_only(deploy: dict):
     # it is a value.
     for step in deploy["steps"]:
         assert "${{" not in step.get("run", ""), step.get("name")
+
+
+def test_the_local_traceback_flag_is_in_no_deploy_configuration():
+    """``CVR_DEBUG_TRACEBACKS`` is for local runs; Container Apps ships standard
+    error to Log Analytics, so no workflow or script may set it."""
+    paths = [
+        *WORKFLOWS.glob("*.yml"),
+        *(REPO_ROOT / "scripts").glob("*"),
+        REPO_ROOT / "Dockerfile",
+    ]
+    assert paths
+    for path in paths:
+        if path.is_file():
+            assert "CVR_DEBUG_TRACEBACKS" not in path.read_text(encoding="utf-8"), path
