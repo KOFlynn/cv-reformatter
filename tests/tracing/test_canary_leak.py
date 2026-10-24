@@ -9,7 +9,10 @@ through ``reformat`` in structure mode, with the real ``RealLabeller`` over a
 fake chat model (no LLM, no network, an in-memory exporter, dummy keys). The
 fake's answers include a flawed one (a quote and a block id the model made up)
 and failures whose text carries canaries: a malformed answer, a schema-invalid
-one, a refusal, a provider error and a defect.
+one, a refusal, a provider error and a defect. Three more scenarios script the
+retry loop (ticket 16): a first answer that leaves a bullet unplaced and echoes a
+made-up quote, then a retry that succeeds, one that makes no progress and one
+whose answer is malformed and carries canaries.
 
 Checked, for every canary and its normalised forms (case folded, spaces
 removed, letters and digits only) and for each word of a canary:
@@ -19,6 +22,13 @@ removed, letters and digits only) and for each word of a canary:
 * no PII (nor model-echo) canary in the logs (standard output, standard error and every logger,
   at DEBUG), the API's error bodies, the exceptions that escape the labeller
   (with their cause and context chains) or the Run's failure reasons;
+* the same for the retries: no canary in ``Run.retries``, nor a PII or model
+  one in the logs, whatever a retry's answer said. The request the fake model
+  *receives* is deliberately not among the channels checked: the retry prompt
+  sends the unplaced text and the made-up quotes to the provider, by design
+  (the provider boundary), while the Run, the logs and the structure traces
+  (the log/trace boundary, ADR-0013) carry none of it; a positive control
+  proves the fake did receive them;
 * a second layer: no token of the source documents that is not the Layout's
   own text (a heading, a label, a date) in any exported span.
 
@@ -48,6 +58,7 @@ from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableLambda
 from oracle import Oracle
+from retry_support import drop_first_bullets
 from tracing_support import exported, make_tracer
 
 import cvr.api.app as api_app
@@ -56,7 +67,7 @@ from cvr.golden import LAYOUTS, Candidate, load_candidates
 from cvr.label import RealLabeller
 from cvr.label.errors import LabellerMisconfigured, ProviderUnavailable
 from cvr.label.versions import CONTENT_HASH, PROMPT_HASH, SCHEMA_HASH
-from cvr.models import Labelling
+from cvr.models import Addition, Additions, Labelling, Reference
 from cvr.parse import parse
 from cvr.pipeline import reformat
 from cvr.template import template_tokens
@@ -224,6 +235,14 @@ def _ok(labelling: Labelling) -> dict[str, Any]:
     return {"raw": raw, "parsed": labelling, "parsing_error": None}
 
 
+def _malformed(said: str) -> dict[str, Any]:
+    cause = json.JSONDecodeError(f"Expecting value {said}", said, 0)
+    error = OutputParserException(f"Failed to parse: {said}", llm_output=said)
+    error.__cause__ = cause
+    raw = AIMessage(content=f"{{not json {said}", usage_metadata=_USAGE)
+    return {"raw": raw, "parsed": None, "parsing_error": error}
+
+
 def _with_title(labelling: Labelling, **update: str) -> Labelling:
     entry = labelling.content.experience[0]
     title = entry.title.model_copy(update=update)
@@ -235,23 +254,24 @@ def _with_title(labelling: Labelling, **update: str) -> Labelling:
     return labelling.model_copy(update={"content": content})
 
 
-def _scenarios(canaries: Canaries) -> dict[str, Callable[[Labelling], dict[str, Any]]]:
-    """How the fake model answers, by scenario name. The text a model or an
-    error echoes carries a ``model`` canary and the document's own phone."""
+def _echo(canaries: Canaries) -> tuple[str, str]:
+    """The text a model or an error echoes: a ``model`` canary, and the same
+    followed by the document's own phone."""
     echo = canaries.text(MODEL, 4)
-    echoed_pii = canaries.phones()[0]
-    said = f"{echo} {echoed_pii}"
+    return echo, f"{echo} {canaries.phones()[0]}"
+
+
+def _scenarios(
+    echo: str, said: str
+) -> dict[str, Callable[[Labelling], dict[str, Any]]]:
+    """How the fake model answers, by scenario name."""
 
     def flawed(labelling: Labelling) -> dict[str, Any]:
         # A quote not in the source and a block id the model made up.
         return _ok(_with_title(labelling, quote=said, block_id=echo.replace(" ", "-")))
 
     def malformed(_: Labelling) -> dict[str, Any]:
-        cause = json.JSONDecodeError(f"Expecting value {said}", said, 0)
-        error = OutputParserException(f"Failed to parse: {said}", llm_output=said)
-        error.__cause__ = cause
-        raw = AIMessage(content=f"{{not json {said}", usage_metadata=_USAGE)
-        return {"raw": raw, "parsed": None, "parsing_error": error}
+        return _malformed(said)
 
     def schema_invalid(_: Labelling) -> dict[str, Any]:
         try:
@@ -292,6 +312,77 @@ def _scenarios(canaries: Canaries) -> dict[str, Callable[[Labelling], dict[str, 
     }
 
 
+class RetryChat:
+    """``chat_model`` for the retry scenarios: one step per model call, whatever
+    schema it is bound to (the last step repeats, so a loop that retries more
+    often than the script says still gets an answer). ``requests`` keeps the
+    messages of every call as the provider received them, canaries and all."""
+
+    def __init__(self, steps, oracle: Oracle, blocks):
+        self._steps, self._oracle, self._blocks = steps, oracle, blocks
+        self.requests: list[tuple[str, list[Any]]] = []
+
+    def with_structured_output(self, schema: type, *args: Any, **kwargs: Any):
+        def invoke(messages: list[Any]) -> dict[str, Any]:
+            step = self._steps[min(len(self.requests), len(self._steps) - 1)]
+            self.requests.append((schema.__name__, messages))
+            return step(self._oracle(self._blocks))
+
+        return RunnableLambda(invoke)
+
+
+@dataclass
+class RetryScenario:
+    """Steps (each: the perfect labelling in, a response dict out) the fake
+    model takes in turn."""
+
+    steps: list[Callable[[Labelling], dict[str, Any]]]
+
+
+def _retry_scenarios(echo: str, said: str) -> dict[str, RetryScenario]:
+    def first(labelling: Labelling) -> dict[str, Any]:
+        # The first bullet of the first job is left unplaced, and a skill
+        # whose quote the model made up is rejected (so a hint to the retry).
+        damaged = drop_first_bullets(1)(labelling)
+        block_id = labelling.content.experience[0].bullets[0].block_id
+        made_up = Reference(block_id=block_id, quote=said)
+        content = damaged.content.model_copy(
+            update={"skills": [*damaged.content.skills, made_up]}
+        )
+        return _ok(damaged.model_copy(update={"content": content}))
+
+    def fixed(labelling: Labelling) -> dict[str, Any]:
+        bullet = labelling.content.experience[0].bullets[0]
+        placed = Addition(
+            path="experience[0].bullets",
+            reference=Reference(block_id=bullet.block_id, quote=bullet.quote),
+        )
+        # An addition whose quote is made up is rejected too.
+        invented = Addition(
+            path="skills",
+            reference=Reference(block_id=bullet.block_id, quote=said),
+        )
+        return _ok(Additions(additions=[placed, invented]))
+
+    def no_progress(_: Labelling) -> dict[str, Any]:
+        return _ok(Additions(additions=[]))
+
+    def malformed(_: Labelling) -> dict[str, Any]:
+        return _malformed(said)
+
+    return {
+        "retry-fixed": RetryScenario([first, fixed, no_progress]),
+        "retry-no-progress": RetryScenario([first, no_progress]),
+        "retry-malformed": RetryScenario([first, malformed]),
+    }
+
+
+def _chat(respond, oracle: Oracle, blocks):
+    if isinstance(respond, RetryScenario):
+        return RetryChat(respond.steps, oracle, blocks)
+    return FakeChat(respond, oracle, blocks)
+
+
 # --- what was observed ------------------------------------------------------
 
 
@@ -304,6 +395,11 @@ class Channels:
     bodies: list[str] = field(default_factory=list)
     exceptions: list[str] = field(default_factory=list)
     reasons: list[str] = field(default_factory=list)
+    retries: list[str] = field(default_factory=list)  # Run.retries, as JSON
+    reasons_after_retry: list[str] = field(default_factory=list)  # the retries'
+    # What the fake model received on its retry calls. No leak assertion reads
+    # it: see the module docstring.
+    requests: list[str] = field(default_factory=list)
     run_ids: list[str] = field(default_factory=list)
 
     def join(self, name: str) -> str:
@@ -356,13 +452,24 @@ class Harvest:
         tuple[str, str, str], Channels
     ]  # (layout, scenario, path) -> observed
     full: Channels
+    bullets: list[str]  # each job's first bullet: the retry tests leave one unplaced
     benign: list[str]
+
+
+def _requests(chat) -> list[str]:
+    """The retry calls' messages as text (the first call is not a retry's)."""
+    return [
+        str(messages[1].content)  # the human message: one JSON object
+        for schema, messages in getattr(chat, "requests", [])
+        if schema == "Additions"
+    ]
 
 
 def _run_api(source, respond, oracle) -> Channels:
     tracer, exporter = make_tracer("structure", tags=["env=local"])
     blocks = parse(source).blocks
-    labeller = RealLabeller(chat_model=FakeChat(respond, oracle, blocks))
+    chat = _chat(respond, oracle, blocks)
+    labeller = RealLabeller(chat_model=chat)
     client = TestClient(create_app(labeller, tracer=tracer))
     observed = Channels()
     with _captured() as logs:
@@ -372,6 +479,7 @@ def _run_api(source, respond, oracle) -> Channels:
             headers={"X-API-Key": API_KEY},
         )
     observed.logs.append(logs())
+    observed.requests += _requests(chat)
     observed.run_ids.append(response.headers[RUN_ID_HEADER])
     observed.spans += _spans_json(tracer, exporter)
     if response.status_code != 200:
@@ -381,7 +489,8 @@ def _run_api(source, respond, oracle) -> Channels:
 
 def _run_direct(source, respond, oracle, run_id, mode="structure") -> Channels:
     tracer, exporter = make_tracer(mode)
-    labeller = RealLabeller(chat_model=FakeChat(respond, oracle, parse(source).blocks))
+    chat = _chat(respond, oracle, parse(source).blocks)
+    labeller = RealLabeller(chat_model=chat)
     observed = Channels()
     with _captured() as logs:
         try:
@@ -391,7 +500,14 @@ def _run_direct(source, respond, oracle, run_id, mode="structure") -> Channels:
         else:
             if run.label is not None and run.label.failure_reason:
                 observed.reasons.append(run.label.failure_reason)
+            observed.reasons_after_retry += [
+                r.label.failure_reason
+                for r in run.retries
+                if r.label is not None and r.label.failure_reason
+            ]
+            observed.retries += [r.model_dump_json() for r in run.retries]
     observed.logs.append(logs())
+    observed.requests += _requests(chat)
     observed.spans += _spans_json(tracer, exporter)
     observed.run_ids.append(run_id)
     return observed
@@ -401,7 +517,8 @@ def _run_direct(source, respond, oracle, run_id, mode="structure") -> Channels:
 def harvest() -> Iterator[Harvest]:
     canaries = Canaries()
     candidate = _canary_candidate(canaries)
-    scenarios = _scenarios(canaries)
+    echo, said = _echo(canaries)
+    scenarios = {**_scenarios(echo, said), **_retry_scenarios(echo, said)}
 
     # Deterministic run ids, so the collision check below covers every id the
     # test will see; the API issues its own with ``uuid4`` (patched here).
@@ -447,7 +564,10 @@ def harvest() -> Iterator[Harvest]:
         *HEADING_VOCABULARY,
         "unlocatable conflict removed reformat parse label verify transform render",
     ]
-    yield Harvest(canaries, sources, channels, full, benign)
+    # Which job comes first depends on the Layout, so any job's first bullet
+    # may be the one the first answer leaves out.
+    bullets = [entry.bullets[0] for entry in candidate.content.experience]
+    yield Harvest(canaries, sources, channels, full, bullets, benign)
 
 
 def _everywhere(harvest: Harvest, name: str) -> str:
@@ -595,7 +715,7 @@ def test_the_log_capture_sees_the_loggers_and_not_only_standard_output(harvest):
 
 
 def test_no_canary_is_in_an_error_body_an_exception_or_a_failure_reason(harvest):
-    for name in ("bodies", "exceptions", "reasons"):
+    for name in ("bodies", "exceptions", "reasons", "reasons_after_retry"):
         text = _everywhere(harvest, name)
         assert text, name  # each is exercised
         assert leaks(text, harvest.canaries.needles) == [], name
@@ -627,3 +747,80 @@ def test_full_mode_carries_every_kind_of_canary(harvest):
     canaries = harvest.canaries
     for kind in (PII, CONTENT, MODEL):
         assert leaks(spans, canaries.of_kind(kind)), kind
+
+
+# --- the retries (ticket 16) --------------------------------------------------
+
+RETRY_SCENARIOS = ("retry-fixed", "retry-no-progress", "retry-malformed")
+
+
+def _retry_channels(harvest: Harvest):
+    return [
+        (key, observed)
+        for key, observed in harvest.channels.items()
+        if key[1] in RETRY_SCENARIOS
+    ]
+
+
+def _records(observed: Channels) -> list[dict]:
+    return [json.loads(record) for record in observed.retries]
+
+
+def test_the_fake_model_received_the_unplaced_canaries_in_its_retry_request(harvest):
+    """The positive control of the retry tests: the provider is sent the text
+    that the Run, the logs and the traces are not."""
+    cases = _retry_channels(harvest)
+    assert len(cases) == len(RETRY_SCENARIOS) * len(LAYOUTS) * 2
+    for key, observed in cases:
+        assert observed.requests, key
+        for number, request in enumerate(observed.requests):
+            feedback = json.loads(request)["feedback"]
+            unplaced = " ".join(run["text"] for run in feedback["unplaced"])
+            # c11's unplaceable fragments stay unplaced in every retry; the
+            # bullet the first answer dropped is there in the first retry
+            assert leaks(unplaced, harvest.canaries.of_kind(CONTENT)), key
+            if number == 0:
+                assert leaks(unplaced, harvest.bullets), key
+                # the made-up quote of the first answer comes back as a hint
+                hints = " ".join(h.get("quote", "") for h in feedback["unlocatable"])
+                assert leaks(hints, harvest.canaries.of_kind(MODEL)), key
+            elif "fixed" in key[1]:
+                assert not leaks(unplaced, harvest.bullets), key  # placed since
+
+
+def test_the_retries_were_exercised_in_each_kind(harvest):
+    for layout in sorted(harvest.sources):
+        fixed = harvest.channels[layout, "retry-fixed", "direct"]
+        # the first retry places the dropped bullet; the document's own
+        # unplaceable fragments are what keeps the loop going once more
+        progress = _records(fixed)
+        assert len(progress) == 2
+        assert progress[0]["unplaced_chars"] > 0
+        assert fixed.reasons == [] and fixed.reasons_after_retry == []
+
+        # no progress: the loop stops after the retry that placed nothing
+        stuck = _records(harvest.channels[layout, "retry-no-progress", "direct"])
+        assert len(stuck) == 1
+        assert stuck[0]["unplaced_chars"] > 0
+
+        broken = harvest.channels[layout, "retry-malformed", "direct"]
+        assert _records(broken)
+        assert all(r["label"]["label_failed"] for r in _records(broken))
+        assert set(broken.reasons_after_retry) == {"invalid JSON"}
+
+        for name in RETRY_SCENARIOS:
+            spans = [
+                json.loads(s) for s in harvest.channels[layout, name, "direct"].spans
+            ]
+            assert any(s["name"] == "retry_decision" for s in spans), name
+
+
+def test_no_canary_is_in_a_runs_retries(harvest):
+    # ``Run.retries`` holds feedback (ids, offsets, paths), rejections (reason
+    # only) and the attempts' records. What the fake model received is not
+    # checked here, on purpose: it is the provider boundary, and the retry
+    # prompt hands the provider the unplaced text by design (ADR-0013), while
+    # this is the log/trace boundary.
+    retries = _everywhere(harvest, "retries")
+    assert retries
+    assert leaks(retries, harvest.canaries.needles) == []

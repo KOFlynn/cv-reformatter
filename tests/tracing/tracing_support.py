@@ -2,7 +2,9 @@
 keys, no network. The SDK keeps one client per public key in the process, so
 every tracer gets a key of its own."""
 
+import io
 import time
+import zipfile
 from uuid import uuid4
 
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -11,6 +13,15 @@ from pipeline_support import document
 
 from cvr.models import LabelRun
 from cvr.tracing import Tracer
+
+
+def docx_parts(docx: bytes) -> dict[str, bytes]:
+    """A document as its zip entries' contents. Two renders of one source are
+    identical in every part, but each zip entry carries the render time (to
+    the 2 seconds a zip stores), so comparing the bytes themselves fails
+    whenever a second boundary falls between the two."""
+    with zipfile.ZipFile(io.BytesIO(docx)) as archive:
+        return {name: archive.read(name) for name in archive.namelist()}
 
 
 def make_tracer(
