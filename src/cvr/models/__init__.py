@@ -20,7 +20,14 @@ and the two never import each other.
 from enum import StrEnum
 from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    model_serializer,
+    model_validator,
+)
 
 __all__ = [
     "PII",
@@ -51,6 +58,8 @@ __all__ = [
     "RemovalReference",
     "RemovalRule",
     "Residue",
+    "RetryRejection",
+    "RetryRun",
     "Run",
     "SourceBlock",
     "Span",
@@ -98,6 +107,9 @@ class StrictModel(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+
+# Imported here, not at the top: ``feedback`` builds on ``StrictModel``.
+from cvr.models.feedback import Feedback
 
 # --- Source side: what the parser emits and every later node reads.
 
@@ -528,6 +540,27 @@ class LabelExchange(StrictModel):
     answer: str | None = None
 
 
+class RetryRejection(StrictModel):
+    """A rejection as a retry record keeps it: where and why, never the
+    quote."""
+
+    path: str
+    block_id: str
+    reason: str
+
+
+class RetryRun(StrictModel):
+    """One retry in the Run: the attempt's labelling record, the feedback it
+    was sent (ids, offsets and paths, so no text), the rejections it
+    produced and the unplaced non-separator characters left after it.
+    ``Run.label`` stays the first attempt."""
+
+    label: LabelRun
+    feedback: Feedback
+    rejections: list[RetryRejection] = Field(default_factory=list)
+    unplaced_chars: int = Field(ge=0)
+
+
 class Run(StrictModel):
     """One Run and its transform log. Every section but the run id is
     optional, so a Run can be built by hand in a test with no labeller."""
@@ -546,6 +579,19 @@ class Run(StrictModel):
     # a list, since two dates may normalise alike and each needs its pair.
     date_map: list[tuple[str, Span]] = Field(default_factory=list)
     split_map: dict[str, list[Span]] = Field(default_factory=dict)
+    # retries (Phase 2): one record per retry, in order; empty without any
+    retries: list[RetryRun] = Field(default_factory=list)
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_retries(
+        self, handler: SerializerFunctionWrapHandler
+    ) -> dict[str, object]:
+        """A Run without retries serialises exactly as it did before they
+        existed: the key appears only when there is a retry."""
+        data = handler(self)
+        if not data.get("retries"):
+            data.pop("retries", None)
+        return data
 
     @property
     def unplaced(self) -> list[Span]:
