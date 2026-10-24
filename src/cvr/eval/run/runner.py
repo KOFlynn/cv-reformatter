@@ -36,9 +36,11 @@ from cvr.eval.run.cache import (
     label_run_of,
 )
 from cvr.eval.run.documents import Document
+from cvr.eval.run.retries import retry_chars_placed
 from cvr.eval.run.score import Scores, score
 from cvr.label.errors import ProviderUnavailable
 from cvr.models import LabelRun
+from cvr.parse import parse
 from cvr.pipeline import Labeller, can_retry, reformat
 from cvr.tracing import Tracer
 
@@ -70,6 +72,13 @@ class DocumentResult:
     retries: int
     seconds: float
     error: str | None = None
+    # Every attempt's labelling record (the first, then each retry's), the
+    # retries fired, the characters they placed (``retry_chars_placed``) and
+    # what this run paid for live calls (replays cost nothing).
+    label_runs: tuple[LabelRun, ...] = ()
+    retries_fired: int = 0
+    chars_placed: int = 0
+    spent_usd: float = 0.0
 
 
 def backoff(retry: int, jitter: float) -> float:
@@ -127,7 +136,10 @@ def _reformat_and_score(
         scores = score(
             document.candidate, document.source, output, run, document.manifest.headings
         )
-    return run, scores
+        placed = (
+            retry_chars_placed(run, parse(document.source).blocks) if run.retries else 0
+        )
+    return run, scores, placed
 
 
 @dataclass
@@ -172,10 +184,19 @@ def _labeller(
         key=cache_key(identity, document.source),
         stats=stats,
         read=read_cache,
-        # A retry is never cached yet (ticket 15): only a live labeller that
-        # can take one is asked for it.
+        retry_parts=identity.retry_parts,
+        # Only a live labeller that can take a retry is asked for one.
         retryable=getattr(live, "retryable", False) is True,
     )
+
+
+def _spent(labeller: Labeller, run) -> float:
+    """What the document's live calls cost: tracked by the cache when there
+    is one, else every attempt was live."""
+    live_cost = getattr(labeller, "live_cost", None)
+    if isinstance(live_cost, float):
+        return live_cost
+    return sum(record.cost_usd for record in run.label_runs)
 
 
 async def _one(
@@ -192,7 +213,7 @@ async def _one(
         while True:
             labeller = make()
             try:
-                run, scores = await asyncio.to_thread(
+                run, scores, placed = await asyncio.to_thread(
                     _reformat_and_score, document, labeller, tracer
                 )
             except ProviderUnavailable as exc:
@@ -216,6 +237,10 @@ async def _one(
                     cache_hit=getattr(labeller, "hit", False),
                     retries=retries,
                     seconds=perf_counter() - started,
+                    label_runs=tuple(run.label_runs),
+                    retries_fired=len(run.retries),
+                    chars_placed=placed,
+                    spent_usd=_spent(labeller, run),
                 )
             return DocumentResult(
                 document=document,

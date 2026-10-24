@@ -36,6 +36,7 @@ from cvr.label import (
     RealLabeller,
 )
 from cvr.label.labeller import build_chat_model
+from cvr.label.versions import ADDITIONS_HASH, RETRY_HASH
 from cvr.pipeline import Labeller, retry_max
 from cvr.tracing import Tracer, env_tag
 
@@ -57,8 +58,7 @@ def real_labeller() -> tuple[Callable[[Document], Labeller], LabellerIdentity]:
                 built.append(build_chat_model(config))
         return RealLabeller(config, chat_model=built[0])
 
-    # RealLabeller takes retries; the runner's wrappers pass them through
-    # uncached (the cache and the report learn about them in ticket 15).
+    # RealLabeller takes retries; the cache stores each attempt on its own.
     live.retryable = True  # type: ignore[attr-defined]
 
     identity = LabellerIdentity(
@@ -67,6 +67,8 @@ def real_labeller() -> tuple[Callable[[Document], Labeller], LabellerIdentity]:
         prompt_hash=PROMPT_HASH,
         schema_version=SCHEMA_VERSION,
         schema_hash=SCHEMA_HASH,
+        retry_prompt_hash=RETRY_HASH,
+        additions_hash=ADDITIONS_HASH,
     )
     return live, identity
 
