@@ -203,7 +203,8 @@ def create_app(
     again inside ``reformat``."""
     retry_max()
     if tracer is None:
-        tracer = Tracer.from_env(tags=[env_tag(trace_env())])
+        env = trace_env()
+        tracer = Tracer.from_env(tags=[env_tag(env)], environment=env)
     if tracer.enabled and tracer.mode == "full":
         # Full traces carry CV text to a third party. They are for the eval's
         # and local runs' synthetic documents; no deployment sets the mode

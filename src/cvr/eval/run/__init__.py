@@ -170,7 +170,7 @@ def main(
         parser.error(str(exc))
     live, identity = labeller or real_labeller()
     if tracer is None:
-        tracer = Tracer.from_env(tags=[env_tag("eval")])
+        tracer = Tracer.from_env(tags=[env_tag("eval")], environment="eval")
     try:
         report = evaluate(
             stems,

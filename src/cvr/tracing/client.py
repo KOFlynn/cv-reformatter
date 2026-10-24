@@ -361,11 +361,14 @@ class Tracer:
         base_url: str | None = None,
         span_exporter: SpanExporter | None = None,
         tags: Sequence[str] = (),
+        environment: str | None = None,
         mode: str = DEFAULT_MODE,
     ) -> "Tracer":
         """A tracer over a Langfuse client with its own tracer provider (never
         the global one), the export filter and the mask hook. ``span_exporter``
-        replaces the network exporter (tests)."""
+        replaces the network exporter (tests). ``environment`` is Langfuse's
+        native Environment field, passed to the client so it wins over a
+        ``LANGFUSE_TRACING_ENVIRONMENT`` in the shell."""
         client = Langfuse(
             public_key=public_key,
             secret_key=secret_key,
@@ -374,12 +377,17 @@ class Tracer:
             should_export_span=should_export,
             mask=make_mask(mode),
             span_exporter=span_exporter,
+            environment=environment,
         )
         return cls(client, tags=tags, mode=mode)
 
     @classmethod
     def from_env(
-        cls, environ: Mapping[str, str] | None = None, *, tags: Sequence[str] = ()
+        cls,
+        environ: Mapping[str, str] | None = None,
+        *,
+        tags: Sequence[str] = (),
+        environment: str | None = None,
     ) -> "Tracer":
         """From ``LANGFUSE_PUBLIC_KEY``, ``LANGFUSE_SECRET_KEY`` and
         optionally ``LANGFUSE_BASE_URL``, and the content mode from
@@ -398,6 +406,7 @@ class Tracer:
             secret_key=secret_key,
             base_url=source.get(ENV_BASE_URL) or None,
             tags=tags,
+            environment=environment,
             mode=mode,
         )
 
