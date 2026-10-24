@@ -4,10 +4,20 @@
 
 **Blocked by:** 14
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Runner tests: the feedback hash changes the cache key; a cached rerun reproduces the same retries without a call
-- [ ] Report tests: the three columns, per layout, tag and candidate; totals summed over attempts
-- [ ] A live eval run's report is shown in the PR with the expected retry pattern, every hard gate at zero and the thresholds met; any deviation from the pattern is explained
-- [ ] ADR-0012 written, including "what would change" (neighbouring-block feedback; leaner feedback, measurable on a failure-prone model such as Haiku and then confirmed on the deployed one)
-- [ ] CLAUDE.md, the README and the brief's §10 graph box updated
+- [x] Runner tests: the feedback hash changes the cache key; a cached rerun reproduces the same retries without a call
+- [x] Report tests: the three columns, per layout, tag and candidate; totals summed over attempts
+- [ ] A live eval run's report is shown in the PR with the expected retry pattern, every hard gate at zero and the thresholds met; any deviation from the pattern is explained (open on purpose: satisfied by this branch's pull request, whose CI eval report is the live run; it is recorded here afterwards)
+- [x] ADR-0012 written, including "what would change" (neighbouring-block feedback; leaner feedback, measurable on a failure-prone model such as Haiku and then confirmed on the deployed one)
+- [x] CLAUDE.md, the README and the brief's §10 graph box updated
+
+## Comments
+
+**2026-10-24.** Built, minus the live run (no model call was made; the box above stays open until the PR's CI eval report is recorded).
+
+- Cache (`cvr.eval.run.cache`): each attempt has its own entry. The first attempt's key is unchanged (config, prompt hash, schema hash, source sha256). Attempt *n* > 1 is `sha256` of canonical JSON of `{base key, attempt number, retry prompt hash, additions schema hash, sha256 of the feedback's JSON, sha256 of the base answer's JSON}` (`attempt_key`). The blocks are implied by the source sha256 and the configuration by the base key; the base answer and feedback make the retry's answer reproducible. The attempt number is what keeps the re-ask of a failed first answer (no feedback, no base) off the failed first attempt's entry. `LabellerIdentity` gained `retry_prompt_hash` and `additions_hash` (filled by `real_labeller`; empty for fakes); they are in retry keys only, so a retry prompt change does not invalidate the first attempts' cached answers (CONTENT_HASH is not in any key). `_Entry` gained the kind `additions`. Ticket 14's bypass in `CachedLabeller` is gone: every call is looked up and stored, and the call counter supplies the attempt number.
+- Report: `Totals` gained `retries_fired`, `retry_chars_placed`, `retry_cost_usd` (JSON and markdown, in totals and per layout, tag and candidate; the markdown also has a "Labelling retries" line stating the definition). `retries` still means provider-unavailable retries. Tokens, cost and the document's `attempts` now sum `Run.label_runs`; "spent by this run" sums live calls only (`CachedLabeller.live_cost`), so a partly cached document is billed for its live attempts. `DocumentResult` gained `label_runs`, `retries_fired`, `chars_placed`, `retry_cost_usd`, `spent_usd` (defaulted).
+- "Characters placed by a retry" (`cvr.eval.run.retries.retry_chars_placed`): the unplaced non-separator characters the retries took out of the appendix. Before the first retry is read from its feedback's unplaced runs sliced out of the parsed blocks (the Run keeps only the count after each retry, not before the first); then the sum over retries of `max(0, before - unplaced_chars after)`, `before` being the previous retry's count. Equal to first-attempt unplaced minus final unplaced when progress never goes backwards. A re-ask of a failed first answer (`feedback.unusable`) has no measurable "before" and counts nothing itself; later retries count from what it left.
+- Existing tests changed in `tests/eval/run/test_retry_passthrough.py`, only where they pinned ticket 14's bypass: `test_a_retry_through_the_runner_is_live_and_fixes_the_document` (renamed `..._live_once_...`; two entries are now stored, not one), `test_a_cached_first_attempt_still_gets_a_live_retry` (now `test_a_cached_rerun_replays_the_retry_with_no_call`: two hits, no live call), `test_a_retry_call_is_not_marked_cached` (renamed; a replayed retry is marked cached, a live one is not). The re-ask test and the "key untouched by retries" test pass unchanged. New: `tests/eval/run/test_retry_cache.py`, `tests/eval/run/test_retry_report.py`.
+- ADR-0012 written (`docs/adr/0012-the-graph-and-its-bounded-additions-only-retry.md`), linked from the README's ADR table; brief section 10's LangGraph box ticked; CLAUDE.md `eval` bullet and `docs/development.md` updated.
