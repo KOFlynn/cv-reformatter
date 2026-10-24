@@ -78,6 +78,7 @@ class DocumentResult:
     label_runs: tuple[LabelRun, ...] = ()
     retries_fired: int = 0
     chars_placed: int = 0
+    retry_cost_usd: float = 0.0
     spent_usd: float = 0.0
 
 
@@ -240,6 +241,9 @@ async def _one(
                     label_runs=tuple(run.label_runs),
                     retries_fired=len(run.retries),
                     chars_placed=placed,
+                    retry_cost_usd=sum(
+                        r.label.cost_usd for r in run.retries if r.label is not None
+                    ),
                     spent_usd=_spent(labeller, run),
                 )
             return DocumentResult(
