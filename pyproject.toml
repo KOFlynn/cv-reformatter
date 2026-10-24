@@ -8,10 +8,12 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "anthropic>=1.8,<2",
+    "azure-identity>=1.26.0",
     "docxtpl",
     "fastapi>=0.141,<1.0",
     "langchain>=1.0,<2.0",
     "langchain-anthropic>=1.0,<2.0",
+    "langchain-openai>=1.7.2",
     "langfuse>=5.0,<6",
     "langgraph>=1.2,<2.0",
     "lxml",
