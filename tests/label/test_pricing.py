@@ -1,7 +1,15 @@
 """The price table the labeller's cost estimate reads: one place, one date
 it was checked."""
 
-from cvr.label.pricing import PRICE_TABLE, PRICE_TABLE_CHECKED, estimate_cost
+import pytest
+
+from cvr.label.pricing import (
+    PRICE_TABLE,
+    PRICE_TABLE_CHECKED,
+    UnpricedModel,
+    estimate_cost,
+    require_price,
+)
 
 
 def test_price_table_has_the_default_model_and_a_checked_date():
@@ -39,3 +47,27 @@ def test_unknown_model_costs_zero_rather_than_raising():
     assert (
         estimate_cost("some-future-model", input_tokens=100, output_tokens=100) == 0.0
     )
+
+
+def test_gpt_5_4_is_priced_at_azure_data_zone_standard():
+    # Azure Retail Prices API, "5.4 inp Dz" / "5.4 opt Dz", northeurope,
+    # checked 2026-10-24 (see the comment in cvr.label.pricing).
+    assert PRICE_TABLE["gpt-5.4"] == (2.75, 16.50)
+    cost = estimate_cost("gpt-5.4", input_tokens=1_000_000, output_tokens=1_000_000)
+    assert cost == 2.75 + 16.50
+
+
+def test_every_known_model_has_a_price():
+    from cvr.label.config import DEFAULT_MODEL, KNOWN_MODELS
+
+    assert DEFAULT_MODEL in KNOWN_MODELS
+    unpriced = [model for model in KNOWN_MODELS if model not in PRICE_TABLE]
+    assert not unpriced, f"no price in cvr.label.pricing.PRICE_TABLE for {unpriced}"
+    for model in KNOWN_MODELS:
+        input_price, output_price = require_price(model)
+        assert input_price > 0 and output_price > 0, model
+
+
+def test_require_price_fails_loudly_for_a_model_without_one():
+    with pytest.raises(UnpricedModel, match="some-future-model"):
+        require_price("some-future-model")

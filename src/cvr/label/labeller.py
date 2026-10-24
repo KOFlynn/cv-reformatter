@@ -54,6 +54,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import Runnable
 from pydantic import ValidationError
 
+from cvr.label.azure_openai import AZURE_PROVIDER, azure_error, azure_kwargs
 from cvr.label.config import LabellerConfig
 from cvr.label.errors import LabellerError, LabellerMisconfigured, ProviderUnavailable
 from cvr.label.pricing import estimate_cost
@@ -135,16 +136,24 @@ def anthropic_kwargs(config: LabellerConfig) -> dict[str, Any]:
 def build_chat_model(config: LabellerConfig) -> BaseChatModel:
     """``init_chat_model`` with the provider and model from ``config``.
     Provider-specific options are added by the one provider-configuration
-    function for that provider; today there is only ``anthropic_kwargs``."""
-    if config.provider != "anthropic":
+    function for that provider: ``anthropic_kwargs`` or, for Azure OpenAI
+    (ticket 17), ``azure_kwargs`` in ``cvr.label.azure_openai``."""
+    if config.provider == AZURE_PROVIDER:
+        provider_kwargs = azure_kwargs(
+            config, max_retries=PROVIDER_RETRIES, max_tokens=MAX_OUTPUT_TOKENS
+        )
+    elif config.provider == "anthropic":
+        provider_kwargs = anthropic_kwargs(config)
+    else:
         raise LabellerMisconfigured(
             f"unsupported labeller provider {config.provider!r}: only "
-            "'anthropic' is supported; set CVR_LABEL_PROVIDER=anthropic"
+            f"'anthropic' and {AZURE_PROVIDER!r} are supported; set "
+            "CVR_LABEL_PROVIDER to one of them"
         )
     return init_chat_model(
         model=config.model,
         model_provider=config.provider,
-        **anthropic_kwargs(config),
+        **provider_kwargs,
     )
 
 
@@ -243,15 +252,28 @@ def retry_messages(
 
 
 def _structured_model(
-    chat_model: BaseChatModel, schema: type[Labelling | Additions] = Labelling
+    chat_model: BaseChatModel,
+    schema: type[Labelling | Additions] = Labelling,
+    *,
+    strict: bool = False,
 ) -> Runnable[Any, dict[str, Any]]:
-    """``chat_model`` bound to the labelling schema through Claude's native
-    structured-output feature, never a forced tool call. ``include_raw``
+    """``chat_model`` bound to the labelling schema through the provider's
+    native structured-output feature, never a forced tool call. ``include_raw``
     keeps the raw message (for usage metadata) beside the parsed result (or
-    the parsing error) even when parsing fails."""
+    the parsing error) even when parsing fails. ``strict`` (Azure OpenAI,
+    ticket 17) asks for constrained decoding against the schema; it is passed
+    only when set, because the Anthropic binding does not take it."""
+    extra: dict[str, Any] = {"strict": True} if strict else {}
     return chat_model.with_structured_output(
-        schema, include_raw=True, method="json_schema"
+        schema, include_raw=True, method="json_schema", **extra
     )
+
+
+def _refused(raw: Any, stop_reason: Any) -> bool:
+    """Whether the provider refused: Anthropic's ``stop_reason``, or an OpenAI
+    message's ``refusal`` field."""
+    additional = getattr(raw, "additional_kwargs", None) or {}
+    return stop_reason == "refusal" or bool(additional.get("refusal"))
 
 
 def anthropic_error(exc: Exception) -> LabellerError | None:
@@ -293,6 +315,8 @@ def anthropic_error(exc: Exception) -> LabellerError | None:
 def _provider_error(config: LabellerConfig, exc: Exception) -> LabellerError | None:
     if config.provider == "anthropic":
         return anthropic_error(exc)
+    if config.provider == AZURE_PROVIDER:
+        return azure_error(exc, PROVIDER_RETRIES)
     return None
 
 
@@ -456,7 +480,7 @@ def _label(
     stop_reason = (getattr(raw, "response_metadata", None) or {}).get("stop_reason")
 
     reason: str | None = None
-    if stop_reason == "refusal":
+    if _refused(raw, stop_reason):
         reason = "the model refused to answer"
     elif response.get("parsing_error") is not None:
         # Whatever the structured output returns in its parsing-error slot
@@ -558,8 +582,11 @@ class RealLabeller:
     ) -> None:
         self.config = config or LabellerConfig.from_env()
         model = chat_model or build_chat_model(self.config)
-        self._recording = _Recording(_structured_model(model))
-        self._retry_recording = _Recording(_structured_model(model, Additions))
+        strict = self.config.provider == AZURE_PROVIDER
+        self._recording = _Recording(_structured_model(model, strict=strict))
+        self._retry_recording = _Recording(
+            _structured_model(model, Additions, strict=strict)
+        )
         self.last_run: LabelRun | None = None
         # The last call's prompt messages and raw answer, candidate text
         # included, for the full-text trace only; never in the Run (ticket 09).

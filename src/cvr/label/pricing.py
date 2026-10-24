@@ -1,11 +1,18 @@
 """One price table for the labeller's cost estimate, USD per million tokens.
-Checked against https://claude.com/pricing on 2026-10-19; update
-``PRICE_TABLE_CHECKED`` whenever the table is re-checked. Quotes copy the
-CV, so output tokens dominate: a 48-document run is about $1.6 on the
+The Claude rows were checked against https://claude.com/pricing on 2026-10-19;
+the gpt-5.4 row on 2026-10-24 (see below). ``PRICE_TABLE_CHECKED`` is the
+older of the two: update it whenever the whole table is re-checked. Quotes copy
+the CV, so output tokens dominate: a 48-document run is about $1.6 on the
 default, Sonnet 5.5, and was about $3.3 on Opus 5.5 (ADR-0011).
 """
 
-__all__ = ["PRICE_TABLE", "PRICE_TABLE_CHECKED", "estimate_cost"]
+__all__ = [
+    "PRICE_TABLE",
+    "PRICE_TABLE_CHECKED",
+    "UnpricedModel",
+    "estimate_cost",
+    "require_price",
+]
 
 PRICE_TABLE_CHECKED = "2026-10-19"
 
@@ -17,7 +24,34 @@ PRICE_TABLE: dict[str, tuple[float, float]] = {
     "claude-sonnet-5-5": (2.0, 10.0),
     # The base tier, prompts up to 100K tokens; every golden-set prompt is far below.
     "claude-haiku-5-5": (0.10, 0.50),
+    # Azure OpenAI gpt-5.4, Data Zone Standard, context up to 272K tokens (the
+    # long-context meters are separate; every golden-set prompt is far below).
+    # Source, checked 2026-10-24: Microsoft's Azure Retail Prices API
+    # (https://prices.azure.com/api/retail/prices, serviceName "Foundry Models",
+    # meters "5.4 inp Dz" and "5.4 opt Dz", northeurope, effective 2026-06-01;
+    # the same figures in every EU Data Zone region listed), which is what the
+    # pricing page https://azure.microsoft.com/en-us/pricing/details/azure-openai/
+    # renders from (its static HTML shows "$-" placeholders). Cached input
+    # ("5.4 cd inp Dz") is $0.275, a tenth of input; it is not in the table
+    # because nothing here requests caching (Azure's automatic caching, if it
+    # applies, only makes the real cost lower than this estimate).
+    "gpt-5.4": (2.75, 16.50),
 }
+
+
+class UnpricedModel(KeyError):
+    """A model the labeller is configured for has no row in ``PRICE_TABLE``."""
+
+
+def require_price(model: str) -> tuple[float, float]:
+    """The model's (input, output) prices, or :class:`UnpricedModel`. For
+    tests and for anything that must not silently read zero."""
+    try:
+        return PRICE_TABLE[model]
+    except KeyError:
+        raise UnpricedModel(
+            f"no price for model {model!r}: add it to cvr.label.pricing.PRICE_TABLE"
+        ) from None
 
 
 def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
