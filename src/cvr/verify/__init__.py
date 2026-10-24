@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from cvr.models import (
+    Addition,
     Additions,
     Labelling,
     LabellingFailure,
@@ -93,6 +94,9 @@ class VerifiedDocument:
     residue: list[Residue] = field(default_factory=list)
     ledgers: dict[str, list[LedgerEntry]] = field(default_factory=dict)
     label_failed: bool = False
+    # The additions that placed something, in the order given (``fold`` writes
+    # them into the first answer for the next retry's prompt).
+    placed: list[Addition] = field(default_factory=list)
 
     @property
     def unplaced(self) -> list[Span]:
@@ -129,8 +133,9 @@ def verify(
         if failed
         else _verify_content(ledgers, labelling, claims, rejections)
     )
+    placed: list[Addition] = []
     if additions is not None:
-        _verify_additions(ledgers, content, additions, claims, rejections)
+        placed = _verify_additions(ledgers, content, additions, claims, rejections)
     _heading_backstop(ledgers, removals)
     residue = _coverage(ledgers)
     return VerifiedDocument(
@@ -143,6 +148,7 @@ def verify(
             block_id: ledger.sorted_entries() for block_id, ledger in ledgers.items()
         },
         label_failed=failed,
+        placed=placed,
     )
 
 
@@ -257,10 +263,12 @@ def _verify_additions(
     additions: Additions,
     claims: list[Claim],
     rejections: list[Rejection],
-) -> None:
+) -> list[Addition]:
     """Place each addition in the order given. A new entry is opened when its
-    first addition resolves; one that ends with nothing placed is dropped."""
+    first addition resolves; one that ends with nothing placed is dropped.
+    Returns the additions that placed something."""
     opened: list[VerifiedExperience | VerifiedEducation] = []
+    placed: list[Addition] = []
     for addition in additions.additions:
         slot = _resolve(content, addition.path, opened)
         if slot is None:
@@ -283,6 +291,7 @@ def _verify_additions(
         unit = _place(ledgers, path, addition.reference, claims, rejections)
         if unit is None:
             continue
+        placed.append(addition)
         if is_list:
             held.append(unit)
         else:
@@ -295,6 +304,7 @@ def _verify_additions(
                 else content.education
             )
             entries[:] = [other for other in entries if other is not entry]
+    return placed
 
 
 def _resolve(

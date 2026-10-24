@@ -49,6 +49,7 @@ from cvr.render import render
 from cvr.tracing import RunTrace, Tracer
 from cvr.transform import TransformResult, transform_content
 from cvr.verify import Rejection, VerifiedDocument, verify
+from cvr.verify.fold import fold
 from cvr.verify.retry import (
     Outcome,
     RetryDecision,
@@ -74,6 +75,8 @@ class _State(TypedDict, total=False):
     attempts made; ``base`` is the answer the retries add to (the first
     answer, or, when that was a failure, the first usable re-ask);
     ``additions`` every successful retry's additions so far, in order;
+    ``folded`` the base with the placed ones written in (what the next
+    retry is shown);
     ``verified`` the current result (a failed or unavailable retry leaves it
     as it was); ``feedback`` what the next attempt is told, absent before the
     first."""
@@ -84,6 +87,7 @@ class _State(TypedDict, total=False):
     labelling: LabellingResult | Additions | None
     outcome: Outcome
     base: Labelling | None
+    folded: Labelling | None
     base_fresh: bool
     base_rejections: list[Rejection]
     additions: list[Addition]
@@ -173,7 +177,11 @@ def _build_graph(
                 if feedback is None or base is None:
                     answer = labeller(blocks)
                 else:
-                    answer = labeller(blocks, feedback=feedback, first=base)
+                    answer = labeller(
+                        blocks,
+                        feedback=feedback,
+                        first=state.get("folded") or base,
+                    )
                 last_run = getattr(labeller, "last_run", None)
                 # A last_run left over from an earlier call is not this attempt's.
                 fresh = last_run if last_run is not before else None
@@ -285,6 +293,12 @@ def _build_graph(
                         unplaced_chars=unplaced,
                     ),
                 ]
+            if outcome == "ok":
+                # What the next retry is shown: the base answer with every
+                # placed addition written in, so an entry an earlier retry
+                # opened is at the index verify will use. Verify itself always
+                # runs over the unfolded base plus every addition.
+                update["folded"] = fold(state["base"], verified.placed)
             if outcome == "ok" and state["base_fresh"]:
                 update["base_rejections"] = list(verified.rejections)
             if decision.retry:

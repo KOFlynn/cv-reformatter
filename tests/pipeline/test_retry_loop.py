@@ -287,6 +287,14 @@ def test_hints_come_only_from_the_first_answer_not_from_earlier_additions():
     assert [h.get("quote") for h in first_hints] == [UNLOCATABLE]
     # the addition's own unlocatable rejection (same path) is not a hint
     assert [h.get("quote") for h in second_hints] == [UNLOCATABLE]
-    # and the base answer is sent unchanged each time
-    assert chat.payload(1)["first_answer"] == chat.payload(2)["first_answer"]
+    # S5: the answer shown the second retry is the base with the first
+    # retry's placed bullet written in (the rejected title addition is not);
+    # everything else is the base, unchanged
+    seen_1 = chat.payload(1)["first_answer"]
+    seen_2 = chat.payload(2)["first_answer"]
+    bullets_1 = seen_1["content"]["experience"][0]["bullets"]
+    bullets_2 = seen_2["content"]["experience"][0]["bullets"]
+    assert bullets_2[:-1] == bullets_1 and len(bullets_2) == len(bullets_1) + 1
+    seen_2["content"]["experience"][0]["bullets"] = bullets_1
+    assert seen_1 == seen_2
     assert [r.reason for r in run.retries[0].rejections] == ["unlocatable"]
