@@ -205,10 +205,46 @@ def test_an_unknown_field_or_a_malformed_path_is_bad_path():
         _labelling(experience=[_experience()]),
         additions=_additions(*((path, _ref("body:0", "x")) for path in paths)),
     )
+    # B1: a path is recorded only if it fits the path grammar (known field
+    # names, brackets and digits); free text is recorded as ``unknown``.
+    recorded = {
+        "skills[0]": "skills[0]",
+        "education[0].bullets": "education[0].bullets",
+    }
     assert [(r.path, r.reason) for r in result.rejections] == [
-        (path, "bad_path") for path in paths
+        (recorded.get(path, "unknown"), "bad_path") for path in paths
     ]
     assert result.claims == []
+
+
+def test_a_free_text_path_is_never_recorded_in_a_rejection():
+    blocks = [_block("body:0", "x")]
+    paths = ["Padraig Lonergan", "name; drop", "experience[0].Padraig", "a@b.example"]
+    result = verify(
+        blocks,
+        _labelling(),
+        additions=_additions(*((path, _ref("body:0", "x")) for path in paths)),
+    )
+    assert [r.path for r in result.rejections] == ["unknown"] * len(paths)
+    assert all(r.reason == "bad_path" for r in result.rejections)
+
+
+def test_an_entry_index_of_more_than_four_digits_is_bad_path_not_an_error():
+    blocks = [_block("body:0", "x")]
+    huge = f"experience[{'9' * 5000}].title"
+    result = verify(
+        blocks,
+        _labelling(),
+        additions=_additions(
+            (huge, _ref("body:0", "x")),
+            ("experience[12345].title", _ref("body:0", "x")),
+        ),
+    )
+    assert [(r.path, r.reason) for r in result.rejections] == [
+        ("unknown", "bad_path"),
+        ("experience[12345].title", "bad_path"),
+    ]
+    assert result.content.experience == []
 
 
 def test_a_bad_path_addition_does_not_open_a_new_entry():

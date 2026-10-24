@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from cvr.models import (
+    Addition,
     Additions,
     Labelling,
     LabellingFailure,
@@ -43,6 +44,7 @@ from cvr.models import (
     VerifiedContent,
     VerifiedEducation,
     VerifiedExperience,
+    safe_path,
 )
 from cvr.text import is_separator_residue
 from cvr.verify.backstops import HEADING_VOCABULARY, heading_key, pii_matches
@@ -70,7 +72,9 @@ class Rejection:
     inside removals) or, for an addition only, ``bad_path`` (its path
     addresses nothing: a leaf already placed, an index out of range, an
     unknown field). The path of an LLM removal is ``removals[i]``; of a
-    ``bad_path`` addition, the path as given."""
+    ``bad_path`` addition, the path as given if it fits the path grammar
+    (``cvr.models.safe_path``), else ``unknown``: a model-written path is
+    free text and never recorded."""
 
     path: str
     block_id: str
@@ -90,6 +94,9 @@ class VerifiedDocument:
     residue: list[Residue] = field(default_factory=list)
     ledgers: dict[str, list[LedgerEntry]] = field(default_factory=dict)
     label_failed: bool = False
+    # The additions that placed something, in the order given (``fold`` writes
+    # them into the first answer for the next retry's prompt).
+    placed: list[Addition] = field(default_factory=list)
 
     @property
     def unplaced(self) -> list[Span]:
@@ -126,8 +133,9 @@ def verify(
         if failed
         else _verify_content(ledgers, labelling, claims, rejections)
     )
+    placed: list[Addition] = []
     if additions is not None:
-        _verify_additions(ledgers, content, additions, claims, rejections)
+        placed = _verify_additions(ledgers, content, additions, claims, rejections)
     _heading_backstop(ledgers, removals)
     residue = _coverage(ledgers)
     return VerifiedDocument(
@@ -140,6 +148,7 @@ def verify(
             block_id: ledger.sorted_entries() for block_id, ledger in ledgers.items()
         },
         label_failed=failed,
+        placed=placed,
     )
 
 
@@ -239,7 +248,7 @@ def _verify_content(
 
 _TOP_LEAF = "name"
 _TOP_LISTS = ("profile", "skills", "certifications", "additional")
-_ENTRY_PATH = re.compile(r"(experience|education)\[([0-9]+)\]\.([a-z]+)")
+_ENTRY_PATH = re.compile(r"(experience|education)\[([0-9]{1,4})\]\.([a-z]+)")
 _ENTRY_MODELS = {"experience": VerifiedExperience, "education": VerifiedEducation}
 _ENTRY_LEAVES = {
     "experience": ("title", "employer", "location", "dates"),
@@ -254,17 +263,22 @@ def _verify_additions(
     additions: Additions,
     claims: list[Claim],
     rejections: list[Rejection],
-) -> None:
+) -> list[Addition]:
     """Place each addition in the order given. A new entry is opened when its
-    first addition resolves; one that ends with nothing placed is dropped."""
+    first addition resolves; one that ends with nothing placed is dropped.
+    Returns the additions that placed something."""
     opened: list[VerifiedExperience | VerifiedEducation] = []
+    placed: list[Addition] = []
     for addition in additions.additions:
         slot = _resolve(content, addition.path, opened)
         if slot is None:
             reference = addition.reference
             rejections.append(
                 Rejection(
-                    addition.path, reference.block_id, reference.quote, "bad_path"
+                    safe_path(addition.path),
+                    reference.block_id,
+                    reference.quote,
+                    "bad_path",
                 )
             )
             continue
@@ -277,6 +291,7 @@ def _verify_additions(
         unit = _place(ledgers, path, addition.reference, claims, rejections)
         if unit is None:
             continue
+        placed.append(addition)
         if is_list:
             held.append(unit)
         else:
@@ -289,6 +304,7 @@ def _verify_additions(
                 else content.education
             )
             entries[:] = [other for other in entries if other is not entry]
+    return placed
 
 
 def _resolve(

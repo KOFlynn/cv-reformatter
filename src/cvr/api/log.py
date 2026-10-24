@@ -35,7 +35,7 @@ here, so the Run, the eval and ``removal_precision`` still see everything:
 
 import json
 import sys
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from typing import TextIO
 
 from pydantic import BaseModel
@@ -176,19 +176,30 @@ def request_lines(
     *,
     run: Run | None = None,
     label: LabelRun | None = None,
+    labels: Sequence[LabelRun] = (),
     error: str | None = None,
 ) -> list[str]:
     """The log lines of one request: the summary first, then a line per block
     when there is a ``run``. A request refused before the pipeline ran, or
     one the pipeline failed on, has only the summary, with its ``error``
     and, when the labeller had answered before the failure, its ``label``
-    section, so the tokens and cost spent are logged either way."""
+    section, so the tokens and cost spent are logged either way. ``labels``
+    is every attempt already paid for when a retry raised (the first attempt
+    and the earlier retries): the summary then also carries ``attempts``, the
+    totals over all of them."""
     summary: dict[str, object] = {"run_id": run_id, "line": "summary", "status": status}
     if error is not None:
         summary["error"] = _redact(error, run)
     if run is None:
+        label = label if label is not None else (labels[0] if labels else None)
         if label is not None:
             summary["label"] = _dump(label)
+        if labels:
+            summary["attempts"] = {
+                "input_tokens": sum(r.input_tokens for r in labels),
+                "output_tokens": sum(r.output_tokens for r in labels),
+                "cost_usd": sum(r.cost_usd for r in labels),
+            }
         return [_json(summary)]
     blocks = _block_lines(run)
     summary |= {

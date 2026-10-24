@@ -22,13 +22,9 @@ the retries after it count from what it left.
 from collections.abc import Sequence
 
 from cvr.models import Run, SourceBlock
-from cvr.text import SEPARATORS
+from cvr.text import significant_chars
 
 __all__ = ["retry_chars_placed"]
-
-
-def _significant(text: str) -> int:
-    return sum(1 for char in text if not (char.isspace() or char in SEPARATORS))
 
 
 def retry_chars_placed(run: Run, blocks: Sequence[SourceBlock]) -> int:
@@ -39,7 +35,7 @@ def retry_chars_placed(run: Run, blocks: Sequence[SourceBlock]) -> int:
     for index, retry in enumerate(run.retries):
         if index == 0 and not retry.feedback.unusable:
             before = sum(
-                _significant(by_id[part.block_id].text[part.start : part.end])
+                significant_chars(by_id[part.block_id].text[part.start : part.end])
                 for part in retry.feedback.unplaced
             )
         if before is not None:

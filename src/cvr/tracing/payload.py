@@ -20,7 +20,14 @@ from collections import Counter
 from collections.abc import Collection, Mapping, Sequence
 from typing import Any, Literal
 
-from cvr.models import Additions, LabelExchange, Labelling, LabellingFailure, LabelRun
+from cvr.models import (
+    Additions,
+    LabelExchange,
+    Labelling,
+    LabellingFailure,
+    LabelRun,
+    safe_path,
+)
 
 __all__ = [
     "ALLOWED_KEYS",
@@ -211,7 +218,7 @@ def rejection_payload(
     quote only in full mode. The block id is the model's, so it is reported only when it is
     one of ``block_ids`` (the parsed blocks'); otherwise it is ``unknown``."""
     facts: dict[str, Any] = {
-        "path": rejection.path,
+        "path": safe_path(rejection.path),
         "block_id": (
             rejection.block_id if rejection.block_id in block_ids else "unknown"
         ),

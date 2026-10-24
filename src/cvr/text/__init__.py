@@ -13,6 +13,7 @@ __all__ = [
     "canonicalise",
     "canonicalise_with_offsets",
     "is_separator_residue",
+    "significant_chars",
     "tokenise",
 ]
 
@@ -194,6 +195,13 @@ def is_separator_residue(text: str) -> bool:
     trivially separator residue.
     """
     return all(char.isspace() or char in SEPARATORS for char in text)
+
+
+def significant_chars(text: str) -> int:
+    """The characters of `text` that are neither whitespace nor separators: how
+    much unplaced text there is, for the retry's progress measure and the
+    eval's account of what a retry placed."""
+    return sum(1 for char in text if not (char.isspace() or char in SEPARATORS))
 
 
 def _is_punctuation(char: str) -> bool:

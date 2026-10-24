@@ -5,7 +5,7 @@ choice run, and a test says what the model "said" on each attempt.
 
 A step is a parsed answer (``Labelling`` or ``Additions``), the string
 ``"malformed"`` (an answer that does not parse), ``"outage"`` (the provider
-is down) or a ready-made response dict. A call past the end of the script
+is down), an exception instance (raised from the model call) or a ready-made response dict. A call past the end of the script
 fails the test: a retry the test did not expect.
 """
 
@@ -75,6 +75,8 @@ class ScriptedChat:
             step = self.script.pop(0)
             if step == "malformed":
                 return malformed()
+            if isinstance(step, Exception):
+                raise step
             if step == "outage":
                 raise outage()
             if isinstance(step, dict):

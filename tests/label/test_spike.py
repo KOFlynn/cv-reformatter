@@ -41,6 +41,6 @@ def test_real_labeller_returns_a_schema_valid_tree_with_a_name_and_an_experience
     run = labeller.last_run
     assert run is not None
     assert run.label_failed is False
-    assert run.config.model == config.model
+    assert run.config["model"] == config.model
     assert run.prompt_version
     assert run.schema_version

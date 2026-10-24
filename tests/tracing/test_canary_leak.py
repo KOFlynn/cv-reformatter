@@ -364,6 +364,27 @@ def _retry_scenarios(echo: str, said: str) -> dict[str, RetryScenario]:
         )
         return _ok(Additions(additions=[placed, invented]))
 
+    def bad_path(labelling: Labelling) -> dict[str, Any]:
+        # Model-authored ids: a path that is free text, and one that echoes a
+        # PII-shaped string; and a block id the model made up. None may be
+        # recorded anywhere a reader can see.
+        bullet = labelling.content.experience[0].bullets[0]
+        real = Reference(block_id=bullet.block_id, quote=bullet.quote)
+        return _ok(
+            Additions(
+                additions=[
+                    Addition(path=echo, reference=real),
+                    Addition(path=said, reference=real),
+                    Addition(
+                        path="skills",
+                        reference=Reference(
+                            block_id=echo.replace(" ", "-"), quote=bullet.quote
+                        ),
+                    ),
+                ]
+            )
+        )
+
     def no_progress(_: Labelling) -> dict[str, Any]:
         return _ok(Additions(additions=[]))
 
@@ -373,6 +394,7 @@ def _retry_scenarios(echo: str, said: str) -> dict[str, RetryScenario]:
     return {
         "retry-fixed": RetryScenario([first, fixed, no_progress]),
         "retry-no-progress": RetryScenario([first, no_progress]),
+        "retry-bad-path": RetryScenario([first, bad_path, no_progress]),
         "retry-malformed": RetryScenario([first, malformed]),
     }
 
@@ -751,7 +773,12 @@ def test_full_mode_carries_every_kind_of_canary(harvest):
 
 # --- the retries (ticket 16) --------------------------------------------------
 
-RETRY_SCENARIOS = ("retry-fixed", "retry-no-progress", "retry-malformed")
+RETRY_SCENARIOS = (
+    "retry-fixed",
+    "retry-no-progress",
+    "retry-malformed",
+    "retry-bad-path",
+)
 
 
 def _retry_channels(harvest: Harvest):
@@ -824,3 +851,27 @@ def test_no_canary_is_in_a_runs_retries(harvest):
     retries = _everywhere(harvest, "retries")
     assert retries
     assert leaks(retries, harvest.canaries.needles) == []
+
+
+def test_a_model_written_path_or_block_id_in_an_addition_is_recorded_nowhere(harvest):
+    """A retry whose additions carry a canary as their ``path`` (and one a
+    canary block id) is rejected, and the Run, the logs, the structure-mode
+    spans, the exceptions and the failure reasons hold none of it; the paths
+    are recorded as ``unknown``. (The request to the fake model is excluded, as
+    the module docstring explains.)"""
+    for layout in sorted(harvest.sources):
+        for path in ("direct", "api"):
+            observed = harvest.channels[layout, "retry-bad-path", path]
+            for name in ("spans", "logs", "retries", "exceptions", "reasons"):
+                assert leaks(observed.join(name), harvest.canaries.of_kind(MODEL)) == []
+        recorded = _records(harvest.channels[layout, "retry-bad-path", "direct"])
+        rejections = [r for record in recorded for r in record["rejections"]]
+        assert {r["path"] for r in rejections if r["reason"] == "bad_path"} == {
+            "unknown"
+        }
+        assert {r["block_id"] for r in rejections} >= {"unknown"}
+        events = [
+            json.loads(span)
+            for span in harvest.channels[layout, "retry-bad-path", "direct"].spans
+        ]
+        assert any(e["name"] == "rejection" for e in events)
