@@ -77,11 +77,17 @@ The real labeller is built on the first document, not at startup, so `/health` w
 | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | the app, once when it is created; the eval runner | (none) | both set: every Run is traced in Langfuse, the trace id being the run id (`X-Run-Id`); either missing: untraced, quietly. In Azure they are the Container Apps secrets `langfuse-public-key` and `langfuse-secret-key` (set by the wizard), in CI the repository secrets of the same names |
 | `LANGFUSE_BASE_URL` | the same | the SDK's (`https://cloud.langfuse.com`, EU) | the Langfuse host |
 | `CVR_TRACE_ENV` | the app, once when it is created | `local` | `prod`, `eval` or `local`: the trace tag `env=<value>` (anything else is `local`). The deployed app sets `prod`; the eval runner always tags `eval` and does not read it. Traces flush before each `/reformat` answer and the client shuts down when the app stops |
-| `CVR_LABEL_PROVIDER` | the labeller | `anthropic` | LangChain provider id |
+| `CVR_LABEL_PROVIDER` | the labeller | `anthropic` | LangChain provider id: `anthropic` or `azure_openai` |
 | `CVR_LABEL_MODEL` | the labeller | `claude-sonnet-5-5` | model name |
-| `CVR_LABEL_EFFORT` | the labeller | `medium` | `low`, `medium`, `high`, `xhigh` or `max` |
+| `CVR_LABEL_EFFORT` | the labeller | `medium` | `low`, `medium`, `high`, `xhigh` or `max` (`azure_openai` takes all but `max`) |
 | `CVR_LABEL_TEMPERATURE` | the labeller | unset | sent only when set |
 | `CVR_LABEL_EXTRA` | the labeller | unset | JSON object of any other sampling kwarg; it overrides the labeller's own `max_tokens` of 128000 (ADR-0011) |
+| `CVR_LABEL_AZURE_ENDPOINT` | the labeller, `azure_openai` only | (none, required) | the resource endpoint, `https://<name>.openai.azure.com/` |
+| `CVR_LABEL_AZURE_DEPLOYMENT` | the same | the model name | the deployment name |
+| `CVR_LABEL_AZURE_API_VERSION` | the same | `2025-04-01-preview` | the data-plane API version |
+| `CVR_LABEL_AZURE_SCOPE` | the same | `https://ai.azure.com/.default` | the token scope (the older `https://cognitiveservices.azure.com/.default` is the fallback) |
+
+The Azure OpenAI provider has no key: it authenticates with the default Azure credential (a managed identity in Container Apps, `az login` locally; `AZURE_OPENAI_API_KEY` and `OPENAI_API_KEY` are ignored) and a key or token in `CVR_LABEL_EXTRA` is refused. For example `CVR_LABEL_PROVIDER=azure_openai CVR_LABEL_MODEL=gpt-5.4 CVR_LABEL_AZURE_ENDPOINT=https://<name>.openai.azure.com/`. The optional real-call test is `tests/label/test_azure_spike.py`, skipped without that configuration.
 
 A change to any `CVR_LABEL_*` value counts as a model change: run the eval.
 
