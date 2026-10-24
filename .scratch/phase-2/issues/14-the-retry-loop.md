@@ -4,13 +4,33 @@
 
 **Blocked by:** 02, 07, 12, 13
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] With the scripted fake (the real `RealLabeller` over a fake chat model) through `reformat`: a perfect first attempt makes no retry; a flawed first attempt fixed by a retry places the text and empties the appendix; a true fragment costs exactly one retry; N is respected
-- [ ] A malformed retry answer and an outage on a retry each return the previous result's document, and record the failed attempt
-- [ ] A first-attempt labelling failure followed by a good retry yields a placed document
-- [ ] An outage on the first attempt still raises `ProviderUnavailable` (API: 503)
-- [ ] The node-order test is rewritten to "in order, with label and verify repeated only on a retry", with the reason stated in the PR
-- [ ] Traces of a retried Run show the extra node visits and generations (in-memory exporter)
-- [ ] The API summary line's cost and tokens equal the sum over attempts; no line exceeds the size limit for the golden set
-- [ ] The perfect oracle over all 48 documents still scores clean (slow suite)
+- [x] With the scripted fake (the real `RealLabeller` over a fake chat model) through `reformat`: a perfect first attempt makes no retry; a flawed first attempt fixed by a retry places the text and empties the appendix; a true fragment costs exactly one retry; N is respected
+- [x] A malformed retry answer and an outage on a retry each return the previous result's document, and record the failed attempt
+- [x] A first-attempt labelling failure followed by a good retry yields a placed document
+- [x] An outage on the first attempt still raises `ProviderUnavailable` (API: 503)
+- [x] The node-order test is rewritten to "in order, with label and verify repeated only on a retry", with the reason stated in the PR
+- [x] Traces of a retried Run show the extra node visits and generations (in-memory exporter)
+- [x] The API summary line's cost and tokens equal the sum over attempts; no line exceeds the size limit for the golden set
+- [x] The perfect oracle over all 48 documents still scores clean (slow suite)
+
+## Comments
+
+**2026-10-24.** Built.
+
+- The graph: parse -> label -> verify, then one conditional edge from verify (`route`): back to label while the retry decision says retry, else on to transform -> render. State: `attempt`, `outcome` (`ok`/`failed`/`outage`), `base` (the answer retries add to), `additions` (every successful retry's, in order), `base_rejections`, `verified` (the current result), `unplaced`, `decision`, `feedback` (what the next attempt is told), `retries`. A labeller that cannot take `feedback` (`cvr.pipeline.can_retry`: the parameter, or a boolean `retryable` attribute that wins) makes one attempt, so the oracles are untouched.
+- Trace: a span per node visit (label and verify repeat), a generation per attempt (`attempt` in its metadata; an outage leaves an ERROR generation), a `retry_decision` event under each verify visit (retry, the fixed reason, attempt, unplaced characters; `decision_payload`, on the allowlist, no text in any mode). `rejected_bad_path` and `attempt` join the span keys; a label visit over additions counts them as its references.
+- The log line: the API summary states `retries` and `attempts` (`input_tokens`, `output_tokens`, `cost_usd` summed over `Run.label_runs`, a new property: the first attempt then each retry that has a record); `label` stays the first attempt; the block lines are unchanged. `test_a_runs_retries_add_nothing_to_the_log_lines` (ticket 13) asserted the opposite and was rewritten for this: the block lines are identical, the summary adds the two fields, no retry record is logged.
+- Tests: `tests/pipeline/test_retry_loop.py` (the scripted fake, `retry_support.py`), `tests/tracing/test_retry_trace.py`, `tests/api/test_api_retry.py`, `tests/eval/run/test_retry_passthrough.py`, a hint-filter test in `tests/verify/test_retry_decision.py`. Edited existing assertions the ticket changes: the graph-edge test (now with the conditional verify -> label edge), the node-order test (the PR reason: with a retry, control goes from verify back to label, so "each node once" became "in order, with label and verify repeated only on a retry"; kept for a labeller that cannot retry, plus a retried variant), the two tests on `unusable` in `tests/label/test_retry.py` (decision 1), and the log test above.
+
+Decisions beyond the ticket text (orchestrator's, recorded here):
+
+1. **A failed first attempt is re-asked with the first prompt, not the additions prompt.** A retry answer (`Additions`) cannot carry removals, so retrying "to an empty tree" would leave referees and addresses unremoved and pushed to the appendix. The retry calls `labeller(blocks)` again; a `Labelling` becomes the base answer (and later retries add to it); it is still a `RetryRun` (`Feedback(unusable=True)` from `build_feedback`) and counts against N; `Run.label` stays the failed first attempt, `Run.label_failed` describes the final result. `RealLabeller`'s retry path no longer has an unusable branch: `feedback.unusable` or no `first` is a `ValueError` before any model call; `retry_prompt.md` lost its unusable section and its "second and last chance" wording (version 1.0.0 kept, unreleased, hash updated in `versions.json`; `CONTENT_HASH` moves, so the next eval is uncached for the response cache, as ticket 12 already said).
+2. **Hints come only from the base answer.** `build_feedback(verified, hints_from=)` keeps only unlocatable rejections that appear in `hints_from`; the pipeline passes the base answer's own rejections (those of the verify that established it). An addition's rejection (its path addresses the additions, which the labeller does not look up) is no hint; the unplaced runs are sent whole.
+3. **Additions accumulate**: retry k verifies the base plus the additions of every successful retry so far, in order.
+4. **The summary sums over attempts** and states the retry count, text-free; the canary test is green unchanged (ticket 16 extends it).
+5. **N** is read by `retry_max()` inside the graph build, once per Run, so `reformat` keeps its signature (the spec adds only the tracer); passing it through the labeller would have put pipeline policy in `label`. `create_app` and the eval's `evaluate` also call it once at start-up so a bad `CVR_RETRY_MAX` fails there; they do not pass it on, so a test can change the variable between Runs.
+6. **The eval runner passes retries through uncached for now.** The cache key still covers the first attempt only. Every call after the first on a document's cached labeller (a retry, or the re-ask of a failed first answer) is a live call that is never stored or replayed; `real_labeller`'s `live` is marked `retryable`, other fakes are not retried. The report's totals do not yet include retry cost or tokens (`Run.label_runs` is there for ticket 15). The next uncached eval run will therefore make extra live calls for documents with unplaced text (c09 and c11 in every Layout at least).
+
+Smaller decisions: `RetryRun.label` is now optional (`None` for an outage, which has no answer to record) and a retry's `RetryRejection.block_id` is the model's only if it is a parsed block's id, else `unknown` (as the trace does). A retry with no progress keeps the new result (it adds to the old one and cannot lose anything). The first attempt's rejections are traced as events; a retry's visit traces only the rejections it added. `Labeller` is now `Callable[..., LabellingResult | Additions]`. API failure paths log the last attempt's `LabelRun` only (a defect after a retry); the summary of a finished Run sums them all.

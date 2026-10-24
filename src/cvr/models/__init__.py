@@ -553,9 +553,11 @@ class RetryRun(StrictModel):
     """One retry in the Run: the attempt's labelling record, the feedback it
     was sent (ids, offsets and paths, so no text), the rejections it
     produced and the unplaced non-separator characters left after it.
-    ``Run.label`` stays the first attempt."""
+    ``Run.label`` stays the first attempt. ``label`` is ``None`` when the
+    provider was unavailable (there was no answer to record) or the labeller
+    keeps no record."""
 
-    label: LabelRun
+    label: LabelRun | None = None
     feedback: Feedback
     rejections: list[RetryRejection] = Field(default_factory=list)
     unplaced_chars: int = Field(ge=0)
@@ -592,6 +594,17 @@ class Run(StrictModel):
         if not data.get("retries"):
             data.pop("retries", None)
         return data
+
+    @property
+    def label_runs(self) -> list[LabelRun]:
+        """The labelling record of every attempt that has one, the first
+        attempt's (``label``) then each retry's: what cost and token totals
+        sum over."""
+        return [
+            record
+            for record in (self.label, *(r.label for r in self.retries))
+            if record is not None
+        ]
 
     @property
     def unplaced(self) -> list[Span]:

@@ -48,7 +48,7 @@ from cvr.label import (
     RealLabeller,
 )
 from cvr.models import LabelRun
-from cvr.pipeline import Labeller, reformat
+from cvr.pipeline import Labeller, reformat, retry_max
 from cvr.tracing import Tracer, env_tag, trace_env
 
 __all__ = [
@@ -172,7 +172,12 @@ def create_app(
     (``local`` unless set) as they are when the app is created; without both
     keys it is untraced. The trace id is the run id, so ``X-Run-Id`` finds
     the trace. Spans are flushed before each answer, and the client is shut
-    down when the app stops."""
+    down when the app stops.
+
+    ``CVR_RETRY_MAX`` (the most retries a Run may make, default 2) is read
+    here once so a bad value stops the app at start-up; each Run reads it
+    again inside ``reformat``."""
+    retry_max()
     if tracer is None:
         tracer = Tracer.from_env(tags=[env_tag(trace_env())])
     if tracer.enabled and tracer.mode == "full":

@@ -224,7 +224,6 @@ def _feedback_payload(
             item["quote"] = reference.quote
         unlocatable.append(item)
     return {
-        "unusable": feedback.unusable,
         "unplaced": unplaced,
         "unlocatable": unlocatable,
     }
@@ -234,15 +233,15 @@ def retry_messages(
     blocks: Sequence[SourceBlock], first: Labelling | None, feedback: Feedback
 ) -> list[SystemMessage | HumanMessage]:
     """The retry prompt as the system message; the human message is one JSON
-    object with every block, the first answer (``null`` when it was unusable)
-    and the feedback with its text."""
-    unusable = feedback.unusable
-    if first is None and not unusable:
-        raise ValueError("a retry needs the first answer unless it was unusable")
-    first = None if unusable else first
+    object with every block, the first answer and the feedback with its text.
+    A retry adds to a usable first answer: an unusable one is re-asked with
+    the first prompt instead (ticket 14), so ``feedback.unusable`` or no
+    ``first`` is a caller defect, raised before any model call."""
+    if first is None or feedback.unusable:
+        raise ValueError("a retry needs the first answer; re-ask an unusable one")
     payload = {
         "blocks": [{"block_id": b.id, "text": b.text} for b in blocks],
-        "first_answer": None if first is None else first.model_dump(mode="json"),
+        "first_answer": first.model_dump(mode="json"),
         "feedback": _feedback_payload(blocks, first, feedback),
     }
     return [
@@ -552,7 +551,7 @@ class _Recording:
 class RetryLabeller(Protocol):
     """A labeller that can also be asked for a retry (ticket 12). Called with
     the blocks alone it is the first attempt; with ``feedback`` (and ``first``,
-    the first answer, unless ``feedback.unusable``) it is a retry returning
+    the first answer, which must be a usable one) it is a retry returning
     additions. Oracles that ignore feedback need not implement it."""
 
     def __call__(
@@ -560,7 +559,7 @@ class RetryLabeller(Protocol):
         blocks: Sequence[SourceBlock],
         *,
         feedback: Feedback,
-        first: Labelling | None = None,
+        first: Labelling,
     ) -> AdditionsResult: ...
 
 

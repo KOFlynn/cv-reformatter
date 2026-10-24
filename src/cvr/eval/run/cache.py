@@ -19,12 +19,13 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Lock
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
 from cvr.eval.run.documents import REPO_ROOT
 from cvr.models import (
+    Additions,
     LabelExchange,
     Labelling,
     LabellingFailure,
@@ -159,20 +160,43 @@ class CachedLabeller:
     key: str
     stats: CacheStats
     read: bool = True
+    # Whether the live labeller takes retries (``feedback``/``first``); every
+    # call after the first is a live call and is not cached (ticket 15).
+    retryable: bool = False
     last_run: LabelRun | None = None
     last_exchange: LabelExchange | None = None
     hit: bool = False
+    replayed: bool = False
+    calls: int = 0
 
     @property
     def cached(self) -> bool:
         """Whether the last answer was replayed (what a trace marks)."""
-        return self.hit
+        return self.replayed
 
-    def __call__(self, blocks: Sequence[SourceBlock]) -> LabellingResult:
+    def __call__(
+        self, blocks: Sequence[SourceBlock], **retry: Any
+    ) -> LabellingResult | Additions:
         self.last_run = None
         self.last_exchange = None
+        self.replayed = False
+        self.calls += 1
+        # Past the first call (a retry, or the re-ask of a failed first
+        # answer, which is a plain call again) the cache is not consulted:
+        # replaying the stored failure would re-ask nothing.
+        if retry or self.calls > 1:
+            labeller = self.live()
+            self.stats.record_live_call()
+            answer = labeller(blocks, **retry)
+            self.last_run = label_run_of(labeller)
+            exchange = getattr(labeller, "last_exchange", None)
+            self.last_exchange = (
+                exchange if isinstance(exchange, LabelExchange) else None
+            )
+            return answer
         if self.read and (cached := self.cache.get(self.key)) is not None:
             self.hit = True
+            self.replayed = True
             self.stats.record_hit()
             result, self.last_run = cached
             return result

@@ -9,13 +9,13 @@ from ``CVR_RETRY_MAX`` (default 2).
 """
 
 import os
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from typing import Literal
 
 from cvr.models.feedback import Feedback, UnlocatableHint, UnplacedRun
 from cvr.text import SEPARATORS
-from cvr.verify import VerifiedDocument
+from cvr.verify import Rejection, VerifiedDocument
 
 __all__ = [
     "DEFAULT_RETRY_MAX",
@@ -107,14 +107,22 @@ def decide_retry(
     return RetryDecision(True, "unplaced_text")
 
 
-def build_feedback(verified: VerifiedDocument) -> Feedback:
+def build_feedback(
+    verified: VerifiedDocument, hints_from: Collection[Rejection] | None = None
+) -> Feedback:
     """What to tell the labeller about ``verified``: every unplaced
     (non-separator) run by block and offsets, and the ``unlocatable``
     rejections in blocks that hold unplaced text as hints, by path. A
     ``conflict``, ``removed`` or ``bad_path`` rejection is never feedback,
     nor is an unlocatable removal (``removals[i]``: an addition cannot
     address it). No text: the labeller has the blocks. A labelling failure
-    is ``unusable``; its unplaced runs are the whole document."""
+    is ``unusable``; its unplaced runs are the whole document.
+
+    ``hints_from``, when given, limits the hints to rejections in it: after a
+    retry, ``verified`` also holds the additions' rejections, whose paths
+    address the additions and not the first answer the labeller looks hints up
+    in, so the caller passes the first answer's own rejections (the unplaced
+    runs are sent whole either way)."""
     runs = [
         UnplacedRun(block_id=span.block_id, start=span.start, end=span.end)
         for span in verified.unplaced
@@ -124,6 +132,7 @@ def build_feedback(verified: VerifiedDocument) -> Feedback:
         UnlocatableHint(path=r.path, block_id=r.block_id)
         for r in verified.rejections
         if r.reason == "unlocatable"
+        and (hints_from is None or r in hints_from)
         and r.block_id in blocks
         and not r.path.startswith("removals[")
     ]
