@@ -10,7 +10,7 @@
 - [x] Changing the retry prompt or the additions schema without a version bump fails at import with `VersionMismatch` naming the fix (tested)
 - [x] The labeller's content hash covers both new artefacts (so the eval cache keys change; the PR notes that the next eval is uncached)
 - [x] A retry's answer goes through the same failure classification as ticket 03's (once 03 has landed) and fills its own `LabelRun`
-- [ ] The oracle labellers and every existing labeller test pass unchanged (all do, except that `test_hashes_cover_the_prompt_the_schema_and_both` asserted the old two-artefact `CONTENT_HASH`, which is what the third box changes; its assertion now covers all four)
+- [x] The oracle labellers and every existing labeller test pass unchanged (all do, except that `test_hashes_cover_the_prompt_the_schema_and_both` asserted the old two-artefact `CONTENT_HASH`, which is what the third box changes; its assertion now covers all four; accepted by the orchestrator on 2026-10-24, since the edit is what the third box requires, not a test bent to fit)
 
 ## Comments
 
