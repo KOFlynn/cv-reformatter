@@ -178,10 +178,10 @@ az monitor log-analytics query --workspace <workspace id> --analytics-query "Con
 az group delete -n cvr-rg                        # the kill switch: removes every billable resource
 ```
 
-Proving the managed identity live (ticket 19, ADR-0014). Needs the wizard's Azure OpenAI stage to have run (`AZURE_OPENAI_ACCOUNT` in `.env.azure`), `az` signed in, and ends with the app off. `switch-provider.sh` changes the app's `CVR_LABEL_*` variables, never a key, and does not stop the app: every update makes a revision that may start a replica, so `demo.sh down` is always the last step.
+Proving the managed identity live (ticket 19, ADR-0014). Needs the wizard's Azure OpenAI stage to have run (`AZURE_OPENAI_ENDPOINT`, written only after its read-back passes, in `.env.azure`), `az` signed in, and ends with the app off. `switch-provider.sh` changes the app's `CVR_LABEL_*` variables, never a key, and does not stop the app: every update makes a revision that may start a replica, so `demo.sh down` is always the last step.
 
 ```
-sh scripts/switch-provider.sh azure              # set provider, model gpt-5.4, effort medium, endpoint, deployment; prints the revision and the variables
+sh scripts/switch-provider.sh azure              # set provider, model gpt-5.4, effort medium (low, medium, high or xhigh only), the endpoint and deployment from .env.azure, in one update; prints the revision and the variables
 sh scripts/demo.sh up                            # activate the revision, open ingress, wake the app; prints the URL
 KEY=$(az containerapp secret show -n cvr-ca -g cvr-rg --secret-name cvr-api-key --query value -o tsv)
 CVR_API_KEY="$KEY" sh scripts/smoke-deploy.sh https://<app url>   # 401 without the key, then 200, a .docx and X-Run-Id; note the run id

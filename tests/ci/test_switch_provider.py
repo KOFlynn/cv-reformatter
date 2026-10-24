@@ -56,13 +56,15 @@ def test_the_model_and_default_effort_are_valid_for_azure(switch: str):
     assert f"MODEL={AZURE_MODEL}" in code(switch)
     assert DEFAULT_EFFORT in AZURE_EFFORTS
     assert f"{ENV_EFFORT}:-{DEFAULT_EFFORT}" in code(switch)
+    assert "|".join(AZURE_EFFORTS) in code(switch)
 
 
 def test_anthropic_removes_everything_azure_sets(switch: str):
     body = code(switch)
     start = body.index("  anthropic)")
     arm = body[start : body.index(";;", start)]
-    assert "--remove-env-vars $ALL_VARS" in arm
+    assert "present $ALL_VARS" in arm
+    assert "--remove-env-vars $gone" in arm
     listed = re.search(r'ALL_VARS="([^"]+)"', body).group(1).split()
     assert set(listed) == set(SET_VARS)
 
@@ -106,17 +108,25 @@ def test_every_az_call_is_quiet_or_narrow(switch: str):
 FAKE_AZ = """#!/bin/sh
 echo "$*" >> "$AZ_LOG"
 case "$*" in
+  *"env[].name"*) printf '%s\n' $AZ_ENV_NAMES ;;
   *latestRevisionName*) echo some-app--rev ;;
   *properties.active*) echo true ;;
 esac
 exit 0
 """
 
-ENV_FILE = "AZURE_OPENAI_ACCOUNT=cvr-aoai-1234\nAZURE_OPENAI_DEPLOYMENT=gpt-5.4\n"
+ENDPOINT = "https://cvr-aoai-1234.openai.azure.com/"
+ENV_FILE = f"AZURE_OPENAI_ENDPOINT={ENDPOINT}\nAZURE_OPENAI_DEPLOYMENT=gpt-5.4\n"
 needs_sh = pytest.mark.skipif(shutil.which("sh") is None, reason="needs a POSIX sh")
 
 
-def run(tmp_path: Path, args: list[str], extra_env: dict[str, str], env_file: str):
+def run(
+    tmp_path: Path,
+    args: list[str],
+    extra_env: dict[str, str],
+    env_file: str,
+    current: str = "PATH_X CVR_API_KEY",
+):
     fake = tmp_path / "az"
     fake.write_text(FAKE_AZ, newline="\n")
     fake.chmod(0o755)
@@ -126,6 +136,7 @@ def run(tmp_path: Path, args: list[str], extra_env: dict[str, str], env_file: st
         **{k: v for k, v in os.environ.items() if not k.startswith("CVR_LABEL_")},
         "PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}",
         "AZ_LOG": str(log),
+        "AZ_ENV_NAMES": current,
         "ENV_FILE": str(tmp_path / "env"),
         **extra_env,
     }
@@ -149,13 +160,12 @@ def test_azure_sets_the_endpoint_and_deployment_from_the_wizards_file(tmp_path):
     assert "CVR_LABEL_PROVIDER=azure_openai" in update
     assert "CVR_LABEL_MODEL=gpt-5.4" in update
     assert "CVR_LABEL_EFFORT=medium" in update
-    assert "CVR_LABEL_AZURE_ENDPOINT=https://cvr-aoai-1234.openai.azure.com/" in update
+    assert f"CVR_LABEL_AZURE_ENDPOINT={ENDPOINT}" in update
     assert "CVR_LABEL_AZURE_DEPLOYMENT=gpt-5.4" in update
     assert "AZURE_SCOPE" not in update and "API_VERSION" not in update
-    # Overrides not given are cleared, so an earlier try cannot linger.
-    removal = next(c for c in calls if "--remove-env-vars" in c)
-    assert "CVR_LABEL_AZURE_SCOPE" in removal
-    assert "CVR_LABEL_AZURE_API_VERSION" in removal
+    # Nothing to clear: no override is set on the app, so nothing is removed.
+    assert not any("--remove-env-vars" in c for c in calls)
+    assert len([c for c in calls if "containerapp update" in c]) == 1
     assert not any("ingress" in c or "revision activate" in c for c in calls)
 
 
@@ -176,22 +186,57 @@ def test_azure_passes_the_callers_overrides_through(tmp_path):
 
 
 @needs_sh
-def test_azure_fails_by_name_without_an_account(tmp_path):
+def test_azure_fails_by_name_without_the_endpoint(tmp_path):
     result, calls = run(tmp_path, ["azure"], {}, "AZURE_RESOURCE_GROUP=rg\n")
     assert result.returncode != 0
-    assert "AZURE_OPENAI_ACCOUNT" in result.stdout
+    assert "AZURE_OPENAI_ENDPOINT" in result.stdout
     assert not any("containerapp update" in c for c in calls)
+
+
+@pytest.mark.parametrize("effort", ["max", "none", "", "Medium"])
+@needs_sh
+def test_azure_refuses_an_effort_it_does_not_accept_before_any_az_call(
+    tmp_path, effort
+):
+    if effort == "":
+        pytest.skip("an empty value means the default")
+    result, calls = run(tmp_path, ["azure"], {"CVR_LABEL_EFFORT": effort}, ENV_FILE)
+    assert result.returncode != 0
+    assert "CVR_LABEL_EFFORT" in result.stdout
+    assert calls == []
 
 
 @needs_sh
 def test_anthropic_removes_the_variables_and_reminds_to_stop(tmp_path):
-    result, calls = run(tmp_path, ["anthropic", "rg", "app"], {}, ENV_FILE)
+    current = " ".join(SET_VARS) + " CVR_API_KEY"
+    result, calls = run(tmp_path, ["anthropic", "rg", "app"], {}, ENV_FILE, current)
     assert result.returncode == 0, result.stderr
-    removal = next(c for c in calls if "--remove-env-vars" in c)
+    updates = [c for c in calls if "containerapp update" in c]
+    assert len(updates) == 1
+    removal = updates[0]
+    assert "CVR_API_KEY" not in removal
     for name in SET_VARS:
         assert name in removal
     assert not any("--set-env-vars" in c for c in calls)
     assert "demo.sh down" in result.stdout
+
+
+@needs_sh
+def test_anthropic_removes_only_names_that_are_present(tmp_path):
+    result, calls = run(
+        tmp_path, ["anthropic"], {}, ENV_FILE, "CVR_LABEL_PROVIDER CVR_API_KEY"
+    )
+    assert result.returncode == 0, result.stderr
+    removal = next(c for c in calls if "--remove-env-vars" in c)
+    assert "CVR_LABEL_PROVIDER" in removal
+    assert "CVR_LABEL_MODEL" not in removal
+
+
+@needs_sh
+def test_anthropic_with_nothing_to_remove_makes_no_revision(tmp_path):
+    result, calls = run(tmp_path, ["anthropic"], {}, ENV_FILE, "CVR_API_KEY")
+    assert result.returncode == 0, result.stderr
+    assert not any("containerapp update" in c for c in calls)
 
 
 @needs_sh
