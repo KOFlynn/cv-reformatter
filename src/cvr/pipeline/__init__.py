@@ -41,6 +41,7 @@ from cvr.models import (
     RetryRun,
     Run,
     SourceBlock,
+    safe_path,
 )
 from cvr.models.feedback import Feedback
 from cvr.parse import ParsedDocument, parse
@@ -272,7 +273,7 @@ def _build_graph(
                         feedback=state["feedback"],
                         rejections=[
                             RetryRejection(
-                                path=r.path,
+                                path=safe_path(r.path),
                                 # The model's block id is reported only if it is real.
                                 block_id=r.block_id
                                 if r.block_id in block_ids

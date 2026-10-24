@@ -27,5 +27,5 @@ class Feedback(StrictModel):
     is no first answer to add to."""
 
     unusable: bool = False
-    unplaced: list[UnplacedRun] = []
-    unlocatable: list[UnlocatableHint] = []
+    unplaced: list[UnplacedRun] = Field(default_factory=list)
+    unlocatable: list[UnlocatableHint] = Field(default_factory=list)

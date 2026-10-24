@@ -43,6 +43,7 @@ from cvr.models import (
     VerifiedContent,
     VerifiedEducation,
     VerifiedExperience,
+    safe_path,
 )
 from cvr.text import is_separator_residue
 from cvr.verify.backstops import HEADING_VOCABULARY, heading_key, pii_matches
@@ -70,7 +71,9 @@ class Rejection:
     inside removals) or, for an addition only, ``bad_path`` (its path
     addresses nothing: a leaf already placed, an index out of range, an
     unknown field). The path of an LLM removal is ``removals[i]``; of a
-    ``bad_path`` addition, the path as given."""
+    ``bad_path`` addition, the path as given if it fits the path grammar
+    (``cvr.models.safe_path``), else ``unknown``: a model-written path is
+    free text and never recorded."""
 
     path: str
     block_id: str
@@ -239,7 +242,7 @@ def _verify_content(
 
 _TOP_LEAF = "name"
 _TOP_LISTS = ("profile", "skills", "certifications", "additional")
-_ENTRY_PATH = re.compile(r"(experience|education)\[([0-9]+)\]\.([a-z]+)")
+_ENTRY_PATH = re.compile(r"(experience|education)\[([0-9]{1,4})\]\.([a-z]+)")
 _ENTRY_MODELS = {"experience": VerifiedExperience, "education": VerifiedEducation}
 _ENTRY_LEAVES = {
     "experience": ("title", "employer", "location", "dates"),
@@ -264,7 +267,10 @@ def _verify_additions(
             reference = addition.reference
             rejections.append(
                 Rejection(
-                    addition.path, reference.block_id, reference.quote, "bad_path"
+                    safe_path(addition.path),
+                    reference.block_id,
+                    reference.quote,
+                    "bad_path",
                 )
             )
             continue

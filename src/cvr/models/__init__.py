@@ -72,6 +72,7 @@ __all__ = [
     "VerifiedContent",
     "VerifiedEducation",
     "VerifiedExperience",
+    "safe_path",
 ]
 
 
@@ -108,8 +109,10 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-# Imported here, not at the top: ``feedback`` builds on ``StrictModel``.
+# Imported here, not at the top: ``feedback`` imports ``StrictModel`` from this
+# module, so importing it earlier would be a cycle.
 from cvr.models.feedback import Feedback
+from cvr.models.paths import safe_path
 
 # --- Source side: what the parser emits and every later node reads.
 
