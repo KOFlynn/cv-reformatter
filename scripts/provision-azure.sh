@@ -746,6 +746,8 @@ quota_limit=${quota_limit%%.*}
 quota_used=${quota_used%%.*}
 if [[ -z "$quota_limit" || "$quota_limit" == None || "$quota_limit" == 0 ]]; then
   warn "No $AOAI_SKU quota for $AOAI_MODEL in $AZURE_LOCATION (limit '${quota_limit:-absent}'). Nothing was created."
+  say "Every $AOAI_MODEL row the subscription reports (an empty table means the row is named differently or absent):"
+  az cognitiveservices usage list -l "$AZURE_LOCATION"     --query "[?contains(name.value,'gpt-5.4')].{name:name.value,limit:limit,used:currentValue}" -o table || true
   say "Either request quota in the portal (Foundry > Quotas > $AOAI_MODEL, $AOAI_SKU, $AZURE_LOCATION) and"
   say "re-run this wizard, or record the Azure path as blocked (tickets 18-21)."
   exit 1
@@ -765,6 +767,7 @@ confirm "Create or confirm them?" || { warn "stopped before creating anything"; 
 # The account: AIServices (Foundry), S0, with a custom subdomain, which token
 # authentication requires.
 if az cognitiveservices account show --name "$AZURE_OPENAI_ACCOUNT" --resource-group "$AZURE_RESOURCE_GROUP" >/dev/null 2>&1; then
+  [[ "$(azq cognitiveservices account show --name "$AZURE_OPENAI_ACCOUNT" --resource-group "$AZURE_RESOURCE_GROUP"     --query kind -o tsv)" == AIServices ]]     || { warn "$AZURE_OPENAI_ACCOUNT exists but is not kind AIServices; pick another name or delete it"; exit 1; }
   say "Account $AZURE_OPENAI_ACCOUNT already exists; keeping it."
 else
   az cognitiveservices account create --name "$AZURE_OPENAI_ACCOUNT" --resource-group "$AZURE_RESOURCE_GROUP" \
@@ -784,7 +787,15 @@ if [[ "$(azq cognitiveservices account show --name "$AZURE_OPENAI_ACCOUNT" --res
   --query properties.disableLocalAuth -o tsv)" == true ]]; then
   say "Local (key) authentication is already disabled."
 else
-  az resource update --ids "$aoai_id" --set properties.disableLocalAuth=true --output none
+  # Right after the account is created ARM may still be provisioning it and
+  # answer with a conflict; try a few times.
+  disabled=0
+  for _ in 1 2 3 4 5 6; do
+    if az resource update --ids "$aoai_id" --api-version 2024-10-01       --set properties.disableLocalAuth=true --output none; then disabled=1; break; fi
+    note "the account may still be provisioning; retrying in 10 seconds"
+    sleep 10
+  done
+  [[ "$disabled" == 1 ]] || { warn "could not disable local authentication; see the error above"; exit 1; }
   say "Disabled local (key) authentication."
 fi
 
@@ -817,10 +828,10 @@ if [[ -z "$app_principal" || "$app_principal" == None ]]; then
 else
   say "$AZURE_CONTAINER_APP already has a system-assigned identity."
 fi
-user_principal=$(azq ad signed-in-user show --query id -o tsv)
+user_principal=$(azq ad signed-in-user show --query id -o tsv)   || { warn "az ad signed-in-user show failed: grant '$AOAI_ROLE' on $AZURE_OPENAI_ACCOUNT to yourself by hand, then re-run"; exit 1; }
 grant_role() {
   local who="$1" type="$2" label="$3" have
-  have=$(azq role assignment list --assignee "$who" --scope "$aoai_id" --role "$AOAI_ROLE" --query 'length(@)' -o tsv)
+  have=$(azq role assignment list --assignee-object-id "$who" --fill-principal-name false --scope "$aoai_id" --role "$AOAI_ROLE" --query 'length(@)' -o tsv)
   if [[ "$have" == 0 ]]; then
     az role assignment create --assignee-object-id "$who" --assignee-principal-type "$type" \
       --role "$AOAI_ROLE" --scope "$aoai_id" --output none
@@ -838,20 +849,21 @@ local_auth_off=$(azq cognitiveservices account show --name "$AZURE_OPENAI_ACCOUN
   --query properties.disableLocalAuth -o tsv)
 subdomain=$(azq cognitiveservices account show --name "$AZURE_OPENAI_ACCOUNT" --resource-group "$AZURE_RESOURCE_GROUP" \
   --query properties.customSubDomainName -o tsv)
-read -r dep_sku dep_capacity dep_version < <(azq cognitiveservices account deployment show --name "$AZURE_OPENAI_ACCOUNT" \
+dep_info=$(azq cognitiveservices account deployment show --name "$AZURE_OPENAI_ACCOUNT" \
   --resource-group "$AZURE_RESOURCE_GROUP" --deployment-name "$AZURE_OPENAI_DEPLOYMENT" \
   --query "[sku.name, sku.capacity, properties.model.version]" -o tsv | tr '	' ' ')
+read -r dep_sku dep_capacity dep_version <<<"$dep_info"
 note "  disableLocalAuth  $local_auth_off"
 note "  subdomain         $subdomain"
 note "  deployment        $AZURE_OPENAI_DEPLOYMENT: sku $dep_sku, capacity $dep_capacity, model version $dep_version"
-az role assignment list --scope "$aoai_id" --query "[].{principal:principalName, type:principalType, role:roleDefinitionName}" --output table
+az role assignment list --scope "$aoai_id" --fill-principal-name false   --query "[].{principal:principalId, type:principalType, role:roleDefinitionName}" --output table || true
 bad=0
 [[ "$local_auth_off" == true ]] || { warn "local authentication is NOT disabled"; bad=1; }
 [[ "$dep_sku" == "$AOAI_SKU" ]] || { warn "deployment sku is '$dep_sku', not $AOAI_SKU"; bad=1; }
 [[ "$dep_version" == "$AOAI_MODEL_VERSION" ]] || { warn "model version is '$dep_version', not $AOAI_MODEL_VERSION"; bad=1; }
 for who in "$app_principal" "$user_principal"; do
-  [[ "$(azq role assignment list --assignee "$who" --scope "$aoai_id" --query 'length(@)' -o tsv)" == 1 \
-    && "$(azq role assignment list --assignee "$who" --scope "$aoai_id" --role "$AOAI_ROLE" --query 'length(@)' -o tsv)" == 1 ]] \
+  [[ "$(azq role assignment list --assignee-object-id "$who" --fill-principal-name false --scope "$aoai_id" --query 'length(@)' -o tsv)" == 1 \
+    && "$(azq role assignment list --assignee-object-id "$who" --fill-principal-name false --scope "$aoai_id" --role "$AOAI_ROLE" --query 'length(@)' -o tsv)" == 1 ]] \
     || { warn "a principal does not hold exactly '$AOAI_ROLE' on the account"; bad=1; }
 done
 (( bad == 0 )) || { warn "the read-back found a problem; fix it and re-run this stage"; exit 1; }
@@ -862,6 +874,11 @@ note "  CVR_LABEL_PROVIDER=azure_openai"
 note "  CVR_LABEL_AZURE_ENDPOINT=$AZURE_OPENAI_ENDPOINT"
 note "  CVR_LABEL_AZURE_DEPLOYMENT=$AZURE_OPENAI_DEPLOYMENT"
 note "Role changes can take up to five minutes to take effect."
+# Insurance: the identity change makes a revision; the app must stay off.
+running_now=$(azq containerapp replica list --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP"   --revision "$(azq containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP"     --query properties.latestRevisionName -o tsv)"   --query "[?properties.runningState=='Running'] | length(@)" -o tsv 2>/dev/null || echo "?")
+if [[ "$running_now" != 0 ]]; then
+  warn "$AZURE_CONTAINER_APP may have $running_now replica(s) running: run sh scripts/demo.sh down and check az containerapp replica list"
+fi
 pause
 
 # ── 14 ────────────────────────────────────────────────────────────────────

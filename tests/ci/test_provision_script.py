@@ -301,7 +301,7 @@ def test_key_auth_is_disabled_through_arm_only_when_it_is_not_already(
     assert "--set properties.disableLocalAuth=true" in aoai_stage[update:]
     before = aoai_stage[:update]
     assert "properties.disableLocalAuth -o tsv" in before
-    assert before.rstrip().endswith("else")
+    assert "else" in before[before.rindex("disableLocalAuth -o tsv") :]
 
 
 def test_deployment_is_data_zone_standard_gpt_5_4_with_a_pinned_version(
@@ -406,3 +406,74 @@ def test_every_aoai_az_write_is_silent(aoai_stage: str) -> None:
         for first, last in _az_commands(aoai_stage, prefix):
             block = "\n".join(aoai_stage.splitlines()[first : last + 1])
             assert "--output none" in block, prefix
+
+
+def test_role_assignment_lists_use_object_ids_not_a_graph_lookup(
+    aoai_stage: str,
+) -> None:
+    lines = aoai_stage.splitlines()
+    found = [
+        "\n".join(lines[a : b + 1])
+        for a, b in _az_commands(aoai_stage, "az role assignment list")
+    ]
+    found += [line for line in lines if "az role assignment list" in line]
+    assert found
+    for block in found:
+        assert "--assignee " not in block, block
+        assert "--fill-principal-name false" in block, block
+
+
+def test_the_readback_table_cannot_abort_a_good_run(aoai_stage: str) -> None:
+    i = aoai_stage.index("--output table")
+    assert "|| true" in aoai_stage[i : aoai_stage.index("\n", i)]
+
+
+def test_an_absent_quota_row_shows_what_the_subscription_reports(
+    aoai_stage: str,
+) -> None:
+    stop = aoai_stage.index("Nothing was created")
+    assert "contains(name.value,'gpt-5.4')" in aoai_stage[stop : stop + 600]
+
+
+def test_a_failed_user_lookup_is_a_clear_error(aoai_stage: str) -> None:
+    i = aoai_stage.index("az ad signed-in-user show")
+    tail = aoai_stage[i : aoai_stage.index("\n", aoai_stage.index("exit 1", i))]
+    assert "||" in tail and "by hand" in tail
+
+
+def test_the_stage_checks_for_a_running_replica_at_the_end(aoai_stage: str) -> None:
+    assert aoai_stage.rindex("az containerapp replica list") > aoai_stage.index(
+        "CVR_LABEL_AZURE_DEPLOYMENT"
+    )
+    assert "runningState=='Running'" in aoai_stage
+
+
+def test_the_deployment_readback_is_captured_before_it_is_split(
+    aoai_stage: str,
+) -> None:
+    assert "dep_info=$(" in aoai_stage
+    assert "< <(" not in aoai_stage
+
+
+def test_an_existing_account_must_be_ai_services(aoai_stage: str) -> None:
+    assert "--query kind" in aoai_stage
+    assert "not kind AIServices" in aoai_stage
+
+
+def test_disabling_local_auth_pins_the_api_version_and_retries(
+    aoai_stage: str,
+) -> None:
+    i = aoai_stage.index("az resource update")
+    assert "--api-version 2024-10-01" in aoai_stage[i : i + 200]
+    assert "sleep" in aoai_stage[i : i + 500]
+
+
+def test_no_key_is_listed_or_regenerated_by_any_spelling(script: str) -> None:
+    assert "listKeys" not in script
+    assert "regenerate" not in script.lower()
+
+
+def test_path_conversion_is_off_before_the_aoai_stage(script: str) -> None:
+    assert script.index("export MSYS_NO_PATHCONV=1") < script.index(
+        'stage "Azure OpenAI'
+    )
