@@ -16,13 +16,13 @@ ADR-0013 records the content boundary:
 
 **Blocked by:** 03, 04, 05, 06, 08, 09
 
-**Status:** in-progress (the screenshot box is the maintainer's)
+**Status:** done
 
 - [x] The canary test runs in the default suite and stays fast (no slow marker needed)
 - [x] Positive controls: ids and counts in the spans; non-PII canaries in the logs; canaries in the trace in full mode
 - [x] Deliberately breaking the payload allowlist (in a scratch run, not committed) makes the test fail; noted in the PR
 - [x] ADR-0013 written; the README's ADR section points to it
-- [ ] A screenshot of one full-mode eval trace, with its run id, committed for the README (the Langfuse project stays private)
+- [x] A screenshot of one full-mode eval trace, with its run id, committed for the README (the Langfuse project stays private)
 
 ## Comments
 
@@ -37,3 +37,5 @@ ADR-0013 records the content boundary:
 **ADR-0013** written (`docs/adr/0013-content-boundary.md`); the README's table of ADRs lists it (and the missing 0011). Retention: 4 days for the non-`_CL` ContainerApp tables, set by the wizard's stage 12 (corrected 2026-10-21, ticket 06: the populated `_CL` tables keep the workspace's 30 days); the maintainer's read-back stays with ticket 06. ADR-0012 is left for the retry ticket.
 
 **Maintainer.** The screenshot of one full-mode eval trace with its run id, committed for the README: unticked.
+
+2026-10-24: the maintainer's screenshot of one full-mode eval trace is committed as `docs/images/langfuse-trace.png` (the trace is run id `67a59f7f658041ed8e6e5815d5f82aeb`, from the traced eval of 2026-10-24, details on ticket 08) and shown in the README's tracing section with a caption saying the Langfuse project is private.
