@@ -178,6 +178,22 @@ az monitor log-analytics query --workspace <workspace id> --analytics-query "Con
 az group delete -n cvr-rg                        # the kill switch: removes every billable resource
 ```
 
+Proving the managed identity live (ticket 19, ADR-0014). Needs the wizard's Azure OpenAI stage to have run (`AZURE_OPENAI_ACCOUNT` in `.env.azure`), `az` signed in, and ends with the app off. `switch-provider.sh` changes the app's `CVR_LABEL_*` variables, never a key, and does not stop the app: every update makes a revision that may start a replica, so `demo.sh down` is always the last step.
+
+```
+sh scripts/switch-provider.sh azure              # set provider, model gpt-5.4, effort medium, endpoint, deployment; prints the revision and the variables
+sh scripts/demo.sh up                            # activate the revision, open ingress, wake the app; prints the URL
+KEY=$(az containerapp secret show -n cvr-ca -g cvr-rg --secret-name cvr-api-key --query value -o tsv)
+CVR_API_KEY="$KEY" sh scripts/smoke-deploy.sh https://<app url>   # 401 without the key, then 200, a .docx and X-Run-Id; note the run id
+unset KEY
+sh scripts/demo.sh down                          # close ingress, deactivate the revision
+sh scripts/switch-provider.sh anthropic          # remove the variables: the deployed default again
+sh scripts/demo.sh down                          # again: the new revision may be running
+az containerapp replica list -n cvr-ca -g cvr-rg --query "length(@)" -o tsv   # must print 0
+```
+
+If the first call is a 401 or 403, try the other token scope, then wait a few minutes for the role assignment: `CVR_LABEL_AZURE_SCOPE=https://cognitiveservices.azure.com/.default sh scripts/switch-provider.sh azure` (and `CVR_LABEL_AZURE_API_VERSION=...` the same way; an override not given again is removed). A 400 naming the schema or its nesting is the third open question of ticket 19. In Langfuse, open the trace whose id is the run id (Traces, search the id): the labelling generation's model is `gpt-5.4`, with provider `azure_openai`, effort, attempt number, tokens and cost (the endpoint, deployment and scope are not in a structure-mode trace). The app's log line for the run is found with the query printed by the smoke test. Record the run id, the scope and API version that worked and the outcome on ticket 19 and in ADR-0014.
+
 Rotating the app's key, with the key read hidden so it never reaches the shell history (it is on `az`'s command line for the moment it runs), then a restart so the running revision reads it:
 
 ```
