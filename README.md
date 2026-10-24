@@ -81,19 +81,18 @@ per-block claim ledger, so that removals always win over placement, conflicting 
 are rejected loudly, and anything left over is logged as residue. `transform` is pure
 code: removal rules, a regex PII backstop, date normalisation, and reverse-chronological
 ordering. `render` fills the committed template through `docxtpl`, including the review
-appendix for whatever verification never placed. Phase 2 turns the same five nodes into
-a LangGraph state machine and adds a bounded retry loop between `verify` and `label`;
-Phase 1 is a plain function pipeline with identical boundaries, so that swap is a change
-of orchestration, not of code. All five nodes (`parse`, `label`, `verify`, `transform`
-and `render`) are packages under `src/cvr/`, `cvr.pipeline.reformat` wires them
-together, and `cvr.api` serves it as `POST /reformat` and `GET /health`. The `graph`
-wrapper is Phase 2 and the `mcp` server Phase 3.
+appendix for whatever verification never placed. `cvr.pipeline.reformat` runs the
+five nodes (`parse`, `label`, `verify`, `transform` and `render`, each a package under
+`src/cvr/`) as a LangGraph state machine: the Phase 1 node boundaries carried over, so
+the swap was a change of orchestration, not of code, and the graph changes no
+behaviour. Phase 2 adds a bounded retry loop between `verify` and `label`, and `cvr.api`
+serves the pipeline as `POST /reformat` and `GET /health`. The `mcp` server is Phase 3.
 
 ## Decisions
 
 Nine decisions, one per §12 of the brief, each linking the ADR that holds the detail.
 Written early in Phase 1, while the reasoning from the design sessions was fresh, and
-revised at its end with the numbers that now exist. The ten ADRs are listed after the
+revised at its end with the numbers that now exist. The ADRs are listed after the
 nine decisions.
 
 ### 1. The LLM labels, code transforms
@@ -246,6 +245,16 @@ review-by-exception halves are already recorded: [ADR-0003](docs/adr/0003-docx-o
 | [0008](docs/adr/0008-claim-ledger.md) | `verify` through a per-block claim ledger |
 | [0009](docs/adr/0009-structured-labelling.md) | Structured labelling through LangChain |
 | [0010](docs/adr/0010-deployment.md) | Deployment: OIDC, a public image, scale to zero |
+| [0011](docs/adr/0011-sonnet-is-the-default-model.md) | Sonnet 5.5 is the default model |
+| [0013](docs/adr/0013-content-boundary.md) | The content boundary: what reaches the provider, Langfuse and the logs, and the canary test |
+
+## Tracing
+
+Each `/reformat` request and each eval document is one Langfuse trace whose id is the run id (the API's `X-Run-Id`): a span per node, one generation per labelling attempt with its tokens and cost, and one event per rejection. Production traces carry structure only; the CI eval job runs in full mode so a failing document can be read. What may leave the service is the content boundary of [ADR-0013](docs/adr/0013-content-boundary.md), enforced by an allowlist, a mask hook and a canary leak test.
+
+![One full-mode eval trace in Langfuse: reformat over parse, label, verify, transform and render](docs/images/langfuse-trace.png)
+
+*One full-mode eval trace, run id `67a59f7f658041ed8e6e5815d5f82aeb` (the labelling generation took 12.17 s and cost $0.038). The Langfuse project is private; this screenshot is the evidence.*
 
 ## Running it
 

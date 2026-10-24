@@ -165,3 +165,16 @@ def test_demo_down_fails_when_the_ingress_lookup_fails(tmp_path: Path):
     )
     assert result.returncode != 0
     assert "Stopped" not in result.stdout
+
+
+def test_no_script_gives_curl_dev_null_to_write_to():
+    # A native Windows curl first on PATH cannot open /dev/null: every call
+    # failed with "(23) client returned ERROR on write". The shell redirect
+    # is translated by Git Bash, so it works with either curl.
+    for path in sorted(SCRIPTS.glob("*.sh")):
+        text = code(path.read_text(encoding="utf-8")).replace("\\n", " ")
+        for line in text.splitlines():
+            if "curl" in line:
+                assert not re.search(r"(-o|--output)[ =]+\S*/dev/null", line), (
+                    f"{path.name}: {line.strip()}"
+                )

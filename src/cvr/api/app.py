@@ -27,8 +27,11 @@ rather than a replica that will not start.
 import hmac
 import logging
 import os
+import sys
 import threading
+import traceback
 import zipfile
+from contextlib import asynccontextmanager
 from io import BytesIO
 from typing import Annotated
 from urllib.parse import quote
@@ -46,11 +49,13 @@ from cvr.label import (
 )
 from cvr.models import LabelRun
 from cvr.pipeline import Labeller, reformat
+from cvr.tracing import Tracer, env_tag, trace_env
 
 __all__ = [
     "API_KEY_HEADER",
     "DOCX_MEDIA_TYPE",
     "ENV_API_KEY",
+    "ENV_DEBUG_TRACEBACKS",
     "MAX_UPLOAD_BYTES",
     "RUN_ID_HEADER",
     "content_disposition",
@@ -61,6 +66,9 @@ __all__ = [
 RUN_ID_HEADER = "X-Run-Id"
 API_KEY_HEADER = "X-API-Key"
 ENV_API_KEY = "CVR_API_KEY"
+# Local debugging only, never set in a deployment: "1", "true" or "yes" prints
+# an escaped exception's full traceback to standard error.
+ENV_DEBUG_TRACEBACKS = "CVR_DEBUG_TRACEBACKS"
 # The whole request body, multipart framing included. A golden-set document
 # is about 40 KB; a CV with photos is a few hundred.
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024
@@ -150,16 +158,53 @@ class _LabellerSource:
             return self._labeller
 
 
-def create_app(labeller: Labeller | None = None) -> FastAPI:
+def create_app(
+    labeller: Labeller | None = None, tracer: Tracer | None = None
+) -> FastAPI:
     """The application, labelling with ``labeller`` or, when none is given,
     with the real labeller built from ``CVR_LABEL_*`` on the first document.
     The key ``/reformat`` expects is ``CVR_API_KEY`` as it is when the app is
     created. FastAPI's generated ``/docs``, ``/redoc`` and ``/openapi.json``
-    are off: the service has two routes and no others."""
+    are off: the service has two routes and no others.
+
+    Every Run is traced in Langfuse with ``tracer``, or, when none is given,
+    with the tracer built from ``LANGFUSE_*`` and tagged ``env=<CVR_TRACE_ENV>``
+    (``local`` unless set) as they are when the app is created; without both
+    keys it is untraced. The trace id is the run id, so ``X-Run-Id`` finds
+    the trace. Spans are flushed before each answer, and the client is shut
+    down when the app stops."""
+    if tracer is None:
+        tracer = Tracer.from_env(tags=[env_tag(trace_env())])
+    if tracer.enabled and tracer.mode == "full":
+        # Full traces carry CV text to a third party. They are for the eval's
+        # and local runs' synthetic documents; no deployment sets the mode
+        # (a static test pins it), so reaching here is a misconfiguration.
+        logger.warning(
+            "tracing in full mode: traces carry the text of every CV this "
+            "service handles; use it with synthetic documents only"
+        )
+
+    # Untraced, reformat is called exactly as it was before tracing existed.
+    traced = {"tracer": tracer} if tracer.enabled else {}
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        yield
+        tracer.shutdown()
+
     app = FastAPI(
-        title="cv-reformatter", docs_url=None, redoc_url=None, openapi_url=None
+        title="cv-reformatter",
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+        lifespan=lifespan,
     )
     expected_key = os.environ.get(ENV_API_KEY, "")
+    debug_tracebacks = os.environ.get(ENV_DEBUG_TRACEBACKS, "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
     source = _LabellerSource(labeller)
     # One document at a time: the labeller records its LabelRun on itself
     # (``last_run``), so two interleaved calls would swap each other's.
@@ -181,9 +226,13 @@ def create_app(labeller: Labeller | None = None) -> FastAPI:
                 response = JSONResponse({"detail": detail}, status_code=status)
             else:
                 response = await call_next(request)
-        except Exception as exc:
-            logger.exception("run %s failed", run_id)
-            request.state.error = _describe(exc)
+        except Exception as exc:  # noqa: BLE001 - the catch-all 500
+            # An exception's message may carry CV text, so only its type
+            # name is logged; the traceback only behind the local flag.
+            logger.error("run %s failed: %s", run_id, type(exc).__name__)
+            if debug_tracebacks:
+                traceback.print_exception(exc, file=sys.stderr)
+            request.state.error = type(exc).__name__
             response = JSONResponse(
                 {"detail": "internal error", "run_id": run_id}, status_code=500
             )
@@ -199,9 +248,13 @@ def create_app(labeller: Labeller | None = None) -> FastAPI:
                         error=request.state.error,
                     )
                 )
-            except Exception:
+            except Exception as exc:  # noqa: BLE001 - never fail the response
                 # The response, and its run id, still go back to the caller.
-                logger.exception("run %s: the transform log was not written", run_id)
+                logger.error(
+                    "run %s: the transform log was not written (%s)",
+                    run_id,
+                    type(exc).__name__,
+                )
         return response
 
     @app.get("/health")
@@ -224,7 +277,9 @@ def create_app(labeller: Labeller | None = None) -> FastAPI:
             labeller = source.get()
             with one_at_a_time:
                 try:
-                    output, run = reformat(body, labeller, run_id=request.state.run_id)
+                    output, run = reformat(
+                        body, labeller, run_id=request.state.run_id, **traced
+                    )
                 except Exception:
                     # A node after the labeller failed, or the labeller did:
                     # whatever the labelling cost is still logged.
@@ -238,6 +293,11 @@ def create_app(labeller: Labeller | None = None) -> FastAPI:
         except LabellerMisconfigured as exc:
             request.state.error = _describe(exc)
             raise HTTPException(500, "the labeller is misconfigured") from exc
+        finally:
+            # Before the answer, so a scaled-to-zero replica has sent its
+            # spans, but outside the one-at-a-time lock so a slow export does
+            # not hold up the next document; tracing never fails the request.
+            tracer.flush()
         request.state.run = run
         return Response(
             content=output,

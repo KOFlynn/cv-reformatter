@@ -219,6 +219,39 @@ export MSYS_NO_PATHCONV=1
 # az on Windows ends its output lines with CR; strip it from captured values.
 azq() { az "$@" | tr -d '\r'; }
 
+# wait_app_ready: every change to the app (secret set, update) starts an
+# operation, and the next az call on the app fails with ContainerAppLockConflict
+# until it ends. Poll provisioningState until it is Succeeded, for at most
+# 5 minutes.
+wait_app_ready() {
+  local state=""
+  for _ in $(seq 60); do
+    state=$(azq containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+      --query properties.provisioningState -o tsv)
+    [[ "$state" == Succeeded ]] && return 0
+    [[ "$state" == Failed ]] && break
+    sleep 5
+  done
+  warn "$AZURE_CONTAINER_APP did not reach Succeeded (last state: ${state:-unknown}); see the portal"
+  exit 1
+}
+
+# env_var_is NAME EXPECTED: whether the app's container already has env var
+# NAME as EXPECTED, a literal value or secretref:<secret>. Read-only, so a
+# re-run that changes nothing creates no revision.
+env_var_is() {
+  local name="$1" want="$2" got
+  if [[ "$want" == secretref:* ]]; then
+    got=$(azq containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+      --query "properties.template.containers[0].env[?name=='$name'].secretRef | [0]" -o tsv)
+    got="secretref:$got"
+  else
+    got=$(azq containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+      --query "properties.template.containers[0].env[?name=='$name'].value | [0]" -o tsv)
+  fi
+  [[ "$got" == "$want" ]]
+}
+
 # az is a Windows program under Git Bash, and MSYS_NO_PATHCONV stops a /tmp
 # path being translated for it, so temp files are handed over in Windows form.
 winpath() {
@@ -238,7 +271,7 @@ need() {
   command -v "$1" >/dev/null 2>&1 || { warn "$1 not found: $2"; exit 1; }
 }
 
-TOTAL_STAGES=12
+TOTAL_STAGES=13
 
 banner "cv-reformatter: Azure Container Apps, deployed through OIDC"
 
@@ -456,6 +489,7 @@ if [[ "$has_key" == 0 ]]; then
   CVR_API_KEY=$(openssl rand -hex 32)
   az containerapp secret set --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
     --secrets "cvr-api-key=$CVR_API_KEY" --output none
+  wait_app_ready
   say "Generated a new key into cvr-api-key."
 else
   CVR_API_KEY=$(azq containerapp secret show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
@@ -464,29 +498,94 @@ else
 fi
 # For the smoke test in stage 8, which unsets it again.
 export CVR_API_KEY
-az containerapp update --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
-  --set-env-vars CVR_API_KEY=secretref:cvr-api-key --output none
+# An update makes a new revision, so only when the env is not already as wanted.
+if ! env_var_is CVR_API_KEY secretref:cvr-api-key; then
+  az containerapp update --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+    --set-env-vars CVR_API_KEY=secretref:cvr-api-key --output none
+  wait_app_ready
+fi
 set_secret CVR_API_KEY "$CVR_API_KEY"
+
+# Langfuse (Phase 2, ticket 08): every Run the app handles is traced as a
+# structure trace (ids, counts, timings, tokens, cost; never CV text). The two
+# keys are Container Apps secrets, read by the container as LANGFUSE_PUBLIC_KEY
+# and LANGFUSE_SECRET_KEY, and GitHub secrets of the same names for the eval
+# job. Idempotent like cvr-api-key: a re-run keeps the secrets it finds and
+# reads them back for GitHub. Like cvr-api-key, they are on az's command line
+# for the one call that sets them. Without them the app runs untraced.
+say "Langfuse tracing: Container Apps secrets langfuse-public-key and"
+say "langfuse-secret-key (read as LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY),"
+say "LANGFUSE_BASE_URL, and CVR_TRACE_ENV=prod, which tags the app's traces."
+say "Create a key pair in your private Langfuse project (Settings > API Keys)."
+has_langfuse=$(azq containerapp secret list --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+  --query "length([?name=='langfuse-public-key' || name=='langfuse-secret-key'])" -o tsv)
+if [[ "$has_langfuse" == 2 ]]; then
+  say "langfuse-public-key and langfuse-secret-key already exist; keeping them."
+  LANGFUSE_PUBLIC_KEY=$(azq containerapp secret show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+    --secret-name langfuse-public-key --query value -o tsv)
+  LANGFUSE_SECRET_KEY=$(azq containerapp secret show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+    --secret-name langfuse-secret-key --query value -o tsv)
+else
+  open_url "https://cloud.langfuse.com"
+  ask_secret LANGFUSE_PUBLIC_KEY "Public key, pk-lf-... (hidden; Enter skips tracing):"
+  if [[ -n "$LANGFUSE_PUBLIC_KEY" ]]; then
+    ask_secret LANGFUSE_SECRET_KEY "Secret key, sk-lf-... (hidden):"
+    if [[ -z "$LANGFUSE_SECRET_KEY" ]]; then
+      warn "no secret key entered; skipping tracing"
+      LANGFUSE_PUBLIC_KEY=""
+    else
+      az containerapp secret set --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+        --secrets "langfuse-public-key=$LANGFUSE_PUBLIC_KEY" "langfuse-secret-key=$LANGFUSE_SECRET_KEY" --output none
+      wait_app_ready
+      say "Stored langfuse-public-key and langfuse-secret-key."
+    fi
+  fi
+fi
+if [[ -n "$LANGFUSE_PUBLIC_KEY" && -n "$LANGFUSE_SECRET_KEY" ]]; then
+  ask_default LANGFUSE_BASE_URL "Langfuse base URL (EU cloud)" "https://cloud.langfuse.com"
+  if ! { env_var_is LANGFUSE_PUBLIC_KEY secretref:langfuse-public-key &&
+    env_var_is LANGFUSE_SECRET_KEY secretref:langfuse-secret-key &&
+    env_var_is LANGFUSE_BASE_URL "$LANGFUSE_BASE_URL" &&
+    env_var_is CVR_TRACE_ENV prod; }; then
+    az containerapp update --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+      --set-env-vars LANGFUSE_PUBLIC_KEY=secretref:langfuse-public-key \
+      LANGFUSE_SECRET_KEY=secretref:langfuse-secret-key \
+      "LANGFUSE_BASE_URL=$LANGFUSE_BASE_URL" CVR_TRACE_ENV=prod --output none
+    wait_app_ready
+  fi
+  set_secret LANGFUSE_PUBLIC_KEY "$LANGFUSE_PUBLIC_KEY"
+  set_secret LANGFUSE_SECRET_KEY "$LANGFUSE_SECRET_KEY"
+  set_secret LANGFUSE_BASE_URL "$LANGFUSE_BASE_URL"
+else
+  warn "Langfuse skipped: the app runs untraced. Re-run this stage to add the keys."
+fi
+unset LANGFUSE_PUBLIC_KEY LANGFUSE_SECRET_KEY
 pause
 
 # ── 8 ─────────────────────────────────────────────────────────────────────
-stage "Smoke test the live app, then close ingress"
-say "Opens ingress, wakes the app from zero (timing the cold start), checks that"
-say "/reformat refuses a request without the key, posts one golden-set document"
-say "with it and checks for a .docx with X-Run-Id. Calls the model once (cents)."
-say "Ingress is closed afterwards either way: it is opened for demos only."
-az containerapp ingress enable --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
-  --type external --target-port 8000 --transport auto --output none
-APP_URL="https://$(azq containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
-  --query properties.configuration.ingress.fqdn -o tsv)"
-write_env APP_URL "$APP_URL"
-note "URL: $APP_URL"
+stage "Smoke test the live app, then stop it"
+say "Activates the latest revision, opens ingress and wakes the app from zero"
+say "(scripts/demo.sh up), checks that /reformat refuses a request without the"
+say "key, posts one golden-set document with it and checks for a .docx with"
+say "X-Run-Id. Calls the model once (cents)."
+say "Whatever happens, the app is stopped afterwards (scripts/demo.sh down: ingress"
+say "closed, revision deactivated, no replica running): it is on for demos only."
 if confirm "Run it?"; then
-  sh scripts/smoke-deploy.sh "$APP_URL" || warn "the smoke test failed; see above"
+  if sh scripts/demo.sh up "$AZURE_RESOURCE_GROUP" "$AZURE_CONTAINER_APP"; then
+    APP_URL="https://$(azq containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+      --query properties.configuration.ingress.fqdn -o tsv)"
+    write_env APP_URL "$APP_URL"
+    note "URL: $APP_URL"
+    sh scripts/smoke-deploy.sh "$APP_URL" || warn "the smoke test failed; see above"
+  else
+    warn "the app did not start; see above"
+  fi
 fi
 unset CVR_API_KEY
-az containerapp ingress disable --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" --output none
-say "Ingress closed. Open it for a demo with: sh scripts/demo.sh up"
+if ! sh scripts/demo.sh down "$AZURE_RESOURCE_GROUP" "$AZURE_CONTAINER_APP"; then
+  warn "the app may still be running: run sh scripts/demo.sh down, and check az containerapp replica list"
+fi
+say "Stopped. Start it for a demo with: sh scripts/demo.sh up"
 pause
 
 # ── 9 ─────────────────────────────────────────────────────────────────────
@@ -552,7 +651,8 @@ set_secret AZURE_TENANT_ID "$AZURE_TENANT_ID"
 set_secret AZURE_SUBSCRIPTION_ID "$AZURE_SUBSCRIPTION_ID"
 set_var AZURE_RESOURCE_GROUP "$AZURE_RESOURCE_GROUP"
 set_var AZURE_CONTAINER_APP "$AZURE_CONTAINER_APP"
-say "The repository's secrets (expect ANTHROPIC_API_KEY, CVR_API_KEY and the"
+say "The repository's secrets (expect ANTHROPIC_API_KEY, CVR_API_KEY, LANGFUSE_PUBLIC_KEY,"
+say "LANGFUSE_SECRET_KEY, LANGFUSE_BASE_URL and the"
 say "three AZURE ids; no Azure credential, since the deploy signs in through OIDC):"
 gh secret list
 pause
@@ -569,6 +669,47 @@ ask_default BUDGET_AMOUNT "Monthly amount you set (subscription currency)" 5
 pause
 
 # ── 12 ────────────────────────────────────────────────────────────────────
+stage "Log retention: the ContainerApp tables Azure lets us change keep 4 days"
+say "$LOG_WORKSPACE stays at 30 days, the least PerGB2018 allows for the workspace."
+say "Each ContainerApp table (system, console, HTTP logs and their _CL variants) is"
+say "set to 4 days of retention and 4 in total, the per-table minimum. The two classic"
+say "_CL tables, the only ones the app writes to, refuse that (the table API needs a"
+say "one-way migration): they are warned about and keep the workspace 30 days; the"
+say "others are empty. The logs of"
+say "a request are kept no longer than a few days. The first 31 days cost nothing"
+say "extra: this is about keeping data less long, not about cost. Reads each table"
+say "first and updates only one that differs, so a re-run changes nothing."
+note "A table appears after the app's first logs; one that does not exist yet is"
+note "skipped, and a later re-run of this stage picks it up."
+LOG_TABLE_RETENTION_DAYS=4
+mapfile -t log_tables < <(azq monitor log-analytics workspace table list --resource-group "$AZURE_RESOURCE_GROUP"   --workspace-name "$LOG_WORKSPACE" --query "[?starts_with(name, 'ContainerApp')].name" -o tsv)
+if [[ "${#log_tables[@]}" == 0 ]]; then
+  warn "no ContainerApp table exists in $LOG_WORKSPACE yet; run the smoke test (stage 8), wait a few minutes and re-run this stage."
+fi
+for table in "${log_tables[@]}"; do
+  [[ -n "$table" ]] || continue
+  current=$(azq monitor log-analytics workspace table show --resource-group "$AZURE_RESOURCE_GROUP"     --workspace-name "$LOG_WORKSPACE" --name "$table" --query "[retentionInDays, totalRetentionInDays]" -o tsv | tr '	
+' '  ')
+  current=${current% }
+  wanted="$LOG_TABLE_RETENTION_DAYS $LOG_TABLE_RETENTION_DAYS"
+  if [[ "$current" != "$wanted" ]]; then
+    note "$table: retention and total were '$current'; setting $wanted."
+    if ! err=$(az monitor log-analytics workspace table update --resource-group "$AZURE_RESOURCE_GROUP"       --workspace-name "$LOG_WORKSPACE" --name "$table"       --retention-time "$LOG_TABLE_RETENTION_DAYS" --total-retention-time "$LOG_TABLE_RETENTION_DAYS" --output none 2>&1); then
+      # A classic custom table (the _CL ones) refuses the table API until it is migrated, and
+      # migrating cannot be undone, so it is left alone: warn and go on (stage 13 still runs).
+      warn "$table: could not set retention, left at '$current' ($(printf '%s' "$err" | head -n 1))"
+      continue
+    fi
+  else
+    note "$table: already $wanted; leaving it."
+  fi
+  # Read back: the value recorded on ticket 06 for ADR-0013.
+  say "$table: $(azq monitor log-analytics workspace table show --resource-group "$AZURE_RESOURCE_GROUP"     --workspace-name "$LOG_WORKSPACE" --name "$table" --query "[retentionInDays, totalRetentionInDays]" -o tsv | tr '	
+' '  ')(retention, total, days)"
+done
+pause
+
+# ── 13 ────────────────────────────────────────────────────────────────────
 stage "Record for ADR-0010"
 say "Paste this into the ticket 14 PR and check ADR-0010's table matches:"
 printf '\n'
@@ -583,6 +724,7 @@ note "  image             $IMAGE (public)"
 note "  entra app         $ENTRA_APP (client id $AZURE_CLIENT_ID)"
 note "  oidc subject      $FED_SUBJECT"
 note "  budget            $BUDGET_AMOUNT a month"
+note "  log retention     workspace 30 days; the populated _CL tables 30 days; the other ContainerApp tables ${LOG_TABLE_RETENTION_DAYS:-4} days (stage 12)"
 printf '\n'
 say "Next: merge to main; the deploy job moves the app from :bootstrap to the commit's image."
 pause "Press Enter to finish"

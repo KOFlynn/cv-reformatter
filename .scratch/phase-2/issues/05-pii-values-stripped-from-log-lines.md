@@ -4,11 +4,17 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A document built at test time with a unique email-shaped canary (e.g. `canary-7f3@example.invalid`) and a unique digit-string phone goes through the API with the oracle labeller; neither value, nor its normalised forms (spaces removed, case folded), appears in the captured log output
-- [ ] Positive control: a non-PII content string from the same document does appear in the block lines
-- [ ] Stripped removals log rule, block, offsets, length and class (tested)
-- [ ] The Run returned by `reformat` still holds the removal text; the `removal_precision` tests pass unchanged
-- [ ] Every line stays under the existing size limit for the golden set (existing test)
-- [ ] The log module's docstring states the rule
+- [x] A document built at test time with a unique email-shaped canary (e.g. `canary-7f3@example.invalid`) and a unique digit-string phone goes through the API with the oracle labeller; neither value, nor its normalised forms (spaces removed, case folded), appears in the captured log output
+- [x] Positive control: a non-PII content string from the same document does appear in the block lines
+- [x] Stripped removals log rule, block, offsets, length and class (tested)
+- [x] The Run returned by `reformat` still holds the removal text; the `removal_precision` tests pass unchanged
+- [x] Every line stays under the existing size limit for the golden set (existing test)
+- [x] The log module's docstring states the rule
+
+## Comments
+
+**2026-10-21.** Done in `src/cvr/api/log.py`. A text removal under any rule but RM_HEADING (and RM_PHOTO, which is an image) logs `{block_id, start, end, length, class}` and no text; `class` is a per-character shape (`a` letter, `9` digit, `_` whitespace, `#` other). Residue overlapping such a removal is logged the same way. Ledger claims already hold only offsets and the claimant, so they are unchanged. The `error` field has emails, phones and URLs (the verify backstop patterns) and the text of the Run's PII removals replaced by `[pii]`; ticket 04 reduces errors to type names, which makes this a second layer. The canary test builds c04 with a canary email, phone and address through all four Layouts. Finding: the block lines hold no content text at all (the ledger is offsets), so the positive control is the removed headings, the only non-PII text there. `test_the_lines_hold_the_whole_run` was adapted on purpose: it reads stripped spans back with placeholder text and compares with the Run as the log is expected to hold it. `removal_precision` tests pass unchanged.
+
+2026-10-21, maintainer: approved the edited test `test_the_lines_hold_the_whole_run` (the ticket deliberately changes what the lines carry) and the new `api` → `verify.backstops` dependency.

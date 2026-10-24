@@ -35,7 +35,7 @@ echo "== wake $URL"
 # Scaled to zero, the first request waits on a replica starting; ingress
 # holds it, so each attempt gets a generous timeout before the next.
 start=$(date +%s)
-until curl -fsS --max-time 60 -o /dev/null "$URL/health"; do
+until curl -fsS --max-time 60 "$URL/health" > /dev/null; do
   elapsed=$(($(date +%s) - start))
   [ "$elapsed" -lt "$WAKE_SECONDS" ] || fail "no /health after ${elapsed}s"
   sleep 5
@@ -43,7 +43,7 @@ done
 echo "/health answered after $(($(date +%s) - start))s"
 
 echo "== reformat without the key"
-status=$(curl -sS --max-time 60 -o /dev/null -w '%{http_code}' \
+status=$(curl -sS --max-time 60 -o "$work/refused.body" -w '%{http_code}' \
   -F "file=@$DOC" "$URL/reformat") \
   || fail "curl exited $? posting $DOC without the key"
 [ "$status" = 401 ] || fail "/reformat without X-API-Key answered $status, not 401"

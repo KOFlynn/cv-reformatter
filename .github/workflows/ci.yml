@@ -74,6 +74,14 @@ jobs:
       pull-requests: write
     env:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Optional: with both keys the run traces every document to Langfuse
+      # (tagged env=eval); without them (fork PRs) it runs untraced.
+      LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+      LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+      LANGFUSE_BASE_URL: ${{ secrets.LANGFUSE_BASE_URL }}
+      # Traces carry the text: the eval's documents are synthetic. The deployed
+      # app never sets this (tests/ci/test_workflow.py).
+      CVR_TRACE_MODE: full
     steps:
       - uses: actions/checkout@v4
 

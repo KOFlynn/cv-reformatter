@@ -37,6 +37,7 @@ from cvr.label import (
 )
 from cvr.label.labeller import build_chat_model
 from cvr.pipeline import Labeller
+from cvr.tracing import Tracer, env_tag
 
 __all__ = ["evaluate", "main", "real_labeller"]
 
@@ -75,8 +76,10 @@ def evaluate(
     cache: ResponseCache | None = None,
     read_cache: bool = True,
     concurrency: int = CONCURRENCY,
+    tracer: Tracer | None = None,
 ) -> Report:
-    """Run, score and gate the documents ``stems``."""
+    """Run, score and gate the documents ``stems``; ``tracer`` traces each
+    document's Run."""
     thresholds = load_thresholds(thresholds_file)
     documents = [document(stem) for stem in stems]
     started = perf_counter()
@@ -87,6 +90,7 @@ def evaluate(
         cache=cache,
         read_cache=read_cache,
         concurrency=concurrency,
+        tracer=tracer,
     )
     return build_report(
         results,
@@ -114,9 +118,13 @@ def main(
     argv: Sequence[str] | None = None,
     *,
     labeller: tuple[Callable[[Document], Labeller], LabellerIdentity] | None = None,
+    tracer: Tracer | None = None,
 ) -> int:
     """The command line. ``labeller`` replaces the real one (tests pass the
-    oracle); everything else is exactly what CI runs."""
+    oracle); everything else is exactly what CI runs. Every document's Run is
+    traced in Langfuse, tagged ``env=eval`` whatever ``CVR_TRACE_ENV`` says
+    (``tracer`` replaces the one built from ``LANGFUSE_*``; without both keys
+    the run is untraced)."""
     parser = argparse.ArgumentParser(
         prog="python -m cvr.eval.run",
         description=(
@@ -153,14 +161,22 @@ def main(
     except ValueError as exc:
         parser.error(str(exc))
     live, identity = labeller or real_labeller()
-    report = evaluate(
-        stems,
-        live,
-        identity,
-        thresholds_file=args.thresholds,
-        cache=ResponseCache(args.cache_dir),
-        read_cache=not args.no_cache,
-    )
+    if tracer is None:
+        tracer = Tracer.from_env(tags=[env_tag("eval")])
+    try:
+        report = evaluate(
+            stems,
+            live,
+            identity,
+            thresholds_file=args.thresholds,
+            cache=ResponseCache(args.cache_dir),
+            read_cache=not args.no_cache,
+            tracer=tracer,
+        )
+    finally:
+        # Spans are exported in the background: send what is left, then stop.
+        tracer.flush()
+        tracer.shutdown()
     json_path, md_path = write_report(report, args.out)
     for line in report.summary():
         print(line)
