@@ -397,6 +397,17 @@ class Report:
                     "version": self.identity.schema_version,
                     "hash": self.identity.schema_hash,
                 },
+                # The retry's own prompt and schema, by hash (the identity
+                # holds no version for them); absent for a labeller with no
+                # retry, so an older report's shape is unchanged.
+                **{
+                    name: {"hash": value}
+                    for name, value in (
+                        ("retry_prompt", self.identity.retry_prompt_hash),
+                        ("additions_schema", self.identity.additions_hash),
+                    )
+                    if value
+                },
             },
             "tokens": {"input": total.input_tokens, "output": total.output_tokens},
             "cost_usd": {

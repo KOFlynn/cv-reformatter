@@ -10,3 +10,64 @@
 - [ ] The record holds per-run gate results, metrics, retries, cost and wall time for both sides
 - [ ] ADR-0015 written; the brief's §8 amended and its §10 comparison box ticked
 - [ ] If Azure wins, ticket 21 is marked ready; if not, it is closed as not needed, with the reason
+
+## Decisions made in preparation
+
+- **The Sonnet side needs three new runs.** The Phase 1.5 comparison (`eval/model-comparison-2026-10-19.json`) is on prompt 1.3.0 and schema 1.0.0 with zero retries; its reports carry no retry versions at all, because the retry (tickets 11-15) did not exist. The retry prompt 1.0.0 (`1dc17179dfa3e638`) and additions schema 1.0.0 (`6f2720458f33bf3e`) are now part of every answer's identity and the retry edge changes what a run does (c09 and c11 fire retries in every Layout), so those runs are not the same configuration in any sense the aggregator can verify. The 2026-10-24 CI evals on `main` and PR #41 replayed first attempts from the cache, so their cost and wall time are not live either. The record must say "three new Sonnet runs, retry included".
+- **gpt-5.4 is compared at `medium`.** The Azure provider accepts `low | medium | high | xhigh` (`AZURE_EFFORTS`; `max` is refused as `LabellerMisconfigured`). Sonnet is at `medium` (the deployed default, ADR-0011), so `medium` makes the sides differ in provider and model only, which is what the Model comparison method asks (Phase 1.5 noted Haiku at `high` as a confound). Raising gpt-5.4's effort is a follow-up only if it fails the gate at `medium`, and would be a second, labelled comparison.
+- **The reference is the deployed provider** (Sonnet 5.5, `medium`), listed first; gpt-5.4 is the candidate.
+- **The report now names the retry hashes.** `report.json` `versions` gained `retry_prompt` and `additions_schema` (hash only; absent for a labeller with no retry, so older reports and the oracle tests are unchanged). Without them the aggregator could not tell runs on different retry prompts apart.
+- **`cvr.eval.compare`** folds the six `report.json` files into `eval/provider-comparison-<date>.json` in the shape of the Phase 1.5 record (per-run gate, totals, per-layout, tokens, cost, wall time, retry columns, cache; spread; gates passed; side cost). It refuses runs whose `versions` block, document set, thresholds or (within a side) configuration differ, and any run that replayed cached answers. It writes facts only: the notes, the verdict and the maintainer's decision are added by hand, as in the Phase 1.5 file.
+
+## Maintainer runbook
+
+Git Bash, repo root. About 30 minutes and about $15 in all (below). Do not skip `--no-cache`: a cached run costs nothing and is refused by the aggregator.
+
+```bash
+# 0. Sign in and check the subscription.
+az login
+az account show --query "{name:name, id:id}" -o table      # must be cvr_sub
+source .env.azure                                           # AZURE_OPENAI_ACCOUNT, resource group
+RG=cvr-rg
+ENDPOINT=$(az cognitiveservices account show -n "$AZURE_OPENAI_ACCOUNT" -g "$RG" --query properties.endpoint -o tsv)
+echo "$ENDPOINT"                                            # https://<name>.openai.azure.com/
+az cognitiveservices account deployment list -n "$AZURE_OPENAI_ACCOUNT" -g "$RG" -o table   # gpt-5.4, DataZoneStandard
+# Your own user needs the role "Cognitive Services OpenAI User" on the account (the default
+# Azure credential uses your az login here, the managed identity in Container Apps).
+
+mkdir -p .cache/phase-2-comparison
+
+# 1. gpt-5.4 on Azure, three runs.
+unset CVR_LABEL_EXTRA CVR_LABEL_TEMPERATURE ANTHROPIC_API_KEY
+export CVR_LABEL_PROVIDER=azure_openai CVR_LABEL_MODEL=gpt-5.4 CVR_LABEL_EFFORT=medium
+export CVR_LABEL_AZURE_ENDPOINT="$ENDPOINT" CVR_LABEL_AZURE_DEPLOYMENT=gpt-5.4
+uv run python -m cvr.eval.run --candidate c04 --layout single-column --no-cache   # smoke: one document, cents; check the config line in eval/report.md
+for n in 1 2 3; do
+  uv run python -m cvr.eval.run --no-cache          # exit 1 on a gate breach is a result, not a fault
+  cp eval/report.json .cache/phase-2-comparison/gpt-$n.json
+done
+
+# 2. Sonnet 5.5 at medium, three runs. Unset every CVR_LABEL_* first (export only works in this shell).
+unset CVR_LABEL_PROVIDER CVR_LABEL_MODEL CVR_LABEL_EFFORT CVR_LABEL_AZURE_ENDPOINT CVR_LABEL_AZURE_DEPLOYMENT
+export ANTHROPIC_API_KEY=...                            # your key, this shell only
+for n in 1 2 3; do
+  uv run python -m cvr.eval.run --no-cache
+  cp eval/report.json .cache/phase-2-comparison/sonnet-$n.json
+done
+
+# 3. The record. The first label is the reference (the deployed provider).
+uv run python -m cvr.eval.compare \
+  sonnet=.cache/phase-2-comparison/sonnet-1.json sonnet=.cache/phase-2-comparison/sonnet-2.json sonnet=.cache/phase-2-comparison/sonnet-3.json \
+  gpt-5.4=.cache/phase-2-comparison/gpt-1.json gpt-5.4=.cache/phase-2-comparison/gpt-2.json gpt-5.4=.cache/phase-2-comparison/gpt-3.json \
+  --date "$(date +%F)" --out "eval/provider-comparison-$(date +%F).json"
+```
+
+Checks before trusting the numbers: the command prints `N of 3 runs passed` per side and refuses (exit 2, `refused: ...`) on any mismatch; each Azure report's config line must read `provider=azure_openai, model=gpt-5.4, effort=medium`; `eval/report.md` for a failing Azure run names the metric and candidates, which belong in the notes. If a run dies on `ProviderUnavailable` or an Azure 429 after the runner's backoff, note it and repeat that run (a run that errored is a result for the gate, but a quota fault is not a model result). If every Azure call fails with 401 or 403, the role assignment or token scope is wrong (`CVR_LABEL_AZURE_SCOPE=https://cognitiveservices.azure.com/.default` is the documented fallback), which is ticket 19's territory, not a comparison result.
+
+**Cost.** Sonnet: about $1.6 a run (the 2026-10-24 main eval was $1.59, the retry adds about $0.12 when its first attempts are live), so about $5 for three. gpt-5.4 at $2.75 in and $16.50 out per million tokens: input is the same 270,000 tokens a run ($0.74); output is unknown until the first run (reasoning tokens count as output; Sonnet's is about 105,000, which would be $1.74), so on the order of $2.5 to $3.5 a run, about $8 to $10 for three, plus a few cents for the smoke run. Total about $13 to $15. **Wall time:** Sonnet about 2.5 minutes a run (138 to 163 s in Phase 1.5); gpt-5.4 unknown, Azure rate limits may stretch it, so allow up to 10 minutes a run. Replace this estimate with the first Azure report's `tokens` once it exists.
+
+After the runs: hand-write `notes` and `verdict` into the record as in the Phase 1.5 file, then ADR-0015 and the brief's §8 and §10 (not prepared here, they need the numbers).
+
+## Comments
+
+- 2026-10-24: Prepared, not run (Azure is not provisioned until ticket 18 and ticket 19 proves the identity). Added `cvr.eval.compare` (`src/cvr/eval/compare.py`, `tests/eval/test_compare.py`) and the retry hashes in the report's `versions` (`tests/eval/run/test_report_versions.py`). Decided: the Sonnet side is three new runs (the Phase 1.5 reports predate the retry and carry no retry versions); gpt-5.4 at `medium` to match Sonnet. The runbook above is the maintainer's copy-paste. ADR-0015, the brief's §8 and §10 and the ticket's boxes are deliberately untouched.
