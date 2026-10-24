@@ -669,10 +669,13 @@ ask_default BUDGET_AMOUNT "Monthly amount you set (subscription currency)" 5
 pause
 
 # ── 12 ────────────────────────────────────────────────────────────────────
-stage "Log retention: the ContainerApp tables keep 4 days"
+stage "Log retention: the ContainerApp tables Azure lets us change keep 4 days"
 say "$LOG_WORKSPACE stays at 30 days, the least PerGB2018 allows for the workspace."
 say "Each ContainerApp table (system, console, HTTP logs and their _CL variants) is"
-say "set to 4 days of retention and 4 in total, the per-table minimum, so the logs of"
+say "set to 4 days of retention and 4 in total, the per-table minimum. The two classic"
+say "_CL tables, the only ones the app writes to, refuse that (the table API needs a"
+say "one-way migration): they are warned about and keep the workspace 30 days; the"
+say "others are empty. The logs of"
 say "a request are kept no longer than a few days. The first 31 days cost nothing"
 say "extra: this is about keeping data less long, not about cost. Reads each table"
 say "first and updates only one that differs, so a re-run changes nothing."
@@ -721,7 +724,7 @@ note "  image             $IMAGE (public)"
 note "  entra app         $ENTRA_APP (client id $AZURE_CLIENT_ID)"
 note "  oidc subject      $FED_SUBJECT"
 note "  budget            $BUDGET_AMOUNT a month"
-note "  log retention     workspace 30 days; ContainerApp tables ${LOG_TABLE_RETENTION_DAYS:-4} days (stage 12)"
+note "  log retention     workspace 30 days; the populated _CL tables 30 days; the other ContainerApp tables ${LOG_TABLE_RETENTION_DAYS:-4} days (stage 12)"
 printf '\n'
 say "Next: merge to main; the deploy job moves the app from :bootstrap to the commit's image."
 pause "Press Enter to finish"
