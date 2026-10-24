@@ -1,7 +1,7 @@
-"""The eval runner and the retry loop (ticket 14): retries and the re-ask of a
-failed first answer are live calls, never cached, and a labeller that cannot
-take a retry is never given one. (The cache key, the report and the cost
-totals learn about retries in ticket 15.)"""
+"""The eval runner and the retry loop (ticket 14): retries go through the
+runner, and a labeller that cannot take a retry is never given one. Since
+ticket 15 each attempt is cached on its own (its key in
+``test_retry_cache.py``), so a retry is live once and replayed after."""
 
 from typing import ClassVar
 
@@ -75,25 +75,27 @@ def _live(retryable: bool):
     return live
 
 
-def test_a_retry_through_the_runner_is_live_and_fixes_the_document(tmp_path):
+def test_a_retry_through_the_runner_is_live_once_and_fixes_the_document(tmp_path):
     cache = ResponseCache(tmp_path)
     (result,), stats = run_documents([document(STEM)], _live(True), ORACLE, cache=cache)
     assert Retrying.calls == ["first", "retry"]
     assert result.error is None
     assert result.scores.appendix_tokens == 0
-    # the first attempt is cached, the retry is not: one live call per attempt
+    # one live call per attempt, and each attempt has its own entry
     assert stats.live_calls == 2
-    assert len(list(tmp_path.glob("*.json"))) == 1
+    assert len(list(tmp_path.glob("*.json"))) == 2
 
 
-def test_a_cached_first_attempt_still_gets_a_live_retry(tmp_path):
+def test_a_cached_rerun_replays_the_retry_with_no_call(tmp_path):
     cache = ResponseCache(tmp_path)
     run_documents([document(STEM)], _live(True), ORACLE, cache=cache)
     Retrying.calls = []
     (result,), stats = run_documents([document(STEM)], _live(True), ORACLE, cache=cache)
-    assert Retrying.calls == ["retry"]
-    assert (stats.hits, stats.live_calls) == (1, 1)
+    assert Retrying.calls == []
+    assert (stats.hits, stats.live_calls) == (2, 0)
     assert result.cache_hit
+    assert result.retries_fired == 1
+    assert result.spent_usd == 0
     assert result.scores.appendix_tokens == 0
 
 
@@ -142,7 +144,7 @@ def test_the_cache_key_is_untouched_by_retries():
     assert cache_key(ORACLE, source) == cache_key(ORACLE, bytes(source))
 
 
-def test_a_retry_call_is_not_marked_cached(tmp_path):
+def test_a_replayed_retry_is_marked_cached_and_a_live_one_is_not(tmp_path):
     blocks = parse(document(STEM).source).blocks
     cache = ResponseCache(tmp_path)
     perfect = oracle(document(STEM))
@@ -153,11 +155,11 @@ def test_a_retry_call_is_not_marked_cached(tmp_path):
 
         return labeller
 
-    for _ in range(2):  # the second round starts from a hit
+    for round_ in range(2):  # the second round replays both attempts
         cached = CachedLabeller(live, cache, "k", CacheStats(), retryable=True)
         cached(blocks)
         first_was_replayed = cached.cached
         cached(blocks, feedback=Feedback(), first=perfect(blocks))
-        assert cached.cached is False
+        assert cached.cached is (round_ == 1)
     assert first_was_replayed is True
     assert cached.hit is True  # sticky: the document's first attempt was a hit

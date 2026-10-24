@@ -246,6 +246,7 @@ review-by-exception halves are already recorded: [ADR-0003](docs/adr/0003-docx-o
 | [0009](docs/adr/0009-structured-labelling.md) | Structured labelling through LangChain |
 | [0010](docs/adr/0010-deployment.md) | Deployment: OIDC, a public image, scale to zero |
 | [0011](docs/adr/0011-sonnet-is-the-default-model.md) | Sonnet 5.5 is the default model |
+| [0012](docs/adr/0012-the-graph-and-its-bounded-additions-only-retry.md) | The pipeline is a LangGraph graph whose one loop is a bounded, additions-only retry |
 | [0013](docs/adr/0013-content-boundary.md) | The content boundary: what reaches the provider, Langfuse and the logs, and the canary test |
 
 ## Tracing

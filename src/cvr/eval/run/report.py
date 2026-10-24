@@ -48,6 +48,12 @@ class Totals:
     label_failures: int = 0
     errors: int = 0
     retries: int = 0
+    # The retry loop (ticket 15): retries fired, the unplaced non-separator
+    # characters they placed (see ``retries.retry_chars_placed``) and what
+    # they cost. Tokens and cost below sum every attempt.
+    retries_fired: int = 0
+    retry_chars_placed: int = 0
+    retry_cost_usd: float = 0.0
     cache_hits: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
@@ -86,6 +92,9 @@ class Totals:
             "label_failures": self.label_failures,
             "errors": self.errors,
             "retries": self.retries,
+            "retries_fired": self.retries_fired,
+            "retry_chars_placed": self.retry_chars_placed,
+            "retry_cost_usd": round(self.retry_cost_usd, 4),
             "cache_hits": self.cache_hits,
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
@@ -122,16 +131,19 @@ def _wrongful(findings: Iterable[Finding]) -> tuple[tuple[str, str], ...]:
 def totals_of(result: DocumentResult) -> Totals:
     """One document's contribution. An errored document counts as a
     document and an error, and nothing else."""
-    run = result.label_run
+    attempts = result.label_runs
     usage = Totals(
         documents=1,
         errors=int(result.error is not None),
         retries=result.retries,
+        retries_fired=result.retries_fired,
+        retry_chars_placed=result.chars_placed,
+        retry_cost_usd=result.retry_cost_usd,
         cache_hits=int(result.cache_hit),
         label_failures=int(result.label_failed),
-        input_tokens=run.input_tokens if run else 0,
-        output_tokens=run.output_tokens if run else 0,
-        cost_usd=run.cost_usd if run else 0.0,
+        input_tokens=sum(run.input_tokens for run in attempts),
+        output_tokens=sum(run.output_tokens for run in attempts),
+        cost_usd=sum(run.cost_usd for run in attempts),
     )
     scores = result.scores
     if scores is None:
@@ -300,6 +312,7 @@ def _document(result: DocumentResult) -> dict[str, Any]:
         "failure_reason": run.failure_reason if run else None,
         "cache_hit": result.cache_hit,
         "retries": result.retries,
+        "attempts": len(result.label_runs),
         "seconds": round(result.seconds, 3),
     }
     if scores is None:
@@ -434,11 +447,7 @@ def build_report(
     wall_seconds: float,
 ) -> Report:
     total = sum((totals_of(result) for result in results), Totals())
-    spent = sum(
-        result.label_run.cost_usd
-        for result in results
-        if result.label_run is not None and not result.cache_hit
-    )
+    spent = sum(result.spent_usd for result in results)
     return Report(
         total=total,
         per_layout=_groups(results, lambda r: [r.document.manifest.layout]),
@@ -476,6 +485,9 @@ _COLUMNS: list[tuple[str, Callable[[Totals], str]]] = [
     ("Tunable P/R %", lambda t: _pr(t.tunable)),
     ("Punctuation", lambda t: str(t.punctuation)),
     ("Appendix %", lambda t: f"{100 * t.appendix_rate:.2f}"),
+    ("Retries fired", lambda t: str(t.retries_fired)),
+    ("Placed by retry", lambda t: str(t.retry_chars_placed)),
+    ("Retry cost $", lambda t: f"{t.retry_cost_usd:.4f}"),
     ("Label fails", lambda t: str(t.label_failures)),
     ("Errors", lambda t: str(t.errors)),
 ]
@@ -546,8 +558,20 @@ def _markdown(report: Report) -> str:
             f"{cache['hits']} hits, {cache['live_calls']} live calls"
         ),
         (
-            f"- Retries: {total.retries} (provider unavailable: a 429, an "
-            "overload or a dropped connection, beyond the client's own two)"
+            f"- Provider retries: {total.retries} (provider unavailable: a 429, "
+            "an overload or a dropped connection, beyond the client's own two)"
+        ),
+        (
+            f"- Labelling retries: {total.retries_fired} fired, "
+            f"{total.retry_chars_placed} characters placed, "
+            f"${total.retry_cost_usd:.4f} (tokens and cost above sum every "
+            "attempt)"
+        ),
+        (
+            "  - Characters placed by a retry: the unplaced non-separator "
+            "characters the retries took out of the appendix (before the first "
+            "retry minus after the last; whitespace and separators count for "
+            "nothing)."
         ),
         "",
         "## Gate",
