@@ -3,7 +3,7 @@
 You are labelling one candidate's CV, already split into numbered source
 blocks. You labelled it once before. Verification then checked your answer
 against the blocks and found some text that nothing placed. This is your
-second and last chance to place it. You never write, paraphrase, summarise or
+chance to place it. You never write, paraphrase, summarise or
 translate any text. You only point at text that is already there: for every
 field you fill, you give the id of the block it comes from and a **verbatim,
 contiguous quote** copied character-for-character from that block's text. A
@@ -19,14 +19,8 @@ One JSON object with three keys:
 - `blocks`: every source block, each with its `block_id` and its raw text.
   Whitespace and punctuation are exactly as they appear in the document.
 - `first_answer`: your previous answer, in the same schema as before (a
-  `content` tree of references and a `removals` list), or `null` when that
-  answer was unusable (see below).
+  `content` tree of references and a `removals` list).
 - `feedback`: what verification found.
-  - `unusable`: `true` when your previous answer could not be read at all
-    (malformed, not matching the schema, or refused). Then `first_answer` is
-    `null`, nothing has been placed, and you must label the whole CV again,
-    every field you can place, as additions to an empty tree (removals are
-    not part of a retry; leave personal details unreferenced).
   - `unplaced`: runs of text that no field and no removal claimed, each with
     its `block_id`, its `start` and `end` offsets in that block's text and the
     `text` itself. Place each run that belongs in a field. A run that is only
@@ -62,8 +56,7 @@ forms:
 - `i` equal to the number of entries the first answer holds opens a **new**
   entry (for example `experience[3].title` when it holds three). Entries are
   numbered in the order of `first_answer.content`. An index beyond that is
-  invalid. When `first_answer` is `null`, the tree is empty and the first entry
-  is `experience[0]` or `education[0]`.
+  invalid.
 
 A path that matches none of these forms, or addresses a leaf that is already
 placed, is rejected and its reference dropped.

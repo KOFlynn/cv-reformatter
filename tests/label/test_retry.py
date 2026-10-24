@@ -162,7 +162,7 @@ def test_feedback_is_the_retry_prompt_and_additions():
     assert [b["block_id"] for b in payload["blocks"]] == ["body:0", "body:1", "body:2"]
     assert payload["blocks"][1]["text"] == "Software Engineer at Acme"
     assert payload["first_answer"] == _first().model_dump(mode="json")
-    assert payload["feedback"]["unusable"] is False
+    assert "unusable" not in payload["feedback"]
 
 
 def test_the_feedback_reaches_the_provider_with_its_text():
@@ -192,28 +192,21 @@ def test_the_feedback_reaches_the_provider_with_its_text():
     ]
 
 
-def test_an_unusable_first_answer_asks_for_everything_as_additions():
+def test_an_unusable_first_answer_is_re_asked_not_retried():
+    # Ticket 14: a failed first attempt is re-asked with the first prompt (a
+    # retry cannot carry removals), so the retry path refuses it, before any
+    # model call.
     labeller, chat = _labeller()
-    labeller(BLOCKS, feedback=Feedback(unusable=True))
-
-    payload = json.loads(chat.calls[0][1][1].content)
-    assert payload["first_answer"] is None
-    assert payload["feedback"] == {
-        "unusable": True,
-        "unplaced": [],
-        "unlocatable": [],
-    }
-    assert "unusable" in RETRY_TEXT
-    assert "empty tree" in RETRY_TEXT
+    with pytest.raises(ValueError, match="first answer"):
+        labeller(BLOCKS, feedback=Feedback(unusable=True))
+    with pytest.raises(ValueError, match="first answer"):
+        labeller(BLOCKS, feedback=Feedback(unusable=True), first=_first())
+    assert chat.calls == []
+    assert "unusable" not in RETRY_TEXT
+    assert "empty tree" not in RETRY_TEXT
 
 
-def test_an_unusable_flag_wins_over_a_first_answer_passed_anyway():
-    messages = retry_messages(BLOCKS, _first(), Feedback(unusable=True))
-    payload = json.loads(messages[1].content)
-    assert payload["first_answer"] is None
-
-
-def test_a_retry_without_a_first_answer_unless_unusable_is_a_defect():
+def test_a_retry_without_a_first_answer_is_a_defect():
     labeller, chat = _labeller()
     with pytest.raises(ValueError, match="first answer"):
         labeller(BLOCKS, feedback=FEEDBACK)
