@@ -35,8 +35,9 @@ exception, whose message may echo text, is on neither ``__cause__`` nor
 A retry (Phase 2, ticket 12) is the same machinery with the retry prompt and
 the ``Additions`` schema: ``labeller(blocks, feedback=..., first=...)``. It
 fills its own :class:`LabelRun` (the retry prompt's and the additions
-schema's identity) and is classified exactly like a first attempt. The graph
-does not call it yet (ticket 14).
+schema's identity) and is classified exactly like a first attempt. The
+pipeline's retry edge calls it (ticket 14), showing it the first answer with
+earlier retries' placed additions folded in.
 """
 
 from __future__ import annotations

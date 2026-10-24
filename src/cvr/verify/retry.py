@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from cvr.models.feedback import Feedback, UnlocatableHint, UnplacedRun
-from cvr.text import SEPARATORS
+from cvr.text import significant_chars
 from cvr.verify import Rejection, VerifiedDocument
 
 __all__ = [
@@ -63,12 +63,7 @@ class RetryDecision:
 def unplaced_chars(verified: VerifiedDocument) -> int:
     """The non-separator characters of the unplaced residue: the progress
     measure. Separator-only residue counts for nothing."""
-    return sum(
-        1
-        for span in verified.unplaced
-        for char in span.text
-        if not (char.isspace() or char in SEPARATORS)
-    )
+    return sum(significant_chars(span.text) for span in verified.unplaced)
 
 
 def decide_retry(
