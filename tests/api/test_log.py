@@ -15,7 +15,18 @@ from cvr.api import DOCX_MEDIA_TYPE as DOCX
 from cvr.api import RUN_ID_HEADER, create_app
 from cvr.api.log import MAX_LINE_BYTES, request_lines
 from cvr.golden import CANDIDATES_DIR, LAYOUTS, load_candidate
-from cvr.models import Image, LabelRun, Removal, RemovalRule, Residue, Run, Span
+from cvr.models import (
+    Image,
+    LabelRun,
+    Removal,
+    RemovalRule,
+    Residue,
+    RetryRejection,
+    RetryRun,
+    Run,
+    Span,
+)
+from cvr.models.feedback import Feedback, UnlocatableHint, UnplacedRun
 from cvr.parse import parse
 from cvr.pipeline import reformat
 
@@ -148,6 +159,30 @@ def test_the_lines_hold_the_whole_run():
     for field in ("removals", "normalisations", "residue", "date_map"):
         assert _sorted(back, field) == _sorted(run, field), field
     assert any(isinstance(r.subject, Image) for r in back.removals)
+
+
+def test_a_runs_retries_add_nothing_to_the_log_lines():
+    """``Run.retries`` is text-free by construction (ids, offsets, paths,
+    reasons), and the log writer does not serialise it, so a Run with retries
+    logs exactly what the same Run without them does."""
+    doc = document("c04__two-column")
+    _, run = reformat(doc.source, Oracle(doc.candidate, doc.manifest))
+    retry = RetryRun(
+        label=LABEL_RUN,
+        feedback=Feedback(
+            unplaced=[UnplacedRun(block_id="body:0", start=0, end=4)],
+            unlocatable=[UnlocatableHint(path="skills[0]", block_id="body:0")],
+        ),
+        rejections=[
+            RetryRejection(path="skills[0]", block_id="body:0", reason="unlocatable")
+        ],
+        unplaced_chars=4,
+    )
+    with_retries = run.model_copy(update={"retries": [retry]})
+    plain = request_lines(run.run_id, 200, run=run)
+    logged = request_lines(with_retries.run_id, 200, run=with_retries)
+    assert logged == plain
+    assert not any('"retries"' in line for line in logged)
 
 
 def test_a_failed_request_is_one_summary_line_with_the_error():
