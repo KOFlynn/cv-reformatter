@@ -27,11 +27,11 @@ Git Bash, repo root. About 30 minutes and about $15 in all (below). Do not skip 
 # 0. Sign in and check the subscription.
 az login
 az account show --query "{name:name, id:id}" -o table      # must be cvr_sub
-source .env.azure                                           # AZURE_OPENAI_ACCOUNT, resource group
-RG=cvr-rg
-ENDPOINT=$(az cognitiveservices account show -n "$AZURE_OPENAI_ACCOUNT" -g "$RG" --query properties.endpoint -o tsv)
+# The endpoint provision-azure.sh stage 13 wrote to .env.azure once its read-back passed.
+# Read it with sed; do not `source` the file. No resource group is needed.
+ENDPOINT=$(sed -n 's/^AZURE_OPENAI_ENDPOINT=//p' .env.azure | tr -d '\r"')
+[ -n "$ENDPOINT" ] || { echo "AZURE_OPENAI_ENDPOINT is empty: run stage 13 of provision-azure.sh first"; false; }
 echo "$ENDPOINT"                                            # https://<name>.openai.azure.com/
-az cognitiveservices account deployment list -n "$AZURE_OPENAI_ACCOUNT" -g "$RG" -o table   # gpt-5.4, DataZoneStandard
 # Your own user needs the role "Cognitive Services OpenAI User" on the account (the default
 # Azure credential uses your az login here, the managed identity in Container Apps).
 

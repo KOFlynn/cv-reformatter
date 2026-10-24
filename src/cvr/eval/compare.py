@@ -93,6 +93,9 @@ def _spread(runs: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     spread = {}
     for name, path in _SPREAD:
         values = [_dig(run, path) for run in runs]
+        for run, value in zip(runs, values, strict=True):
+            if value is None:
+                raise CompareError(f"{run['source']} has no value for {name}")
         low, high = min(values), max(values)
         spread[name] = {
             "runs": values,
@@ -160,6 +163,14 @@ def compare(
             config,
             [_run(n, s, r) for n, (s, r) in enumerate(members, start=1)],
         )
+    configs = list(sides.items())
+    for i, (first, side) in enumerate(configs):
+        for second, other in configs[i + 1 :]:
+            if side["config"] == other["config"]:
+                raise CompareError(
+                    f"{first!r} and {second!r} carry the same config; "
+                    "a mislabelled set is not a comparison"
+                )
     reference, *others = sides
     return {
         "date": date,

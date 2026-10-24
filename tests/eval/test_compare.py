@@ -192,3 +192,17 @@ def test_a_malformed_pair_or_missing_file_is_refused(tmp_path):
     out = str(tmp_path / "o.json")
     assert main(["nolabel", "--out", out, "--date", "d"]) == 2
     assert main(["a=missing.json", "--out", out, "--date", "d"]) == 2
+
+
+def test_two_labels_with_the_same_configuration_are_refused():
+    runs = three("sonnet", model="same") + three("gpt", model="same")
+    with pytest.raises(CompareError, match="'sonnet' and 'gpt' carry the same config"):
+        compare(runs, date="d")
+
+
+def test_a_missing_precision_is_refused_naming_the_run_and_metric():
+    broken = report(model="g")
+    broken["totals"]["tunable"] = {**TALLY, "precision": None}
+    runs = three("a") + [("b", "none.json", broken)]
+    with pytest.raises(CompareError, match="none.json has no value for tunable_prec"):
+        compare(runs, date="d")
