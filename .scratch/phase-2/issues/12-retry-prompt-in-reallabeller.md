@@ -4,10 +4,22 @@
 
 **Blocked by:** 11
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Over a fake chat model: no feedback → the first prompt and `Labelling`; feedback → the retry prompt and `Additions`, with the blocks, the first answer and the feedback text in the messages (tested)
-- [ ] Changing the retry prompt or the additions schema without a version bump fails at import with `VersionMismatch` naming the fix (tested)
-- [ ] The labeller's content hash covers both new artefacts (so the eval cache keys change; the PR notes that the next eval is uncached)
-- [ ] A retry's answer goes through the same failure classification as ticket 03's (once 03 has landed) and fills its own `LabelRun`
-- [ ] The oracle labellers and every existing labeller test pass unchanged
+- [x] Over a fake chat model: no feedback → the first prompt and `Labelling`; feedback → the retry prompt and `Additions`, with the blocks, the first answer and the feedback text in the messages (tested)
+- [x] Changing the retry prompt or the additions schema without a version bump fails at import with `VersionMismatch` naming the fix (tested)
+- [x] The labeller's content hash covers both new artefacts (so the eval cache keys change; the PR notes that the next eval is uncached)
+- [x] A retry's answer goes through the same failure classification as ticket 03's (once 03 has landed) and fills its own `LabelRun`
+- [ ] The oracle labellers and every existing labeller test pass unchanged (all do, except that `test_hashes_cover_the_prompt_the_schema_and_both` asserted the old two-artefact `CONTENT_HASH`, which is what the third box changes; its assertion now covers all four)
+
+## Comments
+
+**2026-10-24.** Built.
+
+- Call signature (decision, the ticket left it open): `labeller(blocks)` is the first attempt, unchanged and returning `Labelling | LabellingFailure`. `labeller(blocks, *, feedback=Feedback, first=Labelling | None)` is a retry returning `Additions | LabellingFailure`; both new parameters are keyword-only. `first` may be `None` only when `feedback.unusable` (otherwise `ValueError`, a caller defect raised before any model call); when `unusable`, a `first` passed anyway is ignored. Oracles that take only `blocks` are untouched. The `RetryLabeller` Protocol (in `cvr.label.labeller`) documents the keyword form; the pipeline's `Labeller` type is not changed (ticket 14, which calls the retry, can widen it), to avoid editing `pipeline/__init__.py` alongside ticket 13.
+- `cvr.models.feedback` (`Feedback`, `UnplacedRun`, `UnlocatableHint`) is the fixed interface shared with ticket 13: ids, offsets and paths only, imported by path and not re-exported from `cvr.models`. ruff's RUF012 flags its `= []` defaults (it cannot tell `StrictModel` is pydantic), so `pyproject.toml` has a per-file ignore for that one file rather than changing the agreed file.
+- `retry_prompt.md` (new, version 1.0.0): the human message is one JSON object `{blocks, first_answer, feedback}`. The feedback carries text for the provider: each unplaced run's `text` sliced from its block; each unlocatable hint's `quote` looked up in the first answer by its verify claim path (`name`, `skills[i]`, `experience[i].title`, `experience[i].bullets[j]`, `removals[i]`, ...). A path that names nothing in the first answer keeps its `path` and `block_id` and no quote. The Run and every log keep only the text-free `Feedback`. The prompt spells out ticket 11's path grammar (leaf only while empty, list appends, `i` equal to the entry count opens a new entry, otherwise invalid) and keeps the first prompt's rules (quote verbatim and contiguously, one reference per leaf, dates as printed, never write text). It says a retry cannot add removals, and for `unusable` asks for every placeable field as additions to an empty tree and leaves PII unreferenced (the regex backstops catch it).
+- `versions.json` has four entries: `prompt` 1.3.0 and `schema` 1.0.0 (byte-identical inputs, versions unchanged), `retry_prompt` 1.0.0 (`71ae6e13b6f82e18`) and `additions_schema` 1.0.0 (`6f2720458f33bf3e`). Import checks all four and `VersionMismatch` names the file or schema and the fix (tests in `tests/label/test_retry_versions.py`). `CONTENT_HASH` is now the hash of all four texts; `check_versions` checks the names it is given, so the existing two-key tests are unchanged.
+- A retry's `LabelRun` carries the retry prompt's and the additions schema's version and hash in the existing `prompt_*`/`schema_*` fields, with the shared `content_hash`, its own tokens and cost; `last_run` and `last_exchange` are replaced by the retry's. A retry is classified by the same code as the first attempt (`_label`): refusal, invalid JSON, schema mismatch (a `Labelling` where `Additions` was asked for is one) become a `LabellingFailure` with no model text; provider and defect errors raise the same errors without message or cause. `FAILURE_LOCATIONS` is the union of the `Labelling` and `Additions` field names.
+- Tests: `tests/label/test_retry.py`, `test_retry_versions.py`, `tests/models/test_feedback.py`; `test_hashes_cover_the_prompt_the_schema_and_both` was edited to assert the four-artefact content hash (the one existing assertion this ticket's third box changes).
+- The next eval is uncached: `CONTENT_HASH` changed, so every response-cache key changes (the first prompt and schema, and so the labelling, are unchanged). Say so in the PR.
