@@ -31,14 +31,21 @@ output parser and the provider SDKs all echo the model's output in theirs):
 Every raised error is raised outside the ``except`` block: the original
 exception, whose message may echo text, is on neither ``__cause__`` nor
 ``__context__`` for a logger or tracer to print.
-Retrying a labelling failure is Phase 2.
+
+A retry (Phase 2, ticket 12) is the same machinery with the retry prompt and
+the ``Additions`` schema: ``labeller(blocks, feedback=..., first=...)``. It
+fills its own :class:`LabelRun` (the retry prompt's and the additions
+schema's identity) and is classified exactly like a first attempt. The
+pipeline's retry edge calls it (ticket 14), showing it the first answer with
+earlier retries' placed additions folded in.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable, Sequence
-from typing import Any
+from typing import Any, Protocol
 
 import anthropic
 from langchain.chat_models import init_chat_model
@@ -48,36 +55,58 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import Runnable
 from pydantic import ValidationError
 
+from cvr.label.azure_openai import (
+    AZURE_PROVIDER,
+    azure_error,
+    azure_failure_reason,
+    azure_kwargs,
+)
 from cvr.label.config import LabellerConfig
 from cvr.label.errors import LabellerError, LabellerMisconfigured, ProviderUnavailable
 from cvr.label.pricing import estimate_cost
 from cvr.label.versions import (
+    ADDITIONS_HASH,
+    ADDITIONS_VERSION,
     CONTENT_HASH,
     PROMPT_HASH,
     PROMPT_TEXT,
     PROMPT_VERSION,
+    RETRY_HASH,
+    RETRY_TEXT,
+    RETRY_VERSION,
     SCHEMA_HASH,
     SCHEMA_VERSION,
 )
 from cvr.models import (
+    Additions,
     LabelExchange,
     Labelling,
     LabellingFailure,
     LabellingResult,
     LabelRun,
+    Reference,
     SourceBlock,
 )
+from cvr.models.feedback import Feedback
 
 __all__ = [
     "FAILURE_LOCATIONS",
     "MAX_OUTPUT_TOKENS",
     "PROVIDER_RETRIES",
+    "AdditionsResult",
     "RealLabeller",
+    "RetryLabeller",
     "anthropic_error",
     "anthropic_kwargs",
     "build_chat_model",
+    "label_additions",
     "label_blocks",
+    "retry_messages",
 ]
+
+AdditionsResult = Additions | LabellingFailure
+"""What a retry returns: the additions, or a labelling failure (the retry's
+answer was unusable too)."""
 
 
 # The provider client's own retries, with its backoff, before a transient
@@ -113,16 +142,24 @@ def anthropic_kwargs(config: LabellerConfig) -> dict[str, Any]:
 def build_chat_model(config: LabellerConfig) -> BaseChatModel:
     """``init_chat_model`` with the provider and model from ``config``.
     Provider-specific options are added by the one provider-configuration
-    function for that provider; today there is only ``anthropic_kwargs``."""
-    if config.provider != "anthropic":
+    function for that provider: ``anthropic_kwargs`` or, for Azure OpenAI
+    (ticket 17), ``azure_kwargs`` in ``cvr.label.azure_openai``."""
+    if config.provider == AZURE_PROVIDER:
+        provider_kwargs = azure_kwargs(
+            config, max_retries=PROVIDER_RETRIES, max_tokens=MAX_OUTPUT_TOKENS
+        )
+    elif config.provider == "anthropic":
+        provider_kwargs = anthropic_kwargs(config)
+    else:
         raise LabellerMisconfigured(
             f"unsupported labeller provider {config.provider!r}: only "
-            "'anthropic' is supported; set CVR_LABEL_PROVIDER=anthropic"
+            f"'anthropic' and {AZURE_PROVIDER!r} are supported; set "
+            "CVR_LABEL_PROVIDER to one of them"
         )
     return init_chat_model(
         model=config.model,
         model_provider=config.provider,
-        **anthropic_kwargs(config),
+        **provider_kwargs,
     )
 
 
@@ -136,14 +173,112 @@ def _messages(blocks: Sequence[SourceBlock]) -> list[SystemMessage | HumanMessag
     ]
 
 
-def _structured_model(chat_model: BaseChatModel) -> Runnable[Any, dict[str, Any]]:
-    """``chat_model`` bound to the labelling schema through Claude's native
-    structured-output feature, never a forced tool call. ``include_raw``
+_CLAIM_PATH = re.compile(
+    r"(?P<field>[a-z]+)\[(?P<i>[0-9]+)\](?:\.(?P<leaf>[a-z]+)(?:\[(?P<j>[0-9]+)\])?)?"
+)
+
+
+def _reference_at(first: Labelling, path: str) -> Reference | None:
+    """The first answer's reference at a verify claim path (``name``,
+    ``skills[2]``, ``experience[0].title``, ``experience[0].bullets[1]``,
+    ``removals[3]``), or ``None`` when the path names nothing there."""
+    content = first.content
+    if path == "name":
+        return content.name
+    match = _CLAIM_PATH.fullmatch(path)
+    if match is None:
+        return None
+    field, leaf = match["field"], match["leaf"]
+    i = int(match["i"])
+    try:
+        if field == "removals" and leaf is None:
+            return first.removals[i]
+        if field in ("profile", "skills", "certifications", "additional"):
+            return getattr(content, field)[i] if leaf is None else None
+        if field in ("experience", "education") and leaf is not None:
+            entry = getattr(content, field)[i]
+            if match["j"] is not None:
+                return getattr(entry, leaf)[int(match["j"])]
+            return getattr(entry, leaf)
+    except (IndexError, AttributeError):
+        return None
+    return None
+
+
+def _feedback_payload(
+    blocks: Sequence[SourceBlock], first: Labelling | None, feedback: Feedback
+) -> dict[str, Any]:
+    """The feedback with its text, for the provider: each unplaced run's text
+    sliced from its block, each unlocatable hint's quote looked up in the
+    first answer by path. The model gets text here (it already holds the
+    blocks); the Run and every log keep the text-free ``Feedback``."""
+    by_id = {block.id: block.text for block in blocks}
+    unplaced = [
+        {
+            "block_id": run.block_id,
+            "start": run.start,
+            "end": run.end,
+            "text": by_id.get(run.block_id, "")[run.start : run.end],
+        }
+        for run in feedback.unplaced
+    ]
+    unlocatable = []
+    for hint in feedback.unlocatable:
+        reference = _reference_at(first, hint.path) if first is not None else None
+        item: dict[str, Any] = {"path": hint.path, "block_id": hint.block_id}
+        if reference is not None:
+            item["quote"] = reference.quote
+        unlocatable.append(item)
+    return {
+        "unplaced": unplaced,
+        "unlocatable": unlocatable,
+    }
+
+
+def retry_messages(
+    blocks: Sequence[SourceBlock], first: Labelling | None, feedback: Feedback
+) -> list[SystemMessage | HumanMessage]:
+    """The retry prompt as the system message; the human message is one JSON
+    object with every block, the first answer and the feedback with its text.
+    A retry adds to a usable first answer: an unusable one is re-asked with
+    the first prompt instead (ticket 14), so ``feedback.unusable`` or no
+    ``first`` is a caller defect, raised before any model call."""
+    if first is None or feedback.unusable:
+        raise ValueError("a retry needs the first answer; re-ask an unusable one")
+    payload = {
+        "blocks": [{"block_id": b.id, "text": b.text} for b in blocks],
+        "first_answer": first.model_dump(mode="json"),
+        "feedback": _feedback_payload(blocks, first, feedback),
+    }
+    return [
+        SystemMessage(content=RETRY_TEXT),
+        HumanMessage(content=json.dumps(payload, ensure_ascii=False)),
+    ]
+
+
+def _structured_model(
+    chat_model: BaseChatModel,
+    schema: type[Labelling | Additions] = Labelling,
+    *,
+    strict: bool = False,
+) -> Runnable[Any, dict[str, Any]]:
+    """``chat_model`` bound to the labelling schema through the provider's
+    native structured-output feature, never a forced tool call. ``include_raw``
     keeps the raw message (for usage metadata) beside the parsed result (or
-    the parsing error) even when parsing fails."""
+    the parsing error) even when parsing fails. ``strict`` (Azure OpenAI,
+    ticket 17) asks for constrained decoding against the schema; it is passed
+    only when set, because the Anthropic binding does not take it."""
+    extra: dict[str, Any] = {"strict": True} if strict else {}
     return chat_model.with_structured_output(
-        Labelling, include_raw=True, method="json_schema"
+        schema, include_raw=True, method="json_schema", **extra
     )
+
+
+def _refused(raw: Any, stop_reason: Any) -> bool:
+    """Whether the provider refused: Anthropic's ``stop_reason``, or an OpenAI
+    message's ``refusal`` field."""
+    additional = getattr(raw, "additional_kwargs", None) or {}
+    return stop_reason == "refusal" or bool(additional.get("refusal"))
 
 
 def anthropic_error(exc: Exception) -> LabellerError | None:
@@ -185,6 +320,8 @@ def anthropic_error(exc: Exception) -> LabellerError | None:
 def _provider_error(config: LabellerConfig, exc: Exception) -> LabellerError | None:
     if config.provider == "anthropic":
         return anthropic_error(exc)
+    if config.provider == AZURE_PROVIDER:
+        return azure_error(exc, PROVIDER_RETRIES)
     return None
 
 
@@ -205,9 +342,10 @@ def _field_names(schema: Any) -> set[str]:
 
 FAILURE_LOCATIONS: frozenset[str] = frozenset(
     _field_names(Labelling.model_json_schema())
+    | _field_names(Additions.model_json_schema())
 )
 """The only non-integer segments a failure reason may name: the
-``Labelling`` schema's own field names."""
+``Labelling`` and ``Additions`` schemas' own field names."""
 
 _MAX_LOCATIONS = 10
 
@@ -255,6 +393,8 @@ def failure_reason(exc: BaseException) -> str | None:
             if not locations:
                 return "schema mismatch"
             return "schema mismatch at " + ", ".join(locations)
+    if (azure_reason := azure_failure_reason(chain)) is not None:
+        return azure_reason
     if any(isinstance(e, json.JSONDecodeError | OutputParserException) for e in chain):
         return "invalid JSON"
     return None
@@ -285,9 +425,48 @@ def label_blocks(
     :class:`LabellerMisconfigured` naming only the type for any other
     exception. See the module docstring: no message or cause of any
     exception is carried onward."""
+    return _label(  # type: ignore[return-value]
+        _messages(blocks),
+        structured_model,
+        config,
+        Labelling,
+        (PROMPT_VERSION, PROMPT_HASH, SCHEMA_VERSION, SCHEMA_HASH),
+    )
+
+
+def label_additions(
+    blocks: Sequence[SourceBlock],
+    first: Labelling | None,
+    feedback: Feedback,
+    structured_model: Runnable[Any, dict[str, Any]],
+    config: LabellerConfig,
+) -> tuple[AdditionsResult, LabelRun]:
+    """The retry: like :func:`label_blocks`, but with the retry prompt and
+    ``structured_model`` bound to the ``Additions`` schema. The same
+    classification applies (a refusal, malformed or schema-invalid answer is a
+    :class:`~cvr.models.LabellingFailure`; provider and defect errors raise),
+    and the :class:`LabelRun` carries the retry prompt's and the additions
+    schema's identity."""
+    return _label(  # type: ignore[return-value]
+        retry_messages(blocks, first, feedback),
+        structured_model,
+        config,
+        Additions,
+        (RETRY_VERSION, RETRY_HASH, ADDITIONS_VERSION, ADDITIONS_HASH),
+    )
+
+
+def _label(
+    messages: list[SystemMessage | HumanMessage],
+    structured_model: Runnable[Any, dict[str, Any]],
+    config: LabellerConfig,
+    result_type: type[Labelling | Additions],
+    identity: tuple[str, str, str, str],
+) -> tuple[LabellingResult | AdditionsResult, LabelRun]:
+    prompt_version, prompt_hash, schema_version, schema_hash = identity
     error: LabellerError | None = None
     try:
-        response = structured_model.invoke(_messages(blocks))
+        response = structured_model.invoke(messages)
     except Exception as exc:  # noqa: BLE001 - the boundary classifies everything
         error = _provider_error(config, exc)
         if error is None and failure_reason(exc) is None:
@@ -308,7 +487,7 @@ def label_blocks(
     stop_reason = (getattr(raw, "response_metadata", None) or {}).get("stop_reason")
 
     reason: str | None = None
-    if stop_reason == "refusal":
+    if _refused(raw, stop_reason):
         reason = "the model refused to answer"
     elif response.get("parsing_error") is not None:
         # Whatever the structured output returns in its parsing-error slot
@@ -316,7 +495,7 @@ def label_blocks(
         # labelling failure, "invalid JSON" unless it is a schema validation
         # error. No exception's message is carried.
         reason = failure_reason(response["parsing_error"]) or "invalid JSON"
-    elif not isinstance(parsed, Labelling):
+    elif not isinstance(parsed, result_type):
         reason = "schema mismatch"
     label_failed = reason is not None
 
@@ -325,10 +504,10 @@ def label_blocks(
     )
     run = LabelRun(
         config=config.as_dict(),
-        prompt_version=PROMPT_VERSION,
-        prompt_hash=PROMPT_HASH,
-        schema_version=SCHEMA_VERSION,
-        schema_hash=SCHEMA_HASH,
+        prompt_version=prompt_version,
+        prompt_hash=prompt_hash,
+        schema_version=schema_version,
+        schema_hash=schema_hash,
         content_hash=CONTENT_HASH,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
@@ -377,12 +556,29 @@ class _Recording:
         return response
 
 
+class RetryLabeller(Protocol):
+    """A labeller that can also be asked for a retry (ticket 12). Called with
+    the blocks alone it is the first attempt; with ``feedback`` (and ``first``,
+    the first answer, which must be a usable one) it is a retry returning
+    additions. Oracles that ignore feedback need not implement it."""
+
+    def __call__(
+        self,
+        blocks: Sequence[SourceBlock],
+        *,
+        feedback: Feedback,
+        first: Labelling,
+    ) -> AdditionsResult: ...
+
+
 class RealLabeller:
     """A callable from blocks to a labelling result, matching the pipeline's
-    labeller seam (``blocks -> labelling result``). Each call's full
-    :class:`LabelRun` (tokens, cost, prompt and schema identity) is recorded
-    on :attr:`last_run` immediately afterwards, for the pipeline (ticket 06)
-    to put in its ``Run`` as the label section.
+    labeller seam (``blocks -> labelling result``), and, given ``feedback`` and
+    ``first``, a retry returning :class:`~cvr.models.Additions`. Each call's
+    full :class:`LabelRun` (tokens, cost, prompt and schema identity) is
+    recorded on :attr:`last_run` immediately afterwards, for the pipeline
+    (ticket 06) to put in its ``Run`` as the label section; a retry fills it
+    afresh, with the retry prompt's identity.
     """
 
     def __init__(
@@ -393,18 +589,35 @@ class RealLabeller:
     ) -> None:
         self.config = config or LabellerConfig.from_env()
         model = chat_model or build_chat_model(self.config)
-        self._recording = _Recording(_structured_model(model))
+        strict = self.config.provider == AZURE_PROVIDER
+        self._recording = _Recording(_structured_model(model, strict=strict))
+        self._retry_recording = _Recording(
+            _structured_model(model, Additions, strict=strict)
+        )
         self.last_run: LabelRun | None = None
         # The last call's prompt messages and raw answer, candidate text
         # included, for the full-text trace only; never in the Run (ticket 09).
         self.last_exchange: LabelExchange | None = None
 
-    def __call__(self, blocks: Sequence[SourceBlock]) -> LabellingResult:
+    def __call__(
+        self,
+        blocks: Sequence[SourceBlock],
+        *,
+        feedback: Feedback | None = None,
+        first: Labelling | None = None,
+    ) -> LabellingResult | AdditionsResult:
         self.last_run = None
         self.last_exchange = None
-        result, run = label_blocks(blocks, self._recording, self.config)
+        if feedback is None:
+            result, run = label_blocks(blocks, self._recording, self.config)
+            recording = self._recording
+        else:
+            result, run = label_additions(
+                blocks, first, feedback, self._retry_recording, self.config
+            )
+            recording = self._retry_recording
         self.last_run = run
-        self.last_exchange = self._recording.exchange
+        self.last_exchange = recording.exchange
         return result
 
 

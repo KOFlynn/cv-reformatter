@@ -20,10 +20,19 @@ and the two never import each other.
 from enum import StrEnum
 from typing import Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    model_serializer,
+    model_validator,
+)
 
 __all__ = [
     "PII",
+    "Addition",
+    "Additions",
     "BlockKind",
     "CVContent",
     "ContentReferences",
@@ -49,6 +58,8 @@ __all__ = [
     "RemovalReference",
     "RemovalRule",
     "Residue",
+    "RetryRejection",
+    "RetryRun",
     "Run",
     "SourceBlock",
     "Span",
@@ -61,6 +72,7 @@ __all__ = [
     "VerifiedContent",
     "VerifiedEducation",
     "VerifiedExperience",
+    "safe_path",
 ]
 
 
@@ -96,6 +108,11 @@ class StrictModel(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+
+# Imported here, not at the top: ``feedback`` imports ``StrictModel`` from this
+# module, so importing it earlier would be a cycle.
+from cvr.models.feedback import Feedback
+from cvr.models.paths import safe_path
 
 # --- Source side: what the parser emits and every later node reads.
 
@@ -343,6 +360,24 @@ class LabellingFailure(StrictModel):
 LabellingResult = Labelling | LabellingFailure
 
 
+class Addition(StrictModel):
+    """One reference a retry adds to the first answer, with the path that says
+    where it goes: a list field (``skills``, ``experience[0].bullets``), a leaf
+    that is still empty (``name``, ``experience[0].title``) or a new entry
+    (``experience[3].title`` when the tree holds three). Resolved by verify,
+    never by the model: a path that addresses nothing is rejected."""
+
+    path: str
+    reference: Reference
+
+
+class Additions(StrictModel):
+    """A retry's whole answer. It can only add: nothing the first answer
+    placed is removed or moved."""
+
+    additions: list[Addition]
+
+
 # --- Verified: what the verifier hands transform. ``CVContent`` again, with a
 # ``Unit`` of Spans in place of every string and ``None`` where a leaf was
 # rejected, so an entry survives with a hole rather than disappearing.
@@ -508,6 +543,29 @@ class LabelExchange(StrictModel):
     answer: str | None = None
 
 
+class RetryRejection(StrictModel):
+    """A rejection as a retry record keeps it: where and why, never the
+    quote."""
+
+    path: str
+    block_id: str
+    reason: str
+
+
+class RetryRun(StrictModel):
+    """One retry in the Run: the attempt's labelling record, the feedback it
+    was sent (ids, offsets and paths, so no text), the rejections it
+    produced and the unplaced non-separator characters left after it.
+    ``Run.label`` stays the first attempt. ``label`` is ``None`` when the
+    provider was unavailable (there was no answer to record) or the labeller
+    keeps no record."""
+
+    label: LabelRun | None = None
+    feedback: Feedback
+    rejections: list[RetryRejection] = Field(default_factory=list)
+    unplaced_chars: int = Field(ge=0)
+
+
 class Run(StrictModel):
     """One Run and its transform log. Every section but the run id is
     optional, so a Run can be built by hand in a test with no labeller."""
@@ -526,6 +584,30 @@ class Run(StrictModel):
     # a list, since two dates may normalise alike and each needs its pair.
     date_map: list[tuple[str, Span]] = Field(default_factory=list)
     split_map: dict[str, list[Span]] = Field(default_factory=dict)
+    # retries (Phase 2): one record per retry, in order; empty without any
+    retries: list[RetryRun] = Field(default_factory=list)
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_retries(
+        self, handler: SerializerFunctionWrapHandler
+    ) -> dict[str, object]:
+        """A Run without retries serialises exactly as it did before they
+        existed: the key appears only when there is a retry."""
+        data = handler(self)
+        if not data.get("retries"):
+            data.pop("retries", None)
+        return data
+
+    @property
+    def label_runs(self) -> list[LabelRun]:
+        """The labelling record of every attempt that has one, the first
+        attempt's (``label``) then each retry's: what cost and token totals
+        sum over."""
+        return [
+            record
+            for record in (self.label, *(r.label for r in self.retries))
+            if record is not None
+        ]
 
     @property
     def unplaced(self) -> list[Span]:

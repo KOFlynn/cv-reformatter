@@ -15,7 +15,18 @@ from cvr.api import DOCX_MEDIA_TYPE as DOCX
 from cvr.api import RUN_ID_HEADER, create_app
 from cvr.api.log import MAX_LINE_BYTES, request_lines
 from cvr.golden import CANDIDATES_DIR, LAYOUTS, load_candidate
-from cvr.models import Image, LabelRun, Removal, RemovalRule, Residue, Run, Span
+from cvr.models import (
+    Image,
+    LabelRun,
+    Removal,
+    RemovalRule,
+    Residue,
+    RetryRejection,
+    RetryRun,
+    Run,
+    Span,
+)
+from cvr.models.feedback import Feedback, UnlocatableHint, UnplacedRun
 from cvr.parse import parse
 from cvr.pipeline import reformat
 
@@ -148,6 +159,64 @@ def test_the_lines_hold_the_whole_run():
     for field in ("removals", "normalisations", "residue", "date_map"):
         assert _sorted(back, field) == _sorted(run, field), field
     assert any(isinstance(r.subject, Image) for r in back.removals)
+
+
+def test_a_runs_retries_add_a_count_and_summed_cost_and_tokens_and_no_text():
+    """Ticket 14: the summary line states the retry count and sums cost and
+    tokens over the first attempt and every retry; the block lines are the same
+    as without retries and the retry records themselves (paths, offsets) are
+    not logged."""
+    doc = document("c04__two-column")
+    _, run = reformat(doc.source, Oracle(doc.candidate, doc.manifest))
+    first = LABEL_RUN.model_copy(
+        update={"input_tokens": 100, "output_tokens": 10, "cost_usd": 0.5}
+    )
+    second = LABEL_RUN.model_copy(
+        update={"input_tokens": 30, "output_tokens": 7, "cost_usd": 0.25}
+    )
+
+    def retry(label):
+        return RetryRun(
+            label=label,
+            feedback=Feedback(
+                unplaced=[UnplacedRun(block_id="body:0", start=0, end=4)],
+                unlocatable=[UnlocatableHint(path="skills[0]", block_id="body:0")],
+            ),
+            rejections=[
+                RetryRejection(
+                    path="skills[0]", block_id="body:0", reason="unlocatable"
+                )
+            ],
+            unplaced_chars=4,
+        )
+
+    plain_run = run.model_copy(update={"label": first})
+    # an outage on the last retry has no record and adds nothing to the sums
+    retried = plain_run.model_copy(update={"retries": [retry(second), retry(None)]})
+    plain = [json.loads(line) for line in request_lines(run.run_id, 200, run=plain_run)]
+    logged = [json.loads(line) for line in request_lines(run.run_id, 200, run=retried)]
+
+    assert logged[1:] == plain[1:]  # the block lines
+    summary, plain_summary = logged[0], plain[0]
+    assert summary["retries"] == 2
+    assert summary["attempts"] == {
+        "input_tokens": 130,
+        "output_tokens": 17,
+        "cost_usd": 0.75,
+    }
+    assert plain_summary["retries"] == 0
+    assert plain_summary["attempts"]["input_tokens"] == 100
+    assert summary["label"] == plain_summary["label"]  # still the first attempt
+    rest = {k: v for k, v in summary.items() if k not in ("retries", "attempts")}
+    plain_rest = {
+        k: v for k, v in plain_summary.items() if k not in ("retries", "attempts")
+    }
+    assert rest == plain_rest
+    assert not any(
+        key in json.dumps(line)
+        for line in logged
+        for key in ("feedback", "unplaced_chars")
+    )
 
 
 def test_a_failed_request_is_one_summary_line_with_the_error():

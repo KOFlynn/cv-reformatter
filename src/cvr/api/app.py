@@ -48,7 +48,7 @@ from cvr.label import (
     RealLabeller,
 )
 from cvr.models import LabelRun
-from cvr.pipeline import Labeller, reformat
+from cvr.pipeline import Labeller, can_retry, reformat, retry_max
 from cvr.tracing import Tracer, env_tag, trace_env
 
 __all__ = [
@@ -117,6 +117,30 @@ def _last_run(labeller: Labeller) -> LabelRun | None:
     return last_run if isinstance(last_run, LabelRun) else None
 
 
+class _Paying:
+    """The labeller as the pipeline sees it, noting the ``LabelRun`` of every
+    call that returns. A retry that raises leaves the labeller's own
+    ``last_run`` empty and the Run unbuilt, so without this the failure summary
+    could not say what the earlier attempts cost. Everything else (``last_run``,
+    ``last_exchange``, ``cached``) is the labeller's own, and whether it can be
+    retried is decided on the labeller, not on this wrapper."""
+
+    def __init__(self, labeller: Labeller) -> None:
+        self._labeller = labeller
+        self.retryable = can_retry(labeller)
+        self.paid: list[LabelRun] = []
+
+    def __call__(self, *args, **kwargs):
+        answer = self._labeller(*args, **kwargs)
+        recorded = _last_run(self._labeller)
+        if recorded is not None and all(recorded is not r for r in self.paid):
+            self.paid.append(recorded)
+        return answer
+
+    def __getattr__(self, name: str):
+        return getattr(self._labeller, name)
+
+
 def _refusal(request: Request, expected_key: str) -> tuple[int, str, str] | None:
     """Why a ``/reformat`` request is refused from its headers alone, as
     (status, detail for the caller, error for the log), or None to let it
@@ -172,7 +196,12 @@ def create_app(
     (``local`` unless set) as they are when the app is created; without both
     keys it is untraced. The trace id is the run id, so ``X-Run-Id`` finds
     the trace. Spans are flushed before each answer, and the client is shut
-    down when the app stops."""
+    down when the app stops.
+
+    ``CVR_RETRY_MAX`` (the most retries a Run may make, default 2) is read
+    here once so a bad value stops the app at start-up; each Run reads it
+    again inside ``reformat``."""
+    retry_max()
     if tracer is None:
         tracer = Tracer.from_env(tags=[env_tag(trace_env())])
     if tracer.enabled and tracer.mode == "full":
@@ -217,6 +246,7 @@ def create_app(
         request.state.run = None
         request.state.error = None
         request.state.label = None
+        request.state.labels = []
         refusal = (
             _refusal(request, expected_key) if request.url.path == "/reformat" else None
         )
@@ -245,6 +275,7 @@ def create_app(
                         response.status_code,
                         run=request.state.run,
                         label=request.state.label,
+                        labels=request.state.labels,
                         error=request.state.error,
                     )
                 )
@@ -276,13 +307,15 @@ def create_app(
         try:
             labeller = source.get()
             with one_at_a_time:
+                paying = _Paying(labeller)
                 try:
                     output, run = reformat(
-                        body, labeller, run_id=request.state.run_id, **traced
+                        body, paying, run_id=request.state.run_id, **traced
                     )
                 except Exception:
                     # A node after the labeller failed, or the labeller did:
                     # whatever the labelling cost is still logged.
+                    request.state.labels = paying.paid
                     request.state.label = _last_run(labeller)
                     raise
         except ProviderUnavailable as exc:

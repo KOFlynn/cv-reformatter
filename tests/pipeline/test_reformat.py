@@ -9,6 +9,13 @@ from pathlib import Path
 import pytest
 from oracle import Oracle
 from pipeline_support import document
+from retry_support import (
+    bullet_additions,
+    damaged,
+    drop_first_bullets,
+    perfect,
+    scripted,
+)
 
 import cvr
 from cvr import pipeline
@@ -19,7 +26,7 @@ from cvr.pipeline import reformat
 NODES = ["parse", "verify", "transform_content", "render"]
 
 
-def test_each_node_is_called_once_in_order(monkeypatch):
+def _recording(monkeypatch) -> list[str]:
     calls: list[str] = []
     for name in NODES:
         node = getattr(pipeline, name)
@@ -29,6 +36,15 @@ def test_each_node_is_called_once_in_order(monkeypatch):
             return _node(*args)
 
         monkeypatch.setattr(pipeline, name, recording)
+    return calls
+
+
+# Ticket 14 rewrote this test: it was "each node called once, in order". The
+# retry loop sends control from verify back to label, so the contract is now
+# "in order, with label and verify repeated only on a retry". A labeller that
+# cannot take feedback (the oracle) never retries, and so is still called once.
+def test_each_node_is_called_once_in_order_without_a_retry(monkeypatch):
+    calls = _recording(monkeypatch)
     doc = document("c04__single-column")
     oracle = Oracle(doc.candidate, doc.manifest)
 
@@ -38,6 +54,19 @@ def test_each_node_is_called_once_in_order(monkeypatch):
 
     reformat(doc.source, labeller)
     assert calls == ["parse", "label", "verify", "transform_content", "render"]
+
+
+def test_label_and_verify_repeat_only_on_a_retry(monkeypatch):
+    calls = _recording(monkeypatch)
+    full = perfect("c04__single-column")
+    labeller, chat = scripted(
+        damaged("c04__single-column", drop_first_bullets(1)),
+        bullet_additions(full, 0),
+    )
+    reformat(document("c04__single-column").source, labeller)
+    # (the labeller is the injected one: its two calls are the chat's)
+    assert len(chat.calls) == 2
+    assert calls == ["parse", "verify", "verify", "transform_content", "render"]
 
 
 def test_the_labeller_is_handed_the_parsed_blocks():

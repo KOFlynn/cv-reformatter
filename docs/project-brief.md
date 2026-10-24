@@ -261,7 +261,7 @@ Every phase ends in a shippable state. **Phase 1 alone is valid standalone evide
 - [x] Demo PR proven to block a deploy (#32: `eval` red, `deploy` skipped)
 
 ### Phase 2: agentic workflow, observability, second provider
-- [ ] Pipeline moved onto LangGraph, with a retry loop for rejected or unplaced spans (max N, default 2) before the appendix
+- [x] Pipeline moved onto LangGraph, with a retry loop for rejected or unplaced spans (max N, default 2) before the appendix (ADR-0012)
 - [ ] Langfuse tracing on every run, with the run ID linked from API logs
 - [ ] Azure OpenAI added as a second provider through managed identity
 - [ ] Eval report compares providers; choice recorded in the ADR

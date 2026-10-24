@@ -7,8 +7,9 @@ at around 32 KB, and a 40-block ledger in one line would be cut in half.
 Everything block-scoped (the ledger, the text removals, the invisible
 normalisations, the residue, the dates and the multi-span joins of that
 block) goes on the block's line; everything else (the label section,
-``label_failed``, the image removals, which belong to no block) on the
-summary. Together the lines hold the whole Run; no endpoint returns it
+``label_failed``, the retry count, the cost and tokens summed over every
+attempt, the image removals, which belong to no block) on the summary.
+Together the lines hold the whole Run; no endpoint returns it
 (ADR-0009: that would be the first half of a review queue).
 
 A block line grows with its block's text, so a single paragraph of tens of
@@ -34,7 +35,7 @@ here, so the Run, the eval and ``removal_precision`` still see everything:
 
 import json
 import sys
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from typing import TextIO
 
 from pydantic import BaseModel
@@ -160,29 +161,54 @@ def _block_lines(run: Run) -> list[dict[str, object]]:
     return list(lines.values())
 
 
+def _attempt_totals(run: Run) -> dict[str, object]:
+    records = run.label_runs
+    return {
+        "input_tokens": sum(r.input_tokens for r in records),
+        "output_tokens": sum(r.output_tokens for r in records),
+        "cost_usd": sum(r.cost_usd for r in records),
+    }
+
+
 def request_lines(
     run_id: str,
     status: int,
     *,
     run: Run | None = None,
     label: LabelRun | None = None,
+    labels: Sequence[LabelRun] = (),
     error: str | None = None,
 ) -> list[str]:
     """The log lines of one request: the summary first, then a line per block
     when there is a ``run``. A request refused before the pipeline ran, or
     one the pipeline failed on, has only the summary, with its ``error``
     and, when the labeller had answered before the failure, its ``label``
-    section, so the tokens and cost spent are logged either way."""
+    section, so the tokens and cost spent are logged either way. ``labels``
+    is every attempt already paid for when a retry raised (the first attempt
+    and the earlier retries): the summary then also carries ``attempts``, the
+    totals over all of them."""
     summary: dict[str, object] = {"run_id": run_id, "line": "summary", "status": status}
     if error is not None:
         summary["error"] = _redact(error, run)
     if run is None:
+        label = label if label is not None else (labels[0] if labels else None)
         if label is not None:
             summary["label"] = _dump(label)
+        if labels:
+            summary["attempts"] = {
+                "input_tokens": sum(r.input_tokens for r in labels),
+                "output_tokens": sum(r.output_tokens for r in labels),
+                "cost_usd": sum(r.cost_usd for r in labels),
+            }
         return [_json(summary)]
     blocks = _block_lines(run)
     summary |= {
         "label": None if run.label is None else _dump(run.label),
+        # Cost and tokens over the first attempt and every retry (the label
+        # section above stays the first attempt, as the Run keeps it); counts
+        # only, so nothing here can carry text.
+        "retries": len(run.retries),
+        "attempts": _attempt_totals(run),
         "label_failed": run.label_failed,
         "blocks": len(blocks),
         "images": [

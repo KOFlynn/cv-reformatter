@@ -6,5 +6,13 @@
   "schema": {
     "version": "1.0.0",
     "hash": "3ee02723787bc1ee"
+  },
+  "retry_prompt": {
+    "version": "1.0.0",
+    "hash": "1dc17179dfa3e638"
+  },
+  "additions_schema": {
+    "version": "1.0.0",
+    "hash": "6f2720458f33bf3e"
   }
 }

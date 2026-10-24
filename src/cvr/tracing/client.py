@@ -35,6 +35,7 @@ from cvr.models import LabelExchange, LabelRun
 from cvr.tracing.payload import (
     Mode,
     allowed_keys,
+    decision_payload,
     generation_payload,
     node_payload,
     rejection_payload,
@@ -285,6 +286,23 @@ class NodeTrace(_Observation):
             ]
             self._observation.create_event(
                 name="rejection", metadata={**_MARKER, **metadata}
+            )
+        except Exception:  # noqa: BLE001 - tracing never fails a Run
+            _guard("create event")
+
+    def retry_decision(
+        self, retry: bool, reason: str, attempt: int, unplaced_chars: int
+    ) -> None:
+        """An event under this span for one retry decision: whether, the fixed
+        reason, the attempt just made and the unplaced characters left."""
+        if self._observation is None:
+            return
+        try:
+            metadata = decision_payload(
+                retry, reason, attempt, unplaced_chars, mode=self._mode
+            )["metadata"]
+            self._observation.create_event(
+                name="retry_decision", metadata={**_MARKER, **metadata}
             )
         except Exception:  # noqa: BLE001 - tracing never fails a Run
             _guard("create event")

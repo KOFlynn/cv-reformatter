@@ -15,12 +15,22 @@ another content claim is a conflict: the later claimant is rejected and gets
 no claim, so whatever the earlier one does not hold is residue. A quote with
 no occurrence rejects its one leaf. A repeated quote takes the next occurrence
 free of content. Coverage reads the ledgers, never the tree. ADR-0008.
+
+A retry's additions (``Additions``, Phase 2) join the same ledgers as content
+claims made after every reference of the first answer, in the order given, so
+the first answer always wins a conflict. Each addition's path is resolved
+against what the first answer placed: a list is appended to, a leaf that is
+still empty is filled, and the next entry index opens a new entry; anything
+else is rejected ``bad_path`` and claims nothing.
 """
 
+import re
 from dataclasses import dataclass, field
 from typing import Literal
 
 from cvr.models import (
+    Addition,
+    Additions,
     Labelling,
     LabellingFailure,
     LabellingResult,
@@ -34,6 +44,7 @@ from cvr.models import (
     VerifiedContent,
     VerifiedEducation,
     VerifiedExperience,
+    safe_path,
 )
 from cvr.text import is_separator_residue
 from cvr.verify.backstops import HEADING_VOCABULARY, heading_key, pii_matches
@@ -41,7 +52,7 @@ from cvr.verify.ledger import Kind, Ledger, LedgerEntry
 
 __all__ = ["Claim", "LedgerEntry", "Rejection", "Residue", "VerifiedDocument", "verify"]
 
-RejectionReason = Literal["unlocatable", "conflict", "removed"]
+RejectionReason = Literal["unlocatable", "conflict", "removed", "bad_path"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,7 +69,12 @@ class Rejection:
     """A reference that placed nothing: ``unlocatable`` (no occurrence in the
     block, or no such block), ``conflict`` (every occurrence is held by
     content already) or ``removed`` (every free occurrence lies wholly
-    inside removals). The path of an LLM removal is ``removals[i]``."""
+    inside removals) or, for an addition only, ``bad_path`` (its path
+    addresses nothing: a leaf already placed, an index out of range, an
+    unknown field). The path of an LLM removal is ``removals[i]``; of a
+    ``bad_path`` addition, the path as given if it fits the path grammar
+    (``cvr.models.safe_path``), else ``unknown``: a model-written path is
+    free text and never recorded."""
 
     path: str
     block_id: str
@@ -78,6 +94,9 @@ class VerifiedDocument:
     residue: list[Residue] = field(default_factory=list)
     ledgers: dict[str, list[LedgerEntry]] = field(default_factory=dict)
     label_failed: bool = False
+    # The additions that placed something, in the order given (``fold`` writes
+    # them into the first answer for the next retry's prompt).
+    placed: list[Addition] = field(default_factory=list)
 
     @property
     def unplaced(self) -> list[Span]:
@@ -86,12 +105,20 @@ class VerifiedDocument:
         return [residue.span for residue in self.residue if not residue.separator]
 
 
-def verify(blocks: list[SourceBlock], labelling: LabellingResult) -> VerifiedDocument:
-    """Verify every reference of ``labelling`` against ``blocks``.
+def verify(
+    blocks: list[SourceBlock],
+    labelling: LabellingResult,
+    additions: Additions | None = None,
+) -> VerifiedDocument:
+    """Verify every reference of ``labelling`` against ``blocks``, then those
+    of ``additions`` (a retry's) on top, with the same rules.
 
     A ``LabellingFailure`` places nothing and flags the run; the backstops
     still run over every block, so a PII value cannot reach the appendix
     through a bad day for the LLM (ADR-0004: removal takes precedence).
+    Additions to a failed answer have an empty tree to address (new entries
+    and empty lists and leaves) and leave ``label_failed`` set. Without
+    additions the result is exactly what it always was.
     """
     ledgers = {block.id: Ledger(block) for block in blocks}
     removals: list[Removal] = []
@@ -106,6 +133,9 @@ def verify(blocks: list[SourceBlock], labelling: LabellingResult) -> VerifiedDoc
         if failed
         else _verify_content(ledgers, labelling, claims, rejections)
     )
+    placed: list[Addition] = []
+    if additions is not None:
+        placed = _verify_additions(ledgers, content, additions, claims, rejections)
     _heading_backstop(ledgers, removals)
     residue = _coverage(ledgers)
     return VerifiedDocument(
@@ -118,6 +148,7 @@ def verify(blocks: list[SourceBlock], labelling: LabellingResult) -> VerifiedDoc
             block_id: ledger.sorted_entries() for block_id, ledger in ledgers.items()
         },
         label_failed=failed,
+        placed=placed,
     )
 
 
@@ -211,6 +242,103 @@ def _verify_content(
         certifications=leaves("certifications", tree.certifications),
         additional=leaves("additional", tree.additional),
     )
+
+
+# --- A retry's additions, placed after the first answer's content
+
+_TOP_LEAF = "name"
+_TOP_LISTS = ("profile", "skills", "certifications", "additional")
+_ENTRY_PATH = re.compile(r"(experience|education)\[([0-9]{1,4})\]\.([a-z]+)")
+_ENTRY_MODELS = {"experience": VerifiedExperience, "education": VerifiedEducation}
+_ENTRY_LEAVES = {
+    "experience": ("title", "employer", "location", "dates"),
+    "education": ("institution", "qualification", "dates"),
+}
+_ENTRY_LISTS = {"experience": "bullets", "education": "details"}
+
+
+def _verify_additions(
+    ledgers: dict[str, Ledger],
+    content: VerifiedContent,
+    additions: Additions,
+    claims: list[Claim],
+    rejections: list[Rejection],
+) -> list[Addition]:
+    """Place each addition in the order given. A new entry is opened when its
+    first addition resolves; one that ends with nothing placed is dropped.
+    Returns the additions that placed something."""
+    opened: list[VerifiedExperience | VerifiedEducation] = []
+    placed: list[Addition] = []
+    for addition in additions.additions:
+        slot = _resolve(content, addition.path, opened)
+        if slot is None:
+            reference = addition.reference
+            rejections.append(
+                Rejection(
+                    safe_path(addition.path),
+                    reference.block_id,
+                    reference.quote,
+                    "bad_path",
+                )
+            )
+            continue
+        owner, field, is_list = slot
+        if is_list:
+            held = getattr(owner, field)
+            path = f"{addition.path}[{len(held)}]"
+        else:
+            path = addition.path
+        unit = _place(ledgers, path, addition.reference, claims, rejections)
+        if unit is None:
+            continue
+        placed.append(addition)
+        if is_list:
+            held.append(unit)
+        else:
+            setattr(owner, field, unit)
+    for entry in opened:
+        if entry == type(entry)():
+            entries = (
+                content.experience
+                if isinstance(entry, VerifiedExperience)
+                else content.education
+            )
+            entries[:] = [other for other in entries if other is not entry]
+    return placed
+
+
+def _resolve(
+    content: VerifiedContent,
+    path: str,
+    opened: list[VerifiedExperience | VerifiedEducation],
+) -> tuple[VerifiedContent | VerifiedExperience | VerifiedEducation, str, bool] | None:
+    """The owner, field name and list-ness a path addresses, or ``None``. A
+    leaf is addressable only while empty, and an entry index only up to the
+    next free one (which opens a new entry, recorded in ``opened``)."""
+    if path == _TOP_LEAF:
+        return (content, path, False) if content.name is None else None
+    if path in _TOP_LISTS:
+        return content, path, True
+    match = _ENTRY_PATH.fullmatch(path)
+    if match is None:
+        return None
+    kind, digits, field = match.groups()
+    index = int(digits)
+    is_list = field == _ENTRY_LISTS[kind]
+    if str(index) != digits or not (is_list or field in _ENTRY_LEAVES[kind]):
+        return None
+    entries = getattr(content, kind)
+    if index > len(entries):
+        return None
+    if index == len(entries):
+        entry = _ENTRY_MODELS[kind]()
+        entries.append(entry)
+        opened.append(entry)
+    else:
+        entry = entries[index]
+        if not is_list and getattr(entry, field) is not None:
+            return None
+    return entry, field, is_list
 
 
 def _heading_backstop(ledgers: dict[str, Ledger], removals: list[Removal]) -> None:

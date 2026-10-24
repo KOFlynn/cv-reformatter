@@ -7,16 +7,18 @@ from cvr.label.errors import ProviderUnavailable
 from cvr.pipeline import _build_graph, reformat
 
 
-def test_the_graph_is_the_five_nodes_in_a_line():
+def test_the_graph_is_the_five_nodes_in_a_line_with_one_retry_edge():
     graph = _build_graph(lambda blocks: None).get_graph()
-    edges = {(e.source, e.target) for e in graph.edges}
+    edges = {(e.source, e.target, e.conditional) for e in graph.edges}
     assert edges == {
-        ("__start__", "parse"),
-        ("parse", "label"),
-        ("label", "verify"),
-        ("verify", "transform"),
-        ("transform", "render"),
-        ("render", "__end__"),
+        ("__start__", "parse", False),
+        ("parse", "label", False),
+        ("label", "verify", False),
+        # the one conditional edge leaves verify: back to label, or on
+        ("verify", "label", True),
+        ("verify", "transform", True),
+        ("transform", "render", False),
+        ("render", "__end__", False),
     }
 
 

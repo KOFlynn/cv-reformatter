@@ -8,6 +8,15 @@ under the eval-run rule, so it must miss the cache too. A labelling failure
 is cached like any other answer (it is what the model said); a provider
 error is not an answer and is never cached.
 
+Each attempt of a document is cached on its own (ticket 15). The first
+attempt's key is the one above. A later attempt's key adds the attempt number
+(so the re-ask of a failed first answer, which sends the first prompt again,
+never replays the failure it follows), the hashes of the retry prompt and the
+additions schema, and the hashes of the feedback and of the base answer the
+retry adds to: together with the blocks (the source) and the configuration,
+everything the retry's answer depends on. A cached rerun replays the same
+retries with no call.
+
 The directory is gitignored (``.cache/``) and must stay out of the runtime
 image: it holds LLM answers quoting the golden set, and committing LLM
 responses or the eval cache is out of scope for the repo.
@@ -19,12 +28,13 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Lock
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
 from cvr.eval.run.documents import REPO_ROOT
 from cvr.models import (
+    Additions,
     LabelExchange,
     Labelling,
     LabellingFailure,
@@ -59,6 +69,51 @@ class LabellerIdentity:
     prompt_hash: str
     schema_version: str
     schema_hash: str
+    # What a retry's answer depends on besides the first attempt's inputs;
+    # empty for a labeller that takes no retry.
+    retry_prompt_hash: str = ""
+    additions_hash: str = ""
+
+    @property
+    def retry_parts(self) -> dict[str, str]:
+        return {
+            "retry_prompt_hash": self.retry_prompt_hash,
+            "additions_hash": self.additions_hash,
+        }
+
+
+def _digest(value: object) -> str:
+    text = json.dumps(value, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _dump(value: BaseModel | None) -> object:
+    return None if value is None else value.model_dump(mode="json")
+
+
+def attempt_key(
+    base_key: str,
+    attempt: int,
+    retry_parts: Mapping[str, str],
+    feedback: BaseModel | None = None,
+    first: BaseModel | None = None,
+) -> str:
+    """The key of attempt ``attempt`` of the document ``base_key`` names. The
+    first attempt is ``base_key`` itself; a later one hashes it with the
+    attempt number, the retry prompt and additions schema hashes, and the
+    feedback and the base answer it was sent (none for the re-ask of a
+    failed first answer, which is told nothing)."""
+    if attempt <= 1:
+        return base_key
+    return _digest(
+        {
+            "base": base_key,
+            "attempt": attempt,
+            **retry_parts,
+            "feedback_sha256": _digest(_dump(feedback)),
+            "first_sha256": _digest(_dump(first)),
+        }
+    )
 
 
 def cache_key(identity: LabellerIdentity, source: bytes) -> str:
@@ -78,9 +133,10 @@ class _Entry(BaseModel):
     """One cached answer: a usable labelling or a failure, and the
     ``LabelRun`` recorded when it was made."""
 
-    kind: Literal["labelling", "failure"]
+    kind: Literal["labelling", "failure", "additions"]
     labelling: Labelling | None = None
     failure: LabellingFailure | None = None
+    additions: Additions | None = None
     label_run: LabelRun | None = None
 
 
@@ -93,20 +149,31 @@ class ResponseCache:
     def _path(self, key: str) -> Path:
         return self.directory / f"{key}.json"
 
-    def get(self, key: str) -> tuple[LabellingResult, LabelRun | None] | None:
+    def get(
+        self, key: str
+    ) -> tuple[LabellingResult | Additions, LabelRun | None] | None:
         path = self._path(key)
         if not path.exists():
             return None
         entry = _Entry.model_validate_json(path.read_text(encoding="utf-8"))
-        result = entry.labelling if entry.kind == "labelling" else entry.failure
+        result = {
+            "labelling": entry.labelling,
+            "failure": entry.failure,
+            "additions": entry.additions,
+        }[entry.kind]
         assert result is not None, path
         return result, entry.label_run
 
     def put(
-        self, key: str, result: LabellingResult, label_run: LabelRun | None
+        self,
+        key: str,
+        result: LabellingResult | Additions,
+        label_run: LabelRun | None,
     ) -> None:
         if isinstance(result, Labelling):
             entry = _Entry(kind="labelling", labelling=result, label_run=label_run)
+        elif isinstance(result, Additions):
+            entry = _Entry(kind="additions", additions=result, label_run=label_run)
         else:
             entry = _Entry(kind="failure", failure=result, label_run=label_run)
         self.directory.mkdir(parents=True, exist_ok=True)
@@ -150,6 +217,11 @@ class CachedLabeller:
     answered. ``read=False`` (``--no-cache``) skips the lookup but still
     stores the fresh answer, so the next cached run replays the latest one.
 
+    Every attempt is cached separately: the call number and the feedback and
+    base answer of a retry go into its key (``attempt_key``), so a cached
+    rerun replays the same retries, and the re-ask of a failed first answer
+    has an entry of its own.
+
     Like ``RealLabeller``, it records the call's ``LabelRun`` on
     ``last_run`` for the pipeline to read.
     """
@@ -159,28 +231,51 @@ class CachedLabeller:
     key: str
     stats: CacheStats
     read: bool = True
+    # Whether the live labeller takes retries (``feedback``/``first``).
+    retryable: bool = False
+    # The retry prompt and additions schema hashes (``LabellerIdentity``).
+    retry_parts: Mapping[str, str] = field(default_factory=dict)
     last_run: LabelRun | None = None
     last_exchange: LabelExchange | None = None
+    # Whether the document's first attempt was replayed.
     hit: bool = False
+    replayed: bool = False
+    calls: int = 0
+    # What this document's live calls cost, replays excluded.
+    live_cost: float = 0.0
 
     @property
     def cached(self) -> bool:
         """Whether the last answer was replayed (what a trace marks)."""
-        return self.hit
+        return self.replayed
 
-    def __call__(self, blocks: Sequence[SourceBlock]) -> LabellingResult:
+    def __call__(
+        self, blocks: Sequence[SourceBlock], **retry: Any
+    ) -> LabellingResult | Additions:
         self.last_run = None
         self.last_exchange = None
-        if self.read and (cached := self.cache.get(self.key)) is not None:
-            self.hit = True
+        self.replayed = False
+        self.calls += 1
+        key = attempt_key(
+            self.key,
+            self.calls,
+            self.retry_parts,
+            retry.get("feedback"),
+            retry.get("first"),
+        )
+        if self.read and (cached := self.cache.get(key)) is not None:
+            self.hit = self.hit or self.calls == 1
+            self.replayed = True
             self.stats.record_hit()
             result, self.last_run = cached
             return result
         labeller = self.live()
         self.stats.record_live_call()
-        result = labeller(blocks)
+        result = labeller(blocks, **retry)
         self.last_run = label_run_of(labeller)
+        if self.last_run is not None:
+            self.live_cost += self.last_run.cost_usd
         exchange = getattr(labeller, "last_exchange", None)
         self.last_exchange = exchange if isinstance(exchange, LabelExchange) else None
-        self.cache.put(self.key, result, self.last_run)
+        self.cache.put(key, result, self.last_run)
         return result

@@ -36,7 +36,8 @@ from cvr.label import (
     RealLabeller,
 )
 from cvr.label.labeller import build_chat_model
-from cvr.pipeline import Labeller
+from cvr.label.versions import ADDITIONS_HASH, RETRY_HASH
+from cvr.pipeline import Labeller, retry_max
 from cvr.tracing import Tracer, env_tag
 
 __all__ = ["evaluate", "main", "real_labeller"]
@@ -57,12 +58,17 @@ def real_labeller() -> tuple[Callable[[Document], Labeller], LabellerIdentity]:
                 built.append(build_chat_model(config))
         return RealLabeller(config, chat_model=built[0])
 
+    # RealLabeller takes retries; the cache stores each attempt on its own.
+    live.retryable = True  # type: ignore[attr-defined]
+
     identity = LabellerIdentity(
         config=config.as_dict(),
         prompt_version=PROMPT_VERSION,
         prompt_hash=PROMPT_HASH,
         schema_version=SCHEMA_VERSION,
         schema_hash=SCHEMA_HASH,
+        retry_prompt_hash=RETRY_HASH,
+        additions_hash=ADDITIONS_HASH,
     )
     return live, identity
 
@@ -79,7 +85,9 @@ def evaluate(
     tracer: Tracer | None = None,
 ) -> Report:
     """Run, score and gate the documents ``stems``; ``tracer`` traces each
-    document's Run."""
+    document's Run. ``CVR_RETRY_MAX`` is read once here so a bad value stops the
+    run before any call is paid for; each Run reads it again."""
+    retry_max()
     thresholds = load_thresholds(thresholds_file)
     documents = [document(stem) for stem in stems]
     started = perf_counter()

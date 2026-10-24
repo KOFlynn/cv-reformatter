@@ -20,7 +20,14 @@ from collections import Counter
 from collections.abc import Collection, Mapping, Sequence
 from typing import Any, Literal
 
-from cvr.models import LabelExchange, Labelling, LabelRun
+from cvr.models import (
+    Additions,
+    LabelExchange,
+    Labelling,
+    LabellingFailure,
+    LabelRun,
+    safe_path,
+)
 
 __all__ = [
     "ALLOWED_KEYS",
@@ -28,6 +35,7 @@ __all__ = [
     "Mode",
     "allowed_keys",
     "allowlisted",
+    "decision_payload",
     "generation_payload",
     "node_payload",
     "rejection_payload",
@@ -56,8 +64,12 @@ ALLOWED_KEYS = frozenset(
         "rejected_unlocatable",
         "rejected_conflict",
         "rejected_removed",
+        "rejected_bad_path",
         "residue_count",
         "unplaced_count",
+        # retry decisions (reason is a fixed string from the decision rules)
+        "retry",
+        "unplaced_chars",
         # transform
         "date_count",
         "split_count",
@@ -86,7 +98,7 @@ type Mode = Literal["structure", "full"]
 FULL_KEYS = frozenset({"quote", "blocks", "messages", "answer"})
 
 # The vocabulary of the verifier's rejection reasons, for a fixed set of keys.
-_REJECTION_REASONS = ("unlocatable", "conflict", "removed")
+_REJECTION_REASONS = ("unlocatable", "conflict", "removed", "bad_path")
 
 
 def allowed_keys(mode: Mode) -> frozenset[str]:
@@ -111,8 +123,10 @@ def _count(value: Any) -> int:
 
 
 def _reference_count(labelling: Any) -> int:
-    """How many references a labelling holds, counted by walking the model's
-    fields (no text is read)."""
+    """How many references a labelling (or a retry's additions) holds, counted
+    by walking the model's fields (no text is read)."""
+    if isinstance(labelling, Additions):
+        return len(labelling.additions)
     if not isinstance(labelling, Labelling):
         return 0
     return _walk_references(labelling.content)
@@ -158,12 +172,16 @@ def node_payload(
             extra["output"] = {"blocks": _blocks(parsed.blocks)}
     elif node == "label":
         labelling = outputs["labelling"]
-        failed = not isinstance(labelling, Labelling)
+        # ``None`` is a provider outage on a retry: nothing came back.
+        failed = labelling is None or isinstance(labelling, LabellingFailure)
         facts = {
+            "attempt": outputs.get("attempt"),
             "block_count": _count(inputs["blocks"]),
             "label_failed": failed,
             "reference_count": _reference_count(labelling),
-            "removal_reference_count": 0 if failed else _count(labelling.removals),
+            "removal_reference_count": (
+                _count(labelling.removals) if isinstance(labelling, Labelling) else 0
+            ),
         }
         if mode == "full":
             extra["input"] = {"blocks": _blocks(inputs["blocks"])}
@@ -171,6 +189,7 @@ def node_payload(
         verified = outputs["verified"]
         by_reason = Counter(r.reason for r in verified.rejections)
         facts = {
+            "attempt": outputs.get("attempt"),
             "label_failed": verified.label_failed,
             "claim_count": _count(verified.claims),
             "removal_count": _count(verified.removals),
@@ -199,7 +218,7 @@ def rejection_payload(
     quote only in full mode. The block id is the model's, so it is reported only when it is
     one of ``block_ids`` (the parsed blocks'); otherwise it is ``unknown``."""
     facts: dict[str, Any] = {
-        "path": rejection.path,
+        "path": safe_path(rejection.path),
         "block_id": (
             rejection.block_id if rejection.block_id in block_ids else "unknown"
         ),
@@ -208,6 +227,30 @@ def rejection_payload(
     if mode == "full":
         facts["quote"] = rejection.quote
     return {"metadata": allowlisted(facts, mode)}
+
+
+def decision_payload(
+    retry: bool,
+    reason: str,
+    attempt: int,
+    unplaced_chars: int,
+    *,
+    mode: Mode = "structure",
+) -> dict[str, Any]:
+    """One retry decision as an event: whether to retry, the decision rules'
+    fixed reason, the attempt just made and the unplaced characters left. No
+    text, in any mode."""
+    return {
+        "metadata": allowlisted(
+            {
+                "retry": retry,
+                "reason": reason,
+                "attempt": attempt,
+                "unplaced_chars": unplaced_chars,
+            },
+            mode,
+        )
+    }
 
 
 def generation_payload(

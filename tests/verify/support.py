@@ -2,6 +2,8 @@
 labelling with only the named fields set."""
 
 from cvr.models import (
+    Addition,
+    Additions,
     ContentReferences,
     ExperienceReference,
     Labelling,
@@ -44,3 +46,10 @@ def experience(**fields) -> ExperienceReference:
     }
     entry.update(fields)
     return ExperienceReference(**entry)
+
+
+def additions(*pairs: tuple[str, Reference]) -> Additions:
+    """Additions from ``(path, reference)`` pairs, in order."""
+    return Additions(
+        additions=[Addition(path=path, reference=ref) for path, ref in pairs]
+    )
