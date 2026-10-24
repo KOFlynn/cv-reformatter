@@ -232,3 +232,177 @@ def test_the_smoke_stage_stops_the_app_whether_or_not_it_ran_the_test(
     # Outside the confirm: a declined or failed smoke test still stops the app.
     assert stage.index("\nfi\n") < down
     assert "|| " in stage[down : stage.index("\n", down)] or "if !" in stage[:down]
+
+
+# Phase 2 ticket 18: the Azure OpenAI stage. No key is ever created, listed or
+# stored; every create reads first; the role is on the account, not the group.
+@pytest.fixture(scope="module")
+def aoai_stage(script: str) -> str:
+    # azq is az with CRs stripped: the reads are written with it.
+    return _stage(script, "Azure OpenAI").replace("azq ", "az ")
+
+
+def test_aoai_stage_sits_between_retention_and_the_record(script: str) -> None:
+    assert (
+        script.index('stage "Log retention')
+        < script.index('stage "Azure OpenAI')
+        < script.index('stage "Record for')
+    )
+
+
+def test_the_provider_is_registered_and_awaited(aoai_stage: str) -> None:
+    assert "az provider register --namespace Microsoft.CognitiveServices --wait" in (
+        aoai_stage
+    )
+    assert "registrationState" in aoai_stage
+    assert aoai_stage.index("registrationState") < aoai_stage.index("usage list")
+
+
+def test_no_quota_stops_the_wizard_before_anything_is_created(aoai_stage: str) -> None:
+    assert "az cognitiveservices usage list" in aoai_stage
+    assert "OpenAI.$AOAI_SKU.$AOAI_MODEL" in aoai_stage
+    stop = aoai_stage.index("== 0 ]]")
+    first_create = min(
+        aoai_stage.index(c)
+        for c in (
+            "az cognitiveservices account create",
+            "az resource update",
+            "az cognitiveservices account deployment create",
+            "az role assignment create",
+            "az containerapp identity assign",
+        )
+    )
+    assert stop < first_create
+    assert "exit 1" in aoai_stage[stop:first_create]
+    assert "quota" in aoai_stage[stop:first_create]
+
+
+def test_capacity_defaults_to_the_smaller_of_available_and_500(
+    aoai_stage: str,
+) -> None:
+    assert "quota_free > 500" in aoai_stage
+    assert "max_completion_tokens" in aoai_stage
+    assert "ask_default AZURE_OPENAI_CAPACITY" in aoai_stage
+
+
+def test_account_is_ai_services_with_a_custom_subdomain(aoai_stage: str) -> None:
+    create = aoai_stage[aoai_stage.index("az cognitiveservices account create") :]
+    create = create[: create.index("--output none")]
+    assert "--kind AIServices" in create
+    assert "--sku S0" in create
+    assert '--custom-domain "$AZURE_OPENAI_ACCOUNT"' in create
+    assert "openssl rand -hex 2" in aoai_stage  # cvr-aoai-<4 random>
+
+
+def test_key_auth_is_disabled_through_arm_only_when_it_is_not_already(
+    aoai_stage: str,
+) -> None:
+    update = aoai_stage.index("az resource update")
+    assert "--set properties.disableLocalAuth=true" in aoai_stage[update:]
+    before = aoai_stage[:update]
+    assert "properties.disableLocalAuth -o tsv" in before
+    assert before.rstrip().endswith("else")
+
+
+def test_deployment_is_data_zone_standard_gpt_5_4_with_a_pinned_version(
+    aoai_stage: str,
+) -> None:
+    assert "AOAI_SKU=DataZoneStandard" in aoai_stage
+    assert "AOAI_MODEL=gpt-5.4" in aoai_stage
+    assert "AOAI_MODEL_VERSION=2026-03-05" in aoai_stage
+    create = aoai_stage[aoai_stage.index("deployment create") :]
+    create = create[: create.index("--output none")]
+    for flag in (
+        "--model-format OpenAI",
+        '--model-name "$AOAI_MODEL"',
+        '--model-version "$AOAI_MODEL_VERSION"',
+        '--sku-name "$AOAI_SKU"',
+        '--sku-capacity "$AZURE_OPENAI_CAPACITY"',
+    ):
+        assert flag in create
+
+
+def test_every_create_reads_first(aoai_stage: str) -> None:
+    for show, create in (
+        ("az cognitiveservices account show", "az cognitiveservices account create"),
+        (
+            "az cognitiveservices account deployment show",
+            "az cognitiveservices account deployment create",
+        ),
+        ("az containerapp identity show", "az containerapp identity assign"),
+        ("az role assignment list", "az role assignment create"),
+    ):
+        assert aoai_stage.index(show) < aoai_stage.index(create), create
+    assert "already exists" in aoai_stage
+
+
+def test_roles_are_the_inference_role_on_the_account_for_the_app_and_the_user(
+    aoai_stage: str,
+) -> None:
+    assert 'AOAI_ROLE="Cognitive Services OpenAI User"' in aoai_stage
+    assert "--system-assigned" in aoai_stage
+    assert "az ad signed-in-user show" in aoai_stage
+    create = aoai_stage[aoai_stage.index("az role assignment create") :]
+    create = create[: create.index("--output none")]
+    assert '--scope "$aoai_id"' in create
+    assert '--role "$AOAI_ROLE"' in create
+    assert "$rg_id" not in aoai_stage
+    assert "az group show" not in aoai_stage
+    assert 'grant_role "$app_principal" ServicePrincipal' in aoai_stage
+    assert 'grant_role "$user_principal" User' in aoai_stage
+
+
+def test_the_identity_change_waits_for_the_app(aoai_stage: str) -> None:
+    lines = aoai_stage.splitlines()
+    i = next(n for n, l in enumerate(lines) if "az containerapp identity assign" in l)
+    assert "wait_app_ready" in lines[i + 2]
+
+
+def test_the_stage_reads_back_and_fails_loudly(aoai_stage: str) -> None:
+    assert "properties.disableLocalAuth" in aoai_stage[aoai_stage.index("Read-back") :]
+    assert "model.version" in aoai_stage
+    assert "az role assignment list --scope" in aoai_stage
+    assert 'local_auth_off" == true' in aoai_stage
+    assert "bad=1" in aoai_stage
+    assert "exit 1" in aoai_stage[aoai_stage.index("bad == 0") :]
+
+
+def test_the_stage_prints_what_the_app_will_need_but_does_not_change_the_app(
+    aoai_stage: str,
+) -> None:
+    assert "CVR_LABEL_AZURE_ENDPOINT=https://" not in aoai_stage  # via the variable
+    assert 'AZURE_OPENAI_ENDPOINT="https://$subdomain.openai.azure.com/"' in aoai_stage
+    assert "CVR_LABEL_AZURE_ENDPOINT=$AZURE_OPENAI_ENDPOINT" in aoai_stage
+    assert "CVR_LABEL_AZURE_DEPLOYMENT=$AZURE_OPENAI_DEPLOYMENT" in aoai_stage
+    assert "az containerapp update" not in aoai_stage
+    assert "--set-env-vars" not in aoai_stage
+
+
+def test_aoai_values_are_remembered_in_the_env_file(aoai_stage: str) -> None:
+    for key in (
+        "AZURE_OPENAI_ACCOUNT",
+        "AZURE_OPENAI_DEPLOYMENT",
+        "AZURE_OPENAI_CAPACITY",
+    ):
+        assert f"ask_default {key} " in aoai_stage
+    assert 'write_env AZURE_OPENAI_ENDPOINT "$AZURE_OPENAI_ENDPOINT"' in aoai_stage
+    assert "set_secret" not in aoai_stage
+
+
+def test_no_key_is_ever_listed_or_created(script: str) -> None:
+    assert "cognitiveservices account keys" not in script
+    assert "keys list" not in script
+    assert "keys regenerate" not in script
+
+
+def test_every_aoai_az_write_is_silent(aoai_stage: str) -> None:
+    for prefix in (
+        "az cognitiveservices account create",
+        "az resource update",
+        "az cognitiveservices account deployment create",
+        "az containerapp identity assign",
+        "az role assignment create",
+    ):
+        for first, last in _az_commands(aoai_stage, prefix):
+            block = "\n".join(aoai_stage.splitlines()[first : last + 1])
+            assert "--output none" in block, prefix
