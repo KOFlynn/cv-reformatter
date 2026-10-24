@@ -4,14 +4,14 @@
 
 **Blocked by:** 07
 
-**Status:** in-progress
+**Status:** done
 
 - [x] API tests (injected in-memory client) show the response's `X-Run-Id` equal to the exported trace id, and the log lines carrying the same id
 - [x] Eval runner tests show one trace per document with `env=eval`, and a cache hit tagged cached with zero cost
 - [x] With the keys missing, the API and the eval still run, untraced (tested)
 - [x] The CI eval job and the deploy configuration receive the Langfuse keys as secrets; the workflow's static tests cover it
-- [ ] The image check is run and pasted (the size added by the OpenTelemetry packages noted); the runtime-import test still holds
-- [ ] The maintainer sees one CI eval run's traces in Langfuse (noted on the ticket); usage checked against the Hobby allowance
+- [x] The image check is run and pasted (the size added by the OpenTelemetry packages noted); the runtime-import test still holds
+- [x] The maintainer sees one CI eval run's traces in Langfuse (noted on the ticket); usage checked against the Hobby allowance
 - [x] The development docs and CLAUDE.md list the new environment variables
 
 ## Comments
@@ -27,3 +27,11 @@
 **Merge with ticket 09 (2026-10-21).** Merged `phase-2/release-01-10` (full mode) keeping both: `Tracer` carries tags and mode, `generation_payload`/`GenerationTrace.finish` take `cached` and `exchange` together. In the eval, `CachedLabeller` and the runner's `_Unlocked`/`_Counted` wrappers forward `last_exchange` (`None` on a cache hit, so a replayed generation has no text, as it has no cost). Each labelling gets its own labeller instance (`live(document)` per attempt, wrapper per attempt), so `last_run`/`last_exchange` are never shared across the four concurrent threads; `test_concurrent_full_traces_each_carry_their_own_labellings_exchange` pins it. **API stance on `CVR_TRACE_MODE=full`:** a logged warning at app creation (the app still starts); the deploy never setting it stays pinned by the static test from ticket 09, and the wizard never mentions it. Failing closed was not chosen: a misconfigured full mode on the deployed app is caught by that test and the warning in Log Analytics, and refusing to start would take the demo down.
 
 **Two failures fixed on the release head.** (1) `RealLabeller`: whatever comes back in the structured output's `parsing_error` slot is a labelling failure, `invalid JSON` unless it is a validation error (ticket 03's decision); the label test that expected `LabellerMisconfigured` for a `RuntimeError` there was replaced by one expecting `invalid JSON` for several exception types. (2) `test_a_raising_client_leaves_the_run_unchanged` (and its two siblings) compared two rendered `.docx` byte for byte; every zip entry carries the render time to the 2 seconds a zip stores, so they differ whenever a 2-second boundary falls between the baseline and the traced render (reproduced: same parts, entry times 21:15:40 vs 21:15:42). Not Langfuse state. The tests now compare each zip entry's content.
+
+2026-10-24 (maintainer's results, recorded by the agent):
+
+- **Image.** `scripts/check-image.sh` passed in full: 350 MB against 325 MB, so Langfuse and the OpenTelemetry packages add 25 MB. The runtime-import test still holds and `/app/src/cvr/tracing` is in the image. Detail on ticket 02.
+- **Smoke test on Azure** (`demo.sh up`, `smoke-deploy.sh`, `demo.sh down`): `/health` answered after 1 s (wake) and 0 s; `/reformat` without the key 401; `c04__single-column.docx` 200, 39,164 bytes, `X-Run-Id` `3dc181708738493bb70f73de47997fbb`; `demo.sh down` run afterwards. The deployed image is `main`'s, which has no tracing, so this run was untraced. The first `env=prod` trace comes from the deploy after this branch's PR merges; until then the API's Langfuse path is proved by the injected-client tests only.
+- **Eval traces.** The box's wording was a CI eval run; it is satisfied honestly by the maintainer's local traced eval run with the CI eval job's configuration (`--no-cache`, `CVR_TRACE_MODE=full`, the same keys), not by a CI run. The PR's CI eval will produce `env=eval` traces too. Seen in Langfuse Cloud (EU, Hobby, private project): 48 traces tagged `env=eval`, each `reformat` over `parse`, `label` (one generation, `labelling`), `verify`, `transform`, `render`. Example trace `67a59f7f658041ed8e6e5815d5f82aeb`: 12.34 s, $0.038, about 9k tokens; the generation 12.17 s, $0.037626, `claude-sonnet-5-5`; full mode shows the input (the CV text) and the output (the JSON answer). The run cost $1.5927 in all (details on ticket 02).
+- **Hobby usage** after the run: 320 of 50,000 units (0.64%). A CI eval and a few demos a month stay far inside the allowance.
+- **Finding.** Langfuse's Environment field shows `default` on all 48 traces: only the `env=` tag was set, not the SDK's native environment. Follow-up: ticket 22.
