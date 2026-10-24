@@ -57,7 +57,7 @@ from cvr.verify.retry import (
     unplaced_chars,
 )
 
-__all__ = ["Labeller", "reformat", "retry_max"]
+__all__ = ["Labeller", "can_retry", "reformat", "retry_max"]
 
 # Blocks in, a labelling result out. ``RealLabeller`` also records its
 # ``LabelRun`` on ``last_run`` after each call; any labeller that does is
@@ -97,10 +97,15 @@ class _State(TypedDict, total=False):
     output: bytes
 
 
-def _takes_feedback(labeller: Labeller) -> bool:
+def can_retry(labeller: Labeller) -> bool:
     """Whether ``labeller`` can be asked for a retry: it accepts ``feedback``
     (``RealLabeller`` does). One that takes the blocks alone, as the test
-    oracles do, makes one attempt and the loop never runs."""
+    oracles do, makes one attempt and the loop never runs. A wrapper that
+    forwards retries only sometimes (the eval runner's) says so with a boolean
+    ``retryable`` attribute, which wins."""
+    declared = getattr(labeller, "retryable", None)
+    if isinstance(declared, bool):
+        return declared
     try:
         parameters = inspect.signature(labeller).parameters.values()
     except (TypeError, ValueError):
@@ -144,7 +149,7 @@ def _build_graph(
     that cannot take feedback gets none."""
     trace = trace if trace is not None else RunTrace(None)
     limit = retry_max() if max_retries is None else max_retries
-    if not _takes_feedback(labeller):
+    if not can_retry(labeller):
         limit = 0
 
     def parse_node(state: _State) -> _State:

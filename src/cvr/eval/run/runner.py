@@ -39,7 +39,7 @@ from cvr.eval.run.documents import Document
 from cvr.eval.run.score import Scores, score
 from cvr.label.errors import ProviderUnavailable
 from cvr.models import LabelRun
-from cvr.pipeline import Labeller, reformat
+from cvr.pipeline import Labeller, can_retry, reformat
 from cvr.tracing import Tracer
 
 __all__ = [
@@ -105,10 +105,14 @@ class _Unlocked:
     def cached(self) -> bool:
         return getattr(self.labeller, "cached", False) is True
 
-    def __call__(self, blocks):
+    @property
+    def retryable(self) -> bool:
+        return can_retry(self.labeller)
+
+    def __call__(self, blocks, **retry):
         _DOCUMENTS.release()
         try:
-            return self.labeller(blocks)
+            return self.labeller(blocks, **retry)
         finally:
             _DOCUMENTS.acquire()
 
@@ -143,9 +147,13 @@ class _Counted:
         wrapper is per labelling, so this is never another document's."""
         return getattr(self.labeller, "last_exchange", None)
 
-    def __call__(self, blocks):
+    @property
+    def retryable(self) -> bool:
+        return can_retry(self.labeller)
+
+    def __call__(self, blocks, **retry):
         self.stats.record_live_call()
-        return self.labeller(blocks)
+        return self.labeller(blocks, **retry)
 
 
 def _labeller(
@@ -164,6 +172,9 @@ def _labeller(
         key=cache_key(identity, document.source),
         stats=stats,
         read=read_cache,
+        # A retry is never cached yet (ticket 15): only a live labeller that
+        # can take one is asked for it.
+        retryable=getattr(live, "retryable", False) is True,
     )
 
 
