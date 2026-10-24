@@ -54,7 +54,12 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import Runnable
 from pydantic import ValidationError
 
-from cvr.label.azure_openai import AZURE_PROVIDER, azure_error, azure_kwargs
+from cvr.label.azure_openai import (
+    AZURE_PROVIDER,
+    azure_error,
+    azure_failure_reason,
+    azure_kwargs,
+)
 from cvr.label.config import LabellerConfig
 from cvr.label.errors import LabellerError, LabellerMisconfigured, ProviderUnavailable
 from cvr.label.pricing import estimate_cost
@@ -387,6 +392,8 @@ def failure_reason(exc: BaseException) -> str | None:
             if not locations:
                 return "schema mismatch"
             return "schema mismatch at " + ", ".join(locations)
+    if (azure_reason := azure_failure_reason(chain)) is not None:
+        return azure_reason
     if any(isinstance(e, json.JSONDecodeError | OutputParserException) for e in chain):
         return "invalid JSON"
     return None

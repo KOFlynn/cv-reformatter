@@ -8,8 +8,11 @@ from the default Azure credential (a managed identity in Container Apps, the
 developer's sign-in locally) with the scope ticket 01 found, and the key
 arguments are passed as an explicit ``None`` so that ``AzureChatOpenAI`` does
 not fall back to ``AZURE_OPENAI_API_KEY`` or ``OPENAI_API_KEY`` in the
-environment. A configuration that carries a key or a token of its own (through
-``CVR_LABEL_EXTRA``) is refused as ``LabellerMisconfigured``.
+environment. A configuration that carries a key or a token of its own, or an argument that
+could redirect the token (``base_url``, ``openai_api_base``, ``azure_endpoint``,
+``default_headers``), through ``CVR_LABEL_EXTRA`` is refused as
+``LabellerMisconfigured``. The credential excludes the environment credential,
+so a client secret in the environment is not a way in.
 """
 
 from __future__ import annotations
@@ -32,6 +35,7 @@ __all__ = [
     "AZURE_EFFORTS",
     "AZURE_PROVIDER",
     "azure_error",
+    "azure_failure_reason",
     "azure_kwargs",
 ]
 
@@ -49,6 +53,17 @@ def _is_credential_argument(name: str) -> bool:
     return "api_key" in lowered or lowered.startswith(
         ("azure_ad_token", "azure_ad_async_token")
     )
+
+
+_REDIRECTIONS = frozenset(
+    {"base_url", "openai_api_base", "azure_endpoint", "default_headers"}
+)
+
+
+def _is_redirection(name: str) -> bool:
+    """An argument that would send the token to another host or add headers
+    of the caller's own."""
+    return name.lower().replace("-", "_") in _REDIRECTIONS
 
 
 def azure_kwargs(
@@ -76,9 +91,21 @@ def azure_kwargs(
             "the azure_openai labeller provider is keyless (managed identity): "
             f"CVR_LABEL_EXTRA must not carry {', '.join(refused)}"
         )
+    redirected = sorted(name for name in config.extra if _is_redirection(name))
+    if redirected:
+        raise LabellerMisconfigured(
+            "the azure_openai labeller provider sends a bearer token, so "
+            "CVR_LABEL_EXTRA must not redirect it: it must not carry "
+            f"{', '.join(redirected)}"
+        )
 
     token_provider = get_bearer_token_provider(
-        DefaultAzureCredential(), config.azure_scope or DEFAULT_AZURE_SCOPE
+        # No environment credential: an AZURE_CLIENT_SECRET (or certificate)
+        # in the environment must not become a way to authenticate. The chain
+        # is the managed identity in Container Apps and the developer's
+        # sign-in (CLI, VS Code, PowerShell) locally.
+        DefaultAzureCredential(exclude_environment_credential=True),
+        config.azure_scope or DEFAULT_AZURE_SCOPE,
     )
     kwargs: dict[str, Any] = {
         "azure_endpoint": config.azure_endpoint,
@@ -98,6 +125,21 @@ def azure_kwargs(
         kwargs["temperature"] = config.temperature
     kwargs.update(config.extra)
     return kwargs
+
+
+def azure_failure_reason(chain: list[BaseException]) -> str | None:
+    """The labelling-failure reason for an exception chain that is the model's
+    answer failing, not the provider or the configuration: the OpenAI client
+    raises ``LengthFinishReasonError`` when the answer hit the token limit
+    (truncated JSON, so ``invalid JSON`` as for Anthropic's ``max_tokens``) and
+    ``ContentFilterFinishReasonError`` when Azure's content filter stopped it
+    (``the model refused to answer``, as for a refusal). Fixed categories; no
+    message is carried."""
+    if any(isinstance(e, openai.ContentFilterFinishReasonError) for e in chain):
+        return "the model refused to answer"
+    if any(isinstance(e, openai.LengthFinishReasonError) for e in chain):
+        return "invalid JSON"
+    return None
 
 
 def azure_error(exc: Exception, retries: int) -> LabellerError | None:
