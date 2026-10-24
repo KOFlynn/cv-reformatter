@@ -8,11 +8,15 @@ import json
 import pytest
 
 from cvr.label.versions import (
+    ADDITIONS_HASH,
+    ADDITIONS_JSON_SCHEMA,
     CONTENT_HASH,
     LABELLING_JSON_SCHEMA,
     PROMPT_HASH,
     PROMPT_TEXT,
     PROMPT_VERSION,
+    RETRY_HASH,
+    RETRY_TEXT,
     SCHEMA_HASH,
     SCHEMA_VERSION,
     VERSIONS_FILE,
@@ -45,7 +49,14 @@ def test_hashes_cover_the_prompt_the_schema_and_both():
     schema_text = json.dumps(LABELLING_JSON_SCHEMA, sort_keys=True)
     assert PROMPT_HASH == _hash(PROMPT_TEXT)
     assert SCHEMA_HASH == _hash(schema_text)
-    assert CONTENT_HASH == _hash(PROMPT_TEXT + schema_text)
+    # Ticket 12: the content hash covers all four artefacts (the retry prompt
+    # and the additions schema as well), so the eval cache keys change with them.
+    additions_text = json.dumps(ADDITIONS_JSON_SCHEMA, sort_keys=True)
+    assert RETRY_HASH == _hash(RETRY_TEXT)
+    assert ADDITIONS_HASH == _hash(additions_text)
+    assert CONTENT_HASH == _hash(
+        PROMPT_TEXT + schema_text + RETRY_TEXT + additions_text
+    )
 
 
 def test_versions_come_from_the_committed_file_and_match_it():
