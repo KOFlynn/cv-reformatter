@@ -1,6 +1,6 @@
 # Azure OpenAI is the second provider, reached through a managed identity, on a Data Zone EU deployment with key auth disabled
 
-**Status: draft.** Written before the live proof (ticket 19) so the decision and the questions the proof must settle are recorded first. Lines marked "to be settled by the live proof" are open; nothing here reports a result that does not yet exist. The provider comparison and the choice between the providers are ticket 21, and when it is decided this ADR is amended with the numbers.
+**Status: draft.** Written before the live proof (ticket 19) so the decision and the questions the proof must settle are recorded first. Lines marked "to be settled by the live proof" are open; nothing here reports a result that does not yet exist. The provider comparison is ticket 20 and its verdict is ADR-0015; this ADR is amended only with the live-proof results.
 
 The brief (§10) asks for Azure OpenAI as a second provider that Container Apps reaches through a managed identity, "so there is no key for that path", and for an eval report comparing the providers. ADR-0013 left the Anthropic path without an EU-only processing guarantee. This ADR records how the Azure path is built and what holds its credential, which is nothing.
 

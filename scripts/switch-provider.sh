@@ -27,7 +27,7 @@
 #   sh scripts/switch-provider.sh azure|anthropic [resource-group] [app]
 #
 # The names default to the wizard's .env.azure (AZURE_RESOURCE_GROUP,
-# AZURE_CONTAINER_APP, AZURE_OPENAI_ACCOUNT, AZURE_OPENAI_DEPLOYMENT), then to
+# AZURE_CONTAINER_APP, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_DEPLOYMENT), then to
 # cvr-rg and cvr-ca (ENV_FILE names another file). Needs az (signed in); POSIX sh, runs under Git Bash.
 set -eu
 cd "$(dirname "$0")/.."
@@ -52,6 +52,22 @@ value() {
   printf '%s\n' "$v" | tr -d '\r'
 }
 
+# The CVR_LABEL_* names the app has now, one per line.
+current_names() {
+  value containerapp show --name "$APP" --resource-group "$RG"     --query "properties.template.containers[0].env[].name"
+}
+
+# Of the names given, those the app has now (removing an absent one is noise).
+present() {
+  have=$(current_names)
+  for name in "$@"; do
+    printf '%s
+' "$have" | grep -qx "$name" && printf '%s
+' "$name"
+  done
+  return 0
+}
+
 report() {
   rev=$(value containerapp show --name "$APP" --resource-group "$RG" \
     --query properties.latestRevisionName)
@@ -67,21 +83,23 @@ report() {
 
 case "$ACTION" in
   azure)
-    ACCOUNT=$(from_env AZURE_OPENAI_ACCOUNT || true)
+    # The wizard writes the endpoint only after its read-back passes, so it
+    # doubles as the "provisioning completed" marker.
+    ENDPOINT=$(from_env AZURE_OPENAI_ENDPOINT || true)
     DEPLOYMENT=$(from_env AZURE_OPENAI_DEPLOYMENT || true)
     DEPLOYMENT=${DEPLOYMENT:-$MODEL}
-    [ -n "$ACCOUNT" ] || { echo "FAIL: AZURE_OPENAI_ACCOUNT is not in .env.azure (run the provisioning wizard)"; exit 1; }
+    [ -n "$ENDPOINT" ] || { echo "FAIL: AZURE_OPENAI_ENDPOINT is not in $ENV_FILE (run the provisioning wizard to the end)"; exit 1; }
+    EFFORT=${CVR_LABEL_EFFORT:-medium}
+    case "$EFFORT" in
+      low|medium|high|xhigh) ;;
+      *) echo "FAIL: CVR_LABEL_EFFORT=$EFFORT is not accepted by Azure (low, medium, high or xhigh)"; exit 1 ;;
+    esac
+    set --       CVR_LABEL_PROVIDER=azure_openai       "CVR_LABEL_MODEL=$MODEL"       "CVR_LABEL_EFFORT=$EFFORT"       "CVR_LABEL_AZURE_ENDPOINT=$ENDPOINT"       "CVR_LABEL_AZURE_DEPLOYMENT=$DEPLOYMENT"
     drop=""
-    set -- \
-      CVR_LABEL_PROVIDER=azure_openai \
-      "CVR_LABEL_MODEL=$MODEL" \
-      "CVR_LABEL_EFFORT=${CVR_LABEL_EFFORT:-medium}" \
-      "CVR_LABEL_AZURE_ENDPOINT=https://$ACCOUNT.openai.azure.com/" \
-      "CVR_LABEL_AZURE_DEPLOYMENT=$DEPLOYMENT"
     if [ -n "${CVR_LABEL_AZURE_SCOPE:-}" ]; then
       set -- "$@" "CVR_LABEL_AZURE_SCOPE=$CVR_LABEL_AZURE_SCOPE"
     else
-      drop="$drop CVR_LABEL_AZURE_SCOPE"
+      drop="CVR_LABEL_AZURE_SCOPE"
     fi
     if [ -n "${CVR_LABEL_AZURE_API_VERSION:-}" ]; then
       set -- "$@" "CVR_LABEL_AZURE_API_VERSION=$CVR_LABEL_AZURE_API_VERSION"
@@ -89,21 +107,32 @@ case "$ACTION" in
       drop="$drop CVR_LABEL_AZURE_API_VERSION"
     fi
     echo "== setting on $APP ($RG):"
-    printf '   %s\n' "$@"
-    az containerapp update --name "$APP" --resource-group "$RG" \
-      --set-env-vars "$@" --only-show-errors --output none
-    if [ -n "$drop" ]; then
+    printf '   %s
+' "$@"
+    # Overrides left by an earlier try and not given now go in the same
+    # update, so there is one revision.
+    # shellcheck disable=SC2086
+    gone=$(present $drop | tr '
+' ' ')
+    if [ -n "${gone% }" ]; then
       # shellcheck disable=SC2086
-      az containerapp update --name "$APP" --resource-group "$RG" \
-        --remove-env-vars $drop --only-show-errors --output none
+      az containerapp update --name "$APP" --resource-group "$RG"         --set-env-vars "$@" --remove-env-vars $gone --only-show-errors --output none
+    else
+      az containerapp update --name "$APP" --resource-group "$RG"         --set-env-vars "$@" --only-show-errors --output none
     fi
     report
     ;;
   anthropic)
-    echo "== removing the CVR_LABEL_* provider variables from $APP ($RG)"
     # shellcheck disable=SC2086
-    az containerapp update --name "$APP" --resource-group "$RG" \
-      --remove-env-vars $ALL_VARS --only-show-errors --output none
+    gone=$(present $ALL_VARS | tr '
+' ' ')
+    if [ -n "${gone% }" ]; then
+      echo "== removing ${gone% } from $APP ($RG)"
+      # shellcheck disable=SC2086
+      az containerapp update --name "$APP" --resource-group "$RG"         --remove-env-vars $gone --only-show-errors --output none
+    else
+      echo "== $APP has no CVR_LABEL_* provider variables; nothing to remove"
+    fi
     report
     ;;
   *) usage ;;
