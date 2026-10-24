@@ -8,9 +8,11 @@ Why: on 2026-10-24 the maintainer reached for the Environment filter in Langfuse
 
 **Status:** ready-for-agent
 
-- [ ] Tests show the API's traces (from `CVR_TRACE_ENV`) and the eval's traces carry the environment as well as the tag, through the injected exporter
-- [ ] The canary leak test (`tests/tracing/test_canary_leak.py`) stays green
+- [x] Tests show the API's traces (from `CVR_TRACE_ENV`) and the eval's traces carry the environment as well as the tag, through the injected exporter
+- [x] The canary leak test (`tests/tracing/test_canary_leak.py`) stays green
 - [ ] The next eval's traces appear under the Environment filter in Langfuse (noted on this ticket by the maintainer)
-- [ ] `docs/development.md` and CLAUDE.md's `tracing` entry say the environment is set natively as well as tagged
+- [x] `docs/development.md` and CLAUDE.md's `tracing` entry say the environment is set natively as well as tagged
 
 ## Comments
+
+2026-10-24: `Tracer.create` and `Tracer.from_env` take `environment=`, passed to `Langfuse(environment=...)`; it lands on every exported span as `langfuse.environment`. The API passes `trace_env()`, the eval runner `eval`. Tests assert the attribute through the injected exporter, including that `LANGFUSE_TRACING_ENVIRONMENT=other` does not override it. Box 3 is the maintainer's after the next eval.

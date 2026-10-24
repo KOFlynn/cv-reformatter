@@ -55,6 +55,7 @@ def _tracer(tags=("env=eval",)):
         base_url="http://127.0.0.1:1",
         span_exporter=exporter,
         tags=list(tags),
+        environment="eval",
     )
     return tracer, exporter
 
@@ -174,6 +175,37 @@ def test_with_keys_the_runner_tags_eval_whatever_cvr_trace_env_says(
     assert _main(tmp_path) == 0
     assert list(created["tags"]) == ["env=eval"]
     assert len(_roots(exporter)) == 4
+
+
+def test_every_span_carries_the_native_environment_eval(tmp_path):
+    tracer, exporter = _tracer()
+    assert _main(tmp_path, tracer) == 0
+    spans = list(exporter.get_finished_spans())
+    assert spans
+    assert {s.attributes["langfuse.environment"] for s in spans} == {"eval"}
+
+
+def test_with_keys_the_runner_passes_environment_eval(tmp_path, monkeypatch):
+    created = {}
+    exporter = InMemorySpanExporter()
+    real_create = Tracer.create.__func__
+
+    def create(cls, **kwargs):
+        created.update(kwargs)
+        return real_create(cls, **{**kwargs, "span_exporter": exporter})
+
+    monkeypatch.setattr(Tracer, "create", classmethod(create))
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", f"pk-lf-{uuid4().hex}")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-lf-dummy")
+    monkeypatch.setenv("LANGFUSE_BASE_URL", "http://127.0.0.1:1")
+    monkeypatch.setenv("CVR_TRACE_ENV", "prod")
+    # A stray variable in the shell cannot override the runner's own value.
+    monkeypatch.setenv("LANGFUSE_TRACING_ENVIRONMENT", "other")
+    assert _main(tmp_path) == 0
+    assert created["environment"] == "eval"
+    spans = list(exporter.get_finished_spans())
+    assert spans
+    assert {s.attributes["langfuse.environment"] for s in spans} == {"eval"}
 
 
 class MarkedExchange(WithLabelRun):
