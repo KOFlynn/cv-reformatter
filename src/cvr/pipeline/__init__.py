@@ -57,7 +57,7 @@ from cvr.verify.retry import (
     unplaced_chars,
 )
 
-__all__ = ["Labeller", "reformat"]
+__all__ = ["Labeller", "reformat", "retry_max"]
 
 # Blocks in, a labelling result out. ``RealLabeller`` also records its
 # ``LabelRun`` on ``last_run`` after each call; any labeller that does is

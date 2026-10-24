@@ -596,6 +596,17 @@ class Run(StrictModel):
         return data
 
     @property
+    def label_runs(self) -> list[LabelRun]:
+        """The labelling record of every attempt that has one, the first
+        attempt's (``label``) then each retry's: what cost and token totals
+        sum over."""
+        return [
+            record
+            for record in (self.label, *(r.label for r in self.retries))
+            if record is not None
+        ]
+
+    @property
     def unplaced(self) -> list[Span]:
         """The residue that is not made purely of separators: what goes to
         the review appendix, in block then source order."""

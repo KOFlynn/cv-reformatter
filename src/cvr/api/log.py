@@ -7,8 +7,9 @@ at around 32 KB, and a 40-block ledger in one line would be cut in half.
 Everything block-scoped (the ledger, the text removals, the invisible
 normalisations, the residue, the dates and the multi-span joins of that
 block) goes on the block's line; everything else (the label section,
-``label_failed``, the image removals, which belong to no block) on the
-summary. Together the lines hold the whole Run; no endpoint returns it
+``label_failed``, the retry count, the cost and tokens summed over every
+attempt, the image removals, which belong to no block) on the summary.
+Together the lines hold the whole Run; no endpoint returns it
 (ADR-0009: that would be the first half of a review queue).
 
 A block line grows with its block's text, so a single paragraph of tens of
@@ -160,6 +161,15 @@ def _block_lines(run: Run) -> list[dict[str, object]]:
     return list(lines.values())
 
 
+def _attempt_totals(run: Run) -> dict[str, object]:
+    records = run.label_runs
+    return {
+        "input_tokens": sum(r.input_tokens for r in records),
+        "output_tokens": sum(r.output_tokens for r in records),
+        "cost_usd": sum(r.cost_usd for r in records),
+    }
+
+
 def request_lines(
     run_id: str,
     status: int,
@@ -183,6 +193,11 @@ def request_lines(
     blocks = _block_lines(run)
     summary |= {
         "label": None if run.label is None else _dump(run.label),
+        # Cost and tokens over the first attempt and every retry (the label
+        # section above stays the first attempt, as the Run keeps it); counts
+        # only, so nothing here can carry text.
+        "retries": len(run.retries),
+        "attempts": _attempt_totals(run),
         "label_failed": run.label_failed,
         "blocks": len(blocks),
         "images": [
