@@ -24,6 +24,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 __all__ = [
     "PII",
+    "Addition",
+    "Additions",
     "BlockKind",
     "CVContent",
     "ContentReferences",
@@ -341,6 +343,24 @@ class LabellingFailure(StrictModel):
 
 
 LabellingResult = Labelling | LabellingFailure
+
+
+class Addition(StrictModel):
+    """One reference a retry adds to the first answer, with the path that says
+    where it goes: a list field (``skills``, ``experience[0].bullets``), a leaf
+    that is still empty (``name``, ``experience[0].title``) or a new entry
+    (``experience[3].title`` when the tree holds three). Resolved by verify,
+    never by the model: a path that addresses nothing is rejected."""
+
+    path: str
+    reference: Reference
+
+
+class Additions(StrictModel):
+    """A retry's whole answer. It can only add: nothing the first answer
+    placed is removed or moved."""
+
+    additions: list[Addition]
 
 
 # --- Verified: what the verifier hands transform. ``CVContent`` again, with a
