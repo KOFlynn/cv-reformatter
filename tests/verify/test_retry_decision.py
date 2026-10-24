@@ -6,7 +6,13 @@ from support import experience as _experience
 from support import labelling as _labelling
 from support import ref as _ref
 
-from cvr.models import LabellingFailure, RemovalReference
+from cvr.models import (
+    Addition,
+    Additions,
+    LabellingFailure,
+    Reference,
+    RemovalReference,
+)
 from cvr.verify import verify
 from cvr.verify.retry import (
     DEFAULT_RETRY_MAX,
@@ -228,6 +234,35 @@ def test_an_unlocatable_removal_is_not_a_hint():
     )
     assert [r.path for r in verified.rejections] == ["removals[0]"]
     assert build_feedback(verified).unlocatable == []
+
+
+def test_hints_come_only_from_the_rejections_asked_for():
+    # After a retry, the verified result also holds the additions' rejections;
+    # their paths address the additions, not the first answer the labeller
+    # looks hints up in, so only the first answer's own are hints.
+    first = _labelling(
+        name=_ref("body:0", "Jane Doe"),
+        skills=[_ref("body:2", "Wrote a report")],  # unlocatable
+    )
+    base = verify(BLOCKS, first)
+    additions = Additions(
+        additions=[
+            Addition(
+                path="skills",
+                reference=Reference(block_id="body:1", quote="Sampled rivrs"),
+            )
+        ]
+    )
+    both = verify(BLOCKS, first, additions)
+    assert len([r for r in both.rejections if r.reason == "unlocatable"]) == 2
+    everything = build_feedback(both)
+    assert len(everything.unlocatable) == 2
+    only_base = build_feedback(both, hints_from=base.rejections)
+    assert [(h.path, h.block_id) for h in only_base.unlocatable] == [
+        ("skills[0]", "body:2")
+    ]
+    # the unplaced runs are sent whole either way
+    assert only_base.unplaced == everything.unplaced
 
 
 def test_a_labelling_failure_is_unusable_and_all_its_text_is_unplaced():

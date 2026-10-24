@@ -553,9 +553,11 @@ class RetryRun(StrictModel):
     """One retry in the Run: the attempt's labelling record, the feedback it
     was sent (ids, offsets and paths, so no text), the rejections it
     produced and the unplaced non-separator characters left after it.
-    ``Run.label`` stays the first attempt."""
+    ``Run.label`` stays the first attempt. ``label`` is ``None`` when the
+    provider was unavailable (there was no answer to record) or the labeller
+    keeps no record."""
 
-    label: LabelRun
+    label: LabelRun | None = None
     feedback: Feedback
     rejections: list[RetryRejection] = Field(default_factory=list)
     unplaced_chars: int = Field(ge=0)
