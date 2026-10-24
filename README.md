@@ -248,6 +248,14 @@ review-by-exception halves are already recorded: [ADR-0003](docs/adr/0003-docx-o
 | [0011](docs/adr/0011-sonnet-is-the-default-model.md) | Sonnet 5.5 is the default model |
 | [0013](docs/adr/0013-content-boundary.md) | The content boundary: what reaches the provider, Langfuse and the logs, and the canary test |
 
+## Tracing
+
+Each `/reformat` request and each eval document is one Langfuse trace whose id is the run id (the API's `X-Run-Id`): a span per node, one generation per labelling attempt with its tokens and cost, and one event per rejection. Production traces carry structure only; the CI eval job runs in full mode so a failing document can be read. What may leave the service is the content boundary of [ADR-0013](docs/adr/0013-content-boundary.md), enforced by an allowlist, a mask hook and a canary leak test.
+
+![One full-mode eval trace in Langfuse: reformat over parse, label, verify, transform and render](docs/images/langfuse-trace.png)
+
+*One full-mode eval trace, run id `67a59f7f658041ed8e6e5815d5f82aeb` (the labelling generation took 12.17 s and cost $0.038). The Langfuse project is private; this screenshot is the evidence.*
+
 ## Running it
 
 ```
