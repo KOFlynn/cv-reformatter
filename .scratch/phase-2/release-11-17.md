@@ -39,4 +39,4 @@ Existing assertions changed by the review: `test_an_unknown_field_or_a_malformed
 
 ## Evidence
 
-Eval: pending the PR's CI run.
+Eval: PR #41's CI eval (run 40117636883 at 193271d, 2026-10-24) passed every gate: every hard gate at zero, tunable placement 98.49% precision / 98.58% recall, appendix 0.67%. First attempts were replayed from the cache (48 hits; their keys are unchanged), the 9 retries were live, costing $0.1181. Pattern: c11 in all four Layouts and c09 in single-column, text-box and two-column made one retry each with no progress; the 40 other documents made none. The deviation: c09 header-footer made two, the first placing 25 characters its first attempt had left unplaced, the second making no progress, so the retry earned its keep there and stopped as the rules say. The report is the PR #41 comment and the run's `eval-report` artifact.
