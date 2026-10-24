@@ -9,7 +9,7 @@ import pytest
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableLambda
 from oracle import UNLOCATABLE, Oracle, unlocatable_title
-from tracing_support import LABEL_RUN, exported, make_tracer
+from tracing_support import LABEL_RUN, docx_parts, exported, make_tracer
 
 from cvr.golden import load_candidates
 from cvr.golden.layouts import SingleColumnLayout
@@ -177,7 +177,9 @@ def test_full_mode_changes_no_output_or_run():
         output, run = reformat(
             generated.document, labeller, run_id="a" * 32, tracer=tracer
         )
-        outcomes.append((output, run.model_dump_json()))
+        # The parts of the zip, not its bytes: each entry carries the render
+        # time to 2 seconds, so two renders can differ in the container alone.
+        outcomes.append((docx_parts(output), run.model_dump_json()))
     assert outcomes[0] == outcomes[1]
 
 
