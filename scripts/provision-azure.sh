@@ -610,7 +610,7 @@ fi
 # Create the credential, or bring an existing one's subject into line (an
 # earlier run, or a hand edit, may have left a different one).
 read -r cred_id cred_subject < <(azq ad app federated-credential list --id "$AZURE_CLIENT_ID" \
-  --query "[?name=='github-main'].[id,subject] | [0]" -o tsv) || true
+  --query "[?name=='github-main'].[id,subject] | [0]" -o tsv | tr '\t\n' '  ') || true
 [[ "$cred_id" != None ]] || cred_id=
 if [[ -n "$cred_id" && "$cred_subject" == "$FED_SUBJECT" ]]; then
   say "Credential github-main already trusts $FED_SUBJECT; leaving it."
@@ -901,7 +901,7 @@ while IFS= read -r dep; do
   [[ -n "$dep" ]] || continue
   dep_info=$(azq cognitiveservices account deployment show --name "$AZURE_OPENAI_ACCOUNT" \
     --resource-group "$AZURE_RESOURCE_GROUP" --deployment-name "$dep" \
-    --query "[sku.name, sku.capacity, properties.model.name, properties.model.version]" -o tsv | tr '\t' ' ')
+    --query "[sku.name, sku.capacity, properties.model.name, properties.model.version]" -o tsv | tr '\t\n' '  ')
   read -r dep_sku dep_capacity dep_model dep_version <<<"$dep_info"
   note "  deployment        $dep: $dep_model $dep_version, sku $dep_sku, capacity $dep_capacity"
   [[ "$dep" != "$AZURE_OPENAI_DEPLOYMENT" ]] || chosen_found=1
