@@ -552,3 +552,14 @@ def test_a_tsv_list_query_is_flattened_before_it_is_read_or_printed(
         # A quoted tr argument may itself span a line, so look past the line.
         assert flatten.search(flat[match.start() : match.end() + 40]), command
     assert found >= 4  # credential, retention (twice), the deployment read-back
+
+
+def test_the_record_stage_survives_a_skipped_stage_under_set_u(script: str) -> None:
+    # 2026-10-29: skipping stage 8's smoke test left APP_URL unset and the
+    # record stage died on "APP_URL: unbound variable". Every variable it
+    # prints must carry a default.
+    record = _stage(script, "Record for")
+    assert "set -u" in script or "set -euo pipefail" in script
+    bare = re.findall(r"\$(?:\{[A-Za-z_]\w*\}|[A-Za-z_]\w*)", record)
+    assert bare == [], f"unguarded under set -u: {bare}"
+    assert "${APP_URL:-}" in record
