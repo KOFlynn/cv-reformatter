@@ -65,9 +65,13 @@ running() {
 case "$ACTION" in
   up)
     rev=$(revision)
-    echo "== activating the latest revision of $APP ($RG)"
-    az containerapp revision activate --name "$APP" --resource-group "$RG" \
-      --revision "$rev" --only-show-errors --output none
+    # An env update (switch-provider.sh) leaves the new revision active, and
+    # activating an active revision is an error.
+    if [ "$(active "$rev")" != true ]; then
+      echo "== activating the latest revision of $APP ($RG)"
+      az containerapp revision activate --name "$APP" --resource-group "$RG" \
+        --revision "$rev" --only-show-errors --output none
+    fi
     echo "== opening ingress on $APP"
     az containerapp ingress enable --name "$APP" --resource-group "$RG" \
       --type external --target-port 8000 --transport auto \
