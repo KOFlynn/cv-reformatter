@@ -1,0 +1,2349 @@
+{
+  "date": "2026-10-29",
+  "ticket": "phase-2 ticket 20",
+  "description": "Provider comparison (CONTEXT.md, Model comparison method): the deployed provider (Anthropic claude-sonnet-5-5, medium, the reference) against Azure OpenAI gpt-5.4-mini at medium (Data Zone Standard, swedencentral, token auth through az login), three live uncached runs each, retry included, same prompt, schemas and golden set. Not a Baseline: eval/thresholds.yaml is unchanged and no threshold is moved by this file.",
+  "versions": {
+    "prompt": {
+      "version": "1.3.0",
+      "hash": "f326caf4f478e95d"
+    },
+    "schema": {
+      "version": "1.0.0",
+      "hash": "3ee02723787bc1ee"
+    },
+    "retry_prompt": {
+      "hash": "1dc17179dfa3e638"
+    },
+    "additions_schema": {
+      "hash": "6f2720458f33bf3e"
+    }
+  },
+  "documents_per_run": 48,
+  "thresholds_applied": {
+    "placement_accuracy": {
+      "min": 98.0
+    },
+    "appendix_rate": {
+      "max": 2.0
+    },
+    "punctuation_fidelity": {
+      "hard": true
+    }
+  },
+  "reference": {
+    "label": "sonnet-5-5-medium",
+    "config": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-5-5",
+      "effort": "medium",
+      "temperature": null,
+      "extra": {}
+    },
+    "runs": [
+      {
+        "run": 1,
+        "source": "C:/Git/cv-reformatter/.cache/phase-2-comparison/sonnet-1.json",
+        "gate": {
+          "passed": true,
+          "failures": []
+        },
+        "totals": {
+          "documents": 48,
+          "added": 0,
+          "dropped": 0,
+          "wrongful_removals": 0,
+          "provenance": 0,
+          "pii": 0,
+          "images": 0,
+          "ordering_failures": 0,
+          "structural": {
+            "precision": 100.0,
+            "recall": 100.0,
+            "hits": 1072,
+            "actual": 1072,
+            "expected": 1072
+          },
+          "tunable": {
+            "precision": 99.65,
+            "recall": 99.73,
+            "hits": 1125,
+            "actual": 1129,
+            "expected": 1128
+          },
+          "punctuation": 0,
+          "appendix_rate": 0.67,
+          "appendix_tokens": 88,
+          "content_tokens": 13108,
+          "label_failures": 0,
+          "errors": 0,
+          "retries": 0,
+          "retries_fired": 9,
+          "retry_chars_placed": 25,
+          "retry_cost_usd": 0.1182,
+          "cache_hits": 0,
+          "input_tokens": 328423,
+          "output_tokens": 105492,
+          "cost_usd": 1.7118
+        },
+        "per_layout": {
+          "header-footer": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 99.29,
+              "recall": 99.65,
+              "hits": 281,
+              "actual": 283,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.58,
+            "appendix_tokens": 19,
+            "content_tokens": 3266,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "retries_fired": 3,
+            "retry_chars_placed": 25,
+            "retry_cost_usd": 0.0382,
+            "cache_hits": 0,
+            "input_tokens": 85031,
+            "output_tokens": 25102,
+            "cost_usd": 0.4211
+          },
+          "single-column": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 282,
+              "actual": 282,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.69,
+            "appendix_tokens": 23,
+            "content_tokens": 3315,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "retries_fired": 2,
+            "retry_chars_placed": 0,
+            "retry_cost_usd": 0.025,
+            "cache_hits": 0,
+            "input_tokens": 77932,
+            "output_tokens": 24497,
+            "cost_usd": 0.4008
+          },
+          "text-box": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 99.65,
+              "recall": 99.65,
+              "hits": 281,
+              "actual": 282,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.69,
+            "appendix_tokens": 23,
+            "content_tokens": 3315,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "retries_fired": 2,
+            "retry_chars_placed": 0,
+            "retry_cost_usd": 0.026,
+            "cache_hits": 0,
+            "input_tokens": 79830,
+            "output_tokens": 25771,
+            "cost_usd": 0.4174
+          },
+          "two-column": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 99.65,
+              "recall": 99.65,
+              "hits": 281,
+              "actual": 282,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.72,
+            "appendix_tokens": 23,
+            "content_tokens": 3212,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "retries_fired": 2,
+            "retry_chars_placed": 0,
+            "retry_cost_usd": 0.029,
+            "cache_hits": 0,
+            "input_tokens": 85630,
+            "output_tokens": 30122,
+            "cost_usd": 0.4725
+          }
+        },
+        "tokens": {
+          "input": 328423,
+          "output": 105492
+        },
+        "cost_usd": 1.7118,
+        "wall_time_seconds": 139.2,
+        "retries": 0,
+        "cache": {
+          "enabled": true,
+          "read": false,
+          "hits": 0,
+          "live_calls": 57
+        }
+      },
+      {
+        "run": 2,
+        "source": "C:/Git/cv-reformatter/.cache/phase-2-comparison/sonnet-2.json",
+        "gate": {
+          "passed": true,
+          "failures": []
+        },
+        "totals": {
+          "documents": 48,
+          "added": 0,
+          "dropped": 0,
+          "wrongful_removals": 0,
+          "provenance": 0,
+          "pii": 0,
+          "images": 0,
+          "ordering_failures": 0,
+          "structural": {
+            "precision": 100.0,
+            "recall": 100.0,
+            "hits": 1072,
+            "actual": 1072,
+            "expected": 1072
+          },
+          "tunable": {
+            "precision": 99.65,
+            "recall": 99.73,
+            "hits": 1125,
+            "actual": 1129,
+            "expected": 1128
+          },
+          "punctuation": 0,
+          "appendix_rate": 0.67,
+          "appendix_tokens": 88,
+          "content_tokens": 13108,
+          "label_failures": 0,
+          "errors": 0,
+          "retries": 0,
+          "retries_fired": 9,
+          "retry_chars_placed": 25,
+          "retry_cost_usd": 0.1182,
+          "cache_hits": 0,
+          "input_tokens": 328423,
+          "output_tokens": 105506,
+          "cost_usd": 1.7119
+        },
+        "per_layout": {
+          "header-footer": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 99.29,
+              "recall": 99.65,
+              "hits": 281,
+              "actual": 283,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.58,
+            "appendix_tokens": 19,
+            "content_tokens": 3266,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "retries_fired": 3,
+            "retry_chars_placed": 25,
+            "retry_cost_usd": 0.0382,
+            "cache_hits": 0,
+            "input_tokens": 85031,
+            "output_tokens": 25102,
+            "cost_usd": 0.4211
+          },
+          "single-column": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 282,
+              "actual": 282,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.69,
+            "appendix_tokens": 23,
+            "content_tokens": 3315,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "retries_fired": 2,
+            "retry_chars_placed": 0,
+            "retry_cost_usd": 0.025,
+            "cache_hits": 0,
+            "input_tokens": 77932,
+            "output_tokens": 24503,
+            "cost_usd": 0.4009
+          },
+          "text-box": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 99.65,
+              "recall": 99.65,
+              "hits": 281,
+              "actual": 282,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.69,
+            "appendix_tokens": 23,
+            "content_tokens": 3315,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "retries_fired": 2,
+            "retry_chars_placed": 0,
+            "retry_cost_usd": 0.026,
+            "cache_hits": 0,
+            "input_tokens": 79830,
+            "output_tokens": 25778,
+            "cost_usd": 0.4174
+          },
+          "two-column": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 99.65,
+              "recall": 99.65,
+              "hits": 281,
+              "actual": 282,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.72,
+            "appendix_tokens": 23,
+            "content_tokens": 3212,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "retries_fired": 2,
+            "retry_chars_placed": 0,
+            "retry_cost_usd": 0.029,
+            "cache_hits": 0,
+            "input_tokens": 85630,
+            "output_tokens": 30123,
+            "cost_usd": 0.4725
+          }
+        },
+        "tokens": {
+          "input": 328423,
+          "output": 105506
+        },
+        "cost_usd": 1.7119,
+        "wall_time_seconds": 139.6,
+        "retries": 0,
+        "cache": {
+          "enabled": true,
+          "read": false,
+          "hits": 0,
+          "live_calls": 57
+        }
+      },
+      {
+        "run": 3,
+        "source": "C:/Git/cv-reformatter/.cache/phase-2-comparison/sonnet-3.json",
+        "gate": {
+          "passed": true,
+          "failures": []
+        },
+        "totals": {
+          "documents": 48,
+          "added": 0,
+          "dropped": 0,
+          "wrongful_removals": 0,
+          "provenance": 0,
+          "pii": 0,
+          "images": 0,
+          "ordering_failures": 0,
+          "structural": {
+            "precision": 100.0,
+            "recall": 100.0,
+            "hits": 1072,
+            "actual": 1072,
+            "expected": 1072
+          },
+          "tunable": {
+            "precision": 99.65,
+            "recall": 99.73,
+            "hits": 1125,
+            "actual": 1129,
+            "expected": 1128
+          },
+          "punctuation": 0,
+          "appendix_rate": 0.67,
+          "appendix_tokens": 88,
+          "content_tokens": 13108,
+          "label_failures": 0,
+          "errors": 0,
+          "retries": 0,
+          "retries_fired": 9,
+          "retry_chars_placed": 25,
+          "retry_cost_usd": 0.1181,
+          "cache_hits": 0,
+          "input_tokens": 328380,
+          "output_tokens": 105413,
+          "cost_usd": 1.7109
+        },
+        "per_layout": {
+          "header-footer": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 99.29,
+              "recall": 99.65,
+              "hits": 281,
+              "actual": 283,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.58,
+            "appendix_tokens": 19,
+            "content_tokens": 3266,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "retries_fired": 3,
+            "retry_chars_placed": 25,
+            "retry_cost_usd": 0.0382,
+            "cache_hits": 0,
+            "input_tokens": 85031,
+            "output_tokens": 25102,
+            "cost_usd": 0.4211
+          },
+          "single-column": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 282,
+              "actual": 282,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.69,
+            "appendix_tokens": 23,
+            "content_tokens": 3315,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "retries_fired": 2,
+            "retry_chars_placed": 0,
+            "retry_cost_usd": 0.025,
+            "cache_hits": 0,
+            "input_tokens": 77932,
+            "output_tokens": 24497,
+            "cost_usd": 0.4008
+          },
+          "text-box": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 99.65,
+              "recall": 99.65,
+              "hits": 281,
+              "actual": 282,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.69,
+            "appendix_tokens": 23,
+            "content_tokens": 3315,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "retries_fired": 2,
+            "retry_chars_placed": 0,
+            "retry_cost_usd": 0.026,
+            "cache_hits": 0,
+            "input_tokens": 79830,
+            "output_tokens": 25771,
+            "cost_usd": 0.4174
+          },
+          "two-column": {
+            "documents": 12,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 0,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 268,
+              "actual": 268,
+              "expected": 268
+            },
+            "tunable": {
+              "precision": 99.65,
+              "recall": 99.65,
+              "hits": 281,
+              "actual": 282,
+              "expected": 282
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.72,
+            "appendix_tokens": 23,
+            "content_tokens": 3212,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "retries_fired": 2,
+            "retry_chars_placed": 0,
+            "retry_cost_usd": 0.0289,
+            "cache_hits": 0,
+            "input_tokens": 85587,
+            "output_tokens": 30043,
+            "cost_usd": 0.4716
+          }
+        },
+        "tokens": {
+          "input": 328380,
+          "output": 105413
+        },
+        "cost_usd": 1.7109,
+        "wall_time_seconds": 137.5,
+        "retries": 0,
+        "cache": {
+          "enabled": true,
+          "read": false,
+          "hits": 0,
+          "live_calls": 57
+        }
+      }
+    ],
+    "spread": {
+      "tunable_precision": {
+        "runs": [
+          99.65,
+          99.65,
+          99.65
+        ],
+        "min": 99.65,
+        "max": 99.65,
+        "range": 0.0
+      },
+      "tunable_recall": {
+        "runs": [
+          99.73,
+          99.73,
+          99.73
+        ],
+        "min": 99.73,
+        "max": 99.73,
+        "range": 0.0
+      },
+      "appendix_rate": {
+        "runs": [
+          0.67,
+          0.67,
+          0.67
+        ],
+        "min": 0.67,
+        "max": 0.67,
+        "range": 0.0
+      },
+      "structural_precision": {
+        "runs": [
+          100.0,
+          100.0,
+          100.0
+        ],
+        "min": 100.0,
+        "max": 100.0,
+        "range": 0.0
+      },
+      "structural_recall": {
+        "runs": [
+          100.0,
+          100.0,
+          100.0
+        ],
+        "min": 100.0,
+        "max": 100.0,
+        "range": 0.0
+      },
+      "punctuation": {
+        "runs": [
+          0,
+          0,
+          0
+        ],
+        "min": 0,
+        "max": 0,
+        "range": 0
+      },
+      "added": {
+        "runs": [
+          0,
+          0,
+          0
+        ],
+        "min": 0,
+        "max": 0,
+        "range": 0
+      },
+      "dropped": {
+        "runs": [
+          0,
+          0,
+          0
+        ],
+        "min": 0,
+        "max": 0,
+        "range": 0
+      },
+      "wrongful_removals": {
+        "runs": [
+          0,
+          0,
+          0
+        ],
+        "min": 0,
+        "max": 0,
+        "range": 0
+      },
+      "provenance": {
+        "runs": [
+          0,
+          0,
+          0
+        ],
+        "min": 0,
+        "max": 0,
+        "range": 0
+      },
+      "pii": {
+        "runs": [
+          0,
+          0,
+          0
+        ],
+        "min": 0,
+        "max": 0,
+        "range": 0
+      },
+      "images": {
+        "runs": [
+          0,
+          0,
+          0
+        ],
+        "min": 0,
+        "max": 0,
+        "range": 0
+      },
+      "ordering_failures": {
+        "runs": [
+          0,
+          0,
+          0
+        ],
+        "min": 0,
+        "max": 0,
+        "range": 0
+      },
+      "label_failures": {
+        "runs": [
+          0,
+          0,
+          0
+        ],
+        "min": 0,
+        "max": 0,
+        "range": 0
+      },
+      "errors": {
+        "runs": [
+          0,
+          0,
+          0
+        ],
+        "min": 0,
+        "max": 0,
+        "range": 0
+      },
+      "retries": {
+        "runs": [
+          0,
+          0,
+          0
+        ],
+        "min": 0,
+        "max": 0,
+        "range": 0
+      },
+      "retries_fired": {
+        "runs": [
+          9,
+          9,
+          9
+        ],
+        "min": 9,
+        "max": 9,
+        "range": 0
+      },
+      "retry_chars_placed": {
+        "runs": [
+          25,
+          25,
+          25
+        ],
+        "min": 25,
+        "max": 25,
+        "range": 0
+      },
+      "retry_cost_usd": {
+        "runs": [
+          0.1182,
+          0.1182,
+          0.1181
+        ],
+        "min": 0.1181,
+        "max": 0.1182,
+        "range": 0.0001
+      },
+      "input_tokens": {
+        "runs": [
+          328423,
+          328423,
+          328380
+        ],
+        "min": 328380,
+        "max": 328423,
+        "range": 43
+      },
+      "output_tokens": {
+        "runs": [
+          105492,
+          105506,
+          105413
+        ],
+        "min": 105413,
+        "max": 105506,
+        "range": 93
+      },
+      "cost_usd": {
+        "runs": [
+          1.7118,
+          1.7119,
+          1.7109
+        ],
+        "min": 1.7109,
+        "max": 1.7119,
+        "range": 0.001
+      },
+      "wall_time_seconds": {
+        "runs": [
+          139.2,
+          139.6,
+          137.5
+        ],
+        "min": 137.5,
+        "max": 139.6,
+        "range": 2.1
+      }
+    },
+    "gates_passed": 3,
+    "total_cost_usd": 5.1346
+  },
+  "candidates": {
+    "gpt-5.4-mini-medium": {
+      "config": {
+        "provider": "azure_openai",
+        "model": "gpt-5.4-mini",
+        "effort": "medium",
+        "temperature": null,
+        "extra": {},
+        "azure_deployment": "gpt-5.4-mini"
+      },
+      "runs": [
+        {
+          "run": 1,
+          "source": "C:/Git/cv-reformatter/.cache/phase-2-comparison/azure-1.json",
+          "gate": {
+            "passed": false,
+            "failures": [
+              {
+                "metric": "removal_precision",
+                "detail": "RM_PERSONAL may not remove \"EU citizen\"",
+                "candidates": [
+                  "c07"
+                ],
+                "documents": [
+                  "c07__header-footer",
+                  "c07__single-column",
+                  "c07__text-box"
+                ]
+              },
+              {
+                "metric": "removal_precision",
+                "detail": "RM_REFEREE may not remove \"- Role made redundant during the firm's merger; left on good terms with a reference available.\"",
+                "candidates": [
+                  "c04"
+                ],
+                "documents": [
+                  "c04__header-footer"
+                ]
+              },
+              {
+                "metric": "removal_precision",
+                "detail": "RM_REFEREE may not remove \"reference available.\"",
+                "candidates": [
+                  "c04"
+                ],
+                "documents": [
+                  "c04__single-column",
+                  "c04__two-column"
+                ]
+              },
+              {
+                "metric": "removal_precision",
+                "detail": "RM_REFEREE may not remove \"with a reference available.\"",
+                "candidates": [
+                  "c04"
+                ],
+                "documents": [
+                  "c04__text-box"
+                ]
+              },
+              {
+                "metric": "placement_accuracy (tunable)",
+                "detail": "precision 43.89% below the minimum 98%",
+                "candidates": [
+                  "c01",
+                  "c02",
+                  "c03",
+                  "c04",
+                  "c05",
+                  "c06",
+                  "c07",
+                  "c08",
+                  "c09",
+                  "c10",
+                  "c11",
+                  "c12"
+                ],
+                "documents": [
+                  "c01__header-footer",
+                  "c01__text-box",
+                  "c01__two-column",
+                  "c02__header-footer",
+                  "c02__text-box",
+                  "c02__two-column",
+                  "c03__header-footer",
+                  "c03__text-box",
+                  "c03__two-column",
+                  "c04__header-footer",
+                  "c04__single-column",
+                  "c04__text-box",
+                  "c04__two-column",
+                  "c05__header-footer",
+                  "c05__text-box",
+                  "c05__two-column",
+                  "c06__header-footer",
+                  "c06__text-box",
+                  "c06__two-column",
+                  "c07__header-footer",
+                  "c07__single-column",
+                  "c07__text-box",
+                  "c07__two-column",
+                  "c08__header-footer",
+                  "c08__text-box",
+                  "c08__two-column",
+                  "c09__header-footer",
+                  "c09__text-box",
+                  "c09__two-column",
+                  "c10__header-footer",
+                  "c10__text-box",
+                  "c10__two-column",
+                  "c11__header-footer",
+                  "c11__single-column",
+                  "c11__text-box",
+                  "c11__two-column",
+                  "c12__header-footer",
+                  "c12__text-box",
+                  "c12__two-column"
+                ]
+              },
+              {
+                "metric": "placement_accuracy (tunable)",
+                "detail": "recall 43.97% below the minimum 98%",
+                "candidates": [
+                  "c01",
+                  "c02",
+                  "c03",
+                  "c04",
+                  "c05",
+                  "c06",
+                  "c07",
+                  "c08",
+                  "c09",
+                  "c10",
+                  "c11",
+                  "c12"
+                ],
+                "documents": [
+                  "c01__header-footer",
+                  "c01__text-box",
+                  "c01__two-column",
+                  "c02__header-footer",
+                  "c02__text-box",
+                  "c02__two-column",
+                  "c03__header-footer",
+                  "c03__text-box",
+                  "c03__two-column",
+                  "c04__header-footer",
+                  "c04__single-column",
+                  "c04__text-box",
+                  "c04__two-column",
+                  "c05__header-footer",
+                  "c05__text-box",
+                  "c05__two-column",
+                  "c06__header-footer",
+                  "c06__text-box",
+                  "c06__two-column",
+                  "c07__header-footer",
+                  "c07__single-column",
+                  "c07__text-box",
+                  "c07__two-column",
+                  "c08__header-footer",
+                  "c08__text-box",
+                  "c08__two-column",
+                  "c09__header-footer",
+                  "c09__text-box",
+                  "c09__two-column",
+                  "c10__header-footer",
+                  "c10__text-box",
+                  "c10__two-column",
+                  "c11__header-footer",
+                  "c11__text-box",
+                  "c11__two-column",
+                  "c12__header-footer",
+                  "c12__text-box",
+                  "c12__two-column"
+                ]
+              }
+            ]
+          },
+          "totals": {
+            "documents": 48,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 7,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 1072,
+              "actual": 1072,
+              "expected": 1072
+            },
+            "tunable": {
+              "precision": 43.89,
+              "recall": 43.97,
+              "hits": 496,
+              "actual": 1130,
+              "expected": 1128
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.59,
+            "appendix_tokens": 77,
+            "content_tokens": 13079,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "retries_fired": 14,
+            "retry_chars_placed": 369,
+            "retry_cost_usd": 0.0688,
+            "cache_hits": 0,
+            "input_tokens": 213490,
+            "output_tokens": 176534,
+            "cost_usd": 1.05
+          },
+          "per_layout": {
+            "header-footer": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 2,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 14.18,
+                "recall": 14.18,
+                "hits": 40,
+                "actual": 282,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.58,
+              "appendix_tokens": 19,
+              "content_tokens": 3249,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "retries_fired": 3,
+              "retry_chars_placed": 25,
+              "retry_cost_usd": 0.0124,
+              "cache_hits": 0,
+              "input_tokens": 49929,
+              "output_tokens": 40983,
+              "cost_usd": 0.2441
+            },
+            "single-column": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 2,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 98.59,
+                "recall": 98.94,
+                "hits": 279,
+                "actual": 283,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.36,
+              "appendix_tokens": 12,
+              "content_tokens": 3311,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "retries_fired": 4,
+              "retry_chars_placed": 114,
+              "retry_cost_usd": 0.0181,
+              "cache_hits": 0,
+              "input_tokens": 53428,
+              "output_tokens": 38849,
+              "cost_usd": 0.2364
+            },
+            "text-box": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 2,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 48.06,
+                "recall": 48.23,
+                "hits": 136,
+                "actual": 283,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.7,
+              "appendix_tokens": 23,
+              "content_tokens": 3309,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "retries_fired": 4,
+              "retry_chars_placed": 173,
+              "retry_cost_usd": 0.022,
+              "cache_hits": 0,
+              "input_tokens": 54396,
+              "output_tokens": 48930,
+              "cost_usd": 0.2871
+            },
+            "two-column": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 1,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 14.54,
+                "recall": 14.54,
+                "hits": 41,
+                "actual": 282,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.72,
+              "appendix_tokens": 23,
+              "content_tokens": 3210,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "retries_fired": 3,
+              "retry_chars_placed": 57,
+              "retry_cost_usd": 0.0163,
+              "cache_hits": 0,
+              "input_tokens": 55737,
+              "output_tokens": 47772,
+              "cost_usd": 0.2825
+            }
+          },
+          "tokens": {
+            "input": 213490,
+            "output": 176534
+          },
+          "cost_usd": 1.05,
+          "wall_time_seconds": 430.7,
+          "retries": 0,
+          "cache": {
+            "enabled": true,
+            "read": false,
+            "hits": 0,
+            "live_calls": 62
+          }
+        },
+        {
+          "run": 2,
+          "source": "C:/Git/cv-reformatter/.cache/phase-2-comparison/azure-2.json",
+          "gate": {
+            "passed": false,
+            "failures": [
+              {
+                "metric": "removal_precision",
+                "detail": "RM_PERSONAL may not remove \"EU citizen\"",
+                "candidates": [
+                  "c07"
+                ],
+                "documents": [
+                  "c07__header-footer",
+                  "c07__two-column"
+                ]
+              },
+              {
+                "metric": "removal_precision",
+                "detail": "RM_REFEREE may not remove \"a reference available.\"",
+                "candidates": [
+                  "c04"
+                ],
+                "documents": [
+                  "c04__header-footer",
+                  "c04__text-box",
+                  "c04__two-column"
+                ]
+              },
+              {
+                "metric": "removal_precision",
+                "detail": "RM_REFEREE may not remove \"with a reference available.\"",
+                "candidates": [
+                  "c04"
+                ],
+                "documents": [
+                  "c04__single-column"
+                ]
+              },
+              {
+                "metric": "placement_accuracy (structural)",
+                "detail": "structural leaves below 100% precision or recall",
+                "candidates": [
+                  "c08"
+                ],
+                "documents": [
+                  "c08__text-box"
+                ]
+              },
+              {
+                "metric": "placement_accuracy (tunable)",
+                "detail": "precision 43.94% below the minimum 98%",
+                "candidates": [
+                  "c01",
+                  "c02",
+                  "c03",
+                  "c04",
+                  "c05",
+                  "c06",
+                  "c07",
+                  "c08",
+                  "c09",
+                  "c10",
+                  "c11",
+                  "c12"
+                ],
+                "documents": [
+                  "c01__header-footer",
+                  "c01__text-box",
+                  "c01__two-column",
+                  "c02__header-footer",
+                  "c02__text-box",
+                  "c02__two-column",
+                  "c03__header-footer",
+                  "c03__text-box",
+                  "c03__two-column",
+                  "c04__header-footer",
+                  "c04__single-column",
+                  "c04__text-box",
+                  "c04__two-column",
+                  "c05__header-footer",
+                  "c05__text-box",
+                  "c05__two-column",
+                  "c06__header-footer",
+                  "c06__text-box",
+                  "c06__two-column",
+                  "c07__header-footer",
+                  "c07__text-box",
+                  "c07__two-column",
+                  "c08__header-footer",
+                  "c08__text-box",
+                  "c08__two-column",
+                  "c09__header-footer",
+                  "c09__text-box",
+                  "c09__two-column",
+                  "c10__header-footer",
+                  "c10__text-box",
+                  "c10__two-column",
+                  "c11__header-footer",
+                  "c11__text-box",
+                  "c11__two-column",
+                  "c12__header-footer",
+                  "c12__text-box",
+                  "c12__two-column"
+                ]
+              },
+              {
+                "metric": "placement_accuracy (tunable)",
+                "detail": "recall 44.06% below the minimum 98%",
+                "candidates": [
+                  "c01",
+                  "c02",
+                  "c03",
+                  "c04",
+                  "c05",
+                  "c06",
+                  "c07",
+                  "c08",
+                  "c09",
+                  "c10",
+                  "c11",
+                  "c12"
+                ],
+                "documents": [
+                  "c01__header-footer",
+                  "c01__text-box",
+                  "c01__two-column",
+                  "c02__header-footer",
+                  "c02__text-box",
+                  "c02__two-column",
+                  "c03__header-footer",
+                  "c03__text-box",
+                  "c03__two-column",
+                  "c04__header-footer",
+                  "c04__single-column",
+                  "c04__text-box",
+                  "c04__two-column",
+                  "c05__header-footer",
+                  "c05__text-box",
+                  "c05__two-column",
+                  "c06__header-footer",
+                  "c06__text-box",
+                  "c06__two-column",
+                  "c07__header-footer",
+                  "c07__text-box",
+                  "c07__two-column",
+                  "c08__header-footer",
+                  "c08__text-box",
+                  "c08__two-column",
+                  "c09__header-footer",
+                  "c09__text-box",
+                  "c09__two-column",
+                  "c10__header-footer",
+                  "c10__text-box",
+                  "c10__two-column",
+                  "c11__header-footer",
+                  "c11__text-box",
+                  "c11__two-column",
+                  "c12__header-footer",
+                  "c12__text-box",
+                  "c12__two-column"
+                ]
+              }
+            ]
+          },
+          "totals": {
+            "documents": 48,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 6,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 99.63,
+              "recall": 99.63,
+              "hits": 1068,
+              "actual": 1072,
+              "expected": 1072
+            },
+            "tunable": {
+              "precision": 43.94,
+              "recall": 44.06,
+              "hits": 497,
+              "actual": 1131,
+              "expected": 1128
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.57,
+            "appendix_tokens": 75,
+            "content_tokens": 13091,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "retries_fired": 16,
+            "retry_chars_placed": 480,
+            "retry_cost_usd": 0.0763,
+            "cache_hits": 0,
+            "input_tokens": 221031,
+            "output_tokens": 171107,
+            "cost_usd": 1.0293
+          },
+          "per_layout": {
+            "header-footer": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 2,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 14.13,
+                "recall": 14.18,
+                "hits": 40,
+                "actual": 283,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.58,
+              "appendix_tokens": 19,
+              "content_tokens": 3261,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "retries_fired": 3,
+              "retry_chars_placed": 25,
+              "retry_cost_usd": 0.0124,
+              "cache_hits": 0,
+              "input_tokens": 49929,
+              "output_tokens": 42574,
+              "cost_usd": 0.2519
+            },
+            "single-column": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 1,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 99.65,
+                "recall": 99.65,
+                "hits": 281,
+                "actual": 282,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.69,
+              "appendix_tokens": 23,
+              "content_tokens": 3311,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "retries_fired": 3,
+              "retry_chars_placed": 81,
+              "retry_cost_usd": 0.0127,
+              "cache_hits": 0,
+              "input_tokens": 48951,
+              "output_tokens": 31498,
+              "cost_usd": 0.1963
+            },
+            "text-box": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 1,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 98.51,
+                "recall": 98.51,
+                "hits": 264,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 47.89,
+                "recall": 48.23,
+                "hits": 136,
+                "actual": 284,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.3,
+              "appendix_tokens": 10,
+              "content_tokens": 3312,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "retries_fired": 8,
+              "retry_chars_placed": 374,
+              "retry_cost_usd": 0.0421,
+              "cache_hits": 0,
+              "input_tokens": 71260,
+              "output_tokens": 50183,
+              "cost_usd": 0.3072
+            },
+            "two-column": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 2,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 14.18,
+                "recall": 14.18,
+                "hits": 40,
+                "actual": 282,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.72,
+              "appendix_tokens": 23,
+              "content_tokens": 3207,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "retries_fired": 2,
+              "retry_chars_placed": 0,
+              "retry_cost_usd": 0.0091,
+              "cache_hits": 0,
+              "input_tokens": 50891,
+              "output_tokens": 46852,
+              "cost_usd": 0.2739
+            }
+          },
+          "tokens": {
+            "input": 221031,
+            "output": 171107
+          },
+          "cost_usd": 1.0293,
+          "wall_time_seconds": 418.7,
+          "retries": 0,
+          "cache": {
+            "enabled": true,
+            "read": false,
+            "hits": 0,
+            "live_calls": 64
+          }
+        },
+        {
+          "run": 3,
+          "source": "C:/Git/cv-reformatter/.cache/phase-2-comparison/azure-3.json",
+          "gate": {
+            "passed": false,
+            "failures": [
+              {
+                "metric": "removal_precision",
+                "detail": "RM_PERSONAL may not remove \"EU citizen\"",
+                "candidates": [
+                  "c07"
+                ],
+                "documents": [
+                  "c07__header-footer",
+                  "c07__single-column",
+                  "c07__text-box",
+                  "c07__two-column"
+                ]
+              },
+              {
+                "metric": "removal_precision",
+                "detail": "RM_PERSONAL may not remove \"India\"",
+                "candidates": [
+                  "c10"
+                ],
+                "documents": [
+                  "c10__two-column"
+                ]
+              },
+              {
+                "metric": "removal_precision",
+                "detail": "RM_REFEREE may not remove \"reference available.\"",
+                "candidates": [
+                  "c04"
+                ],
+                "documents": [
+                  "c04__header-footer",
+                  "c04__single-column",
+                  "c04__text-box",
+                  "c04__two-column"
+                ]
+              },
+              {
+                "metric": "placement_accuracy (tunable)",
+                "detail": "precision 44.42% below the minimum 98%",
+                "candidates": [
+                  "c01",
+                  "c02",
+                  "c03",
+                  "c04",
+                  "c05",
+                  "c06",
+                  "c07",
+                  "c08",
+                  "c09",
+                  "c10",
+                  "c11",
+                  "c12"
+                ],
+                "documents": [
+                  "c01__header-footer",
+                  "c01__text-box",
+                  "c01__two-column",
+                  "c02__header-footer",
+                  "c02__text-box",
+                  "c02__two-column",
+                  "c03__header-footer",
+                  "c03__text-box",
+                  "c03__two-column",
+                  "c04__header-footer",
+                  "c04__single-column",
+                  "c04__text-box",
+                  "c04__two-column",
+                  "c05__header-footer",
+                  "c05__text-box",
+                  "c05__two-column",
+                  "c06__header-footer",
+                  "c06__text-box",
+                  "c06__two-column",
+                  "c07__header-footer",
+                  "c07__single-column",
+                  "c07__text-box",
+                  "c07__two-column",
+                  "c08__header-footer",
+                  "c08__text-box",
+                  "c08__two-column",
+                  "c09__header-footer",
+                  "c09__text-box",
+                  "c09__two-column",
+                  "c10__header-footer",
+                  "c10__text-box",
+                  "c10__two-column",
+                  "c11__header-footer",
+                  "c11__text-box",
+                  "c11__two-column",
+                  "c12__header-footer",
+                  "c12__text-box",
+                  "c12__two-column"
+                ]
+              },
+              {
+                "metric": "placement_accuracy (tunable)",
+                "detail": "recall 44.50% below the minimum 98%",
+                "candidates": [
+                  "c01",
+                  "c02",
+                  "c03",
+                  "c04",
+                  "c05",
+                  "c06",
+                  "c07",
+                  "c08",
+                  "c09",
+                  "c10",
+                  "c11",
+                  "c12"
+                ],
+                "documents": [
+                  "c01__header-footer",
+                  "c01__text-box",
+                  "c01__two-column",
+                  "c02__header-footer",
+                  "c02__text-box",
+                  "c02__two-column",
+                  "c03__header-footer",
+                  "c03__text-box",
+                  "c03__two-column",
+                  "c04__header-footer",
+                  "c04__single-column",
+                  "c04__text-box",
+                  "c04__two-column",
+                  "c05__header-footer",
+                  "c05__text-box",
+                  "c05__two-column",
+                  "c06__header-footer",
+                  "c06__text-box",
+                  "c06__two-column",
+                  "c07__header-footer",
+                  "c07__single-column",
+                  "c07__text-box",
+                  "c07__two-column",
+                  "c08__header-footer",
+                  "c08__text-box",
+                  "c08__two-column",
+                  "c09__header-footer",
+                  "c09__text-box",
+                  "c09__two-column",
+                  "c10__header-footer",
+                  "c10__text-box",
+                  "c10__two-column",
+                  "c11__header-footer",
+                  "c11__text-box",
+                  "c11__two-column",
+                  "c12__header-footer",
+                  "c12__text-box",
+                  "c12__two-column"
+                ]
+              }
+            ]
+          },
+          "totals": {
+            "documents": 48,
+            "added": 0,
+            "dropped": 0,
+            "wrongful_removals": 9,
+            "provenance": 0,
+            "pii": 0,
+            "images": 0,
+            "ordering_failures": 0,
+            "structural": {
+              "precision": 100.0,
+              "recall": 100.0,
+              "hits": 1072,
+              "actual": 1072,
+              "expected": 1072
+            },
+            "tunable": {
+              "precision": 44.42,
+              "recall": 44.5,
+              "hits": 502,
+              "actual": 1130,
+              "expected": 1128
+            },
+            "punctuation": 0,
+            "appendix_rate": 0.64,
+            "appendix_tokens": 84,
+            "content_tokens": 13092,
+            "label_failures": 0,
+            "errors": 0,
+            "retries": 0,
+            "retries_fired": 13,
+            "retry_chars_placed": 278,
+            "retry_cost_usd": 0.0582,
+            "cache_hits": 0,
+            "input_tokens": 209468,
+            "output_tokens": 177042,
+            "cost_usd": 1.0492
+          },
+          "per_layout": {
+            "header-footer": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 2,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 16.67,
+                "recall": 16.67,
+                "hits": 47,
+                "actual": 282,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.71,
+              "appendix_tokens": 23,
+              "content_tokens": 3262,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "retries_fired": 3,
+              "retry_chars_placed": 57,
+              "retry_cost_usd": 0.0133,
+              "cache_hits": 0,
+              "input_tokens": 50115,
+              "output_tokens": 40883,
+              "cost_usd": 0.2437
+            },
+            "single-column": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 2,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 99.29,
+                "recall": 99.29,
+                "hits": 280,
+                "actual": 282,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.69,
+              "appendix_tokens": 23,
+              "content_tokens": 3311,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "retries_fired": 3,
+              "retry_chars_placed": 57,
+              "retry_cost_usd": 0.0126,
+              "cache_hits": 0,
+              "input_tokens": 49095,
+              "output_tokens": 39035,
+              "cost_usd": 0.2337
+            },
+            "text-box": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 2,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 47.87,
+                "recall": 47.87,
+                "hits": 135,
+                "actual": 282,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.69,
+              "appendix_tokens": 23,
+              "content_tokens": 3311,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "retries_fired": 4,
+              "retry_chars_placed": 131,
+              "retry_cost_usd": 0.0187,
+              "cache_hits": 0,
+              "input_tokens": 54689,
+              "output_tokens": 47722,
+              "cost_usd": 0.2813
+            },
+            "two-column": {
+              "documents": 12,
+              "added": 0,
+              "dropped": 0,
+              "wrongful_removals": 3,
+              "provenance": 0,
+              "pii": 0,
+              "images": 0,
+              "ordering_failures": 0,
+              "structural": {
+                "precision": 100.0,
+                "recall": 100.0,
+                "hits": 268,
+                "actual": 268,
+                "expected": 268
+              },
+              "tunable": {
+                "precision": 14.08,
+                "recall": 14.18,
+                "hits": 40,
+                "actual": 284,
+                "expected": 282
+              },
+              "punctuation": 0,
+              "appendix_rate": 0.47,
+              "appendix_tokens": 15,
+              "content_tokens": 3208,
+              "label_failures": 0,
+              "errors": 0,
+              "retries": 0,
+              "retries_fired": 3,
+              "retry_chars_placed": 33,
+              "retry_cost_usd": 0.0135,
+              "cache_hits": 0,
+              "input_tokens": 55569,
+              "output_tokens": 49402,
+              "cost_usd": 0.2904
+            }
+          },
+          "tokens": {
+            "input": 209468,
+            "output": 177042
+          },
+          "cost_usd": 1.0492,
+          "wall_time_seconds": 435.7,
+          "retries": 0,
+          "cache": {
+            "enabled": true,
+            "read": false,
+            "hits": 0,
+            "live_calls": 61
+          }
+        }
+      ],
+      "spread": {
+        "tunable_precision": {
+          "runs": [
+            43.89,
+            43.94,
+            44.42
+          ],
+          "min": 43.89,
+          "max": 44.42,
+          "range": 0.53
+        },
+        "tunable_recall": {
+          "runs": [
+            43.97,
+            44.06,
+            44.5
+          ],
+          "min": 43.97,
+          "max": 44.5,
+          "range": 0.53
+        },
+        "appendix_rate": {
+          "runs": [
+            0.59,
+            0.57,
+            0.64
+          ],
+          "min": 0.57,
+          "max": 0.64,
+          "range": 0.07
+        },
+        "structural_precision": {
+          "runs": [
+            100.0,
+            99.63,
+            100.0
+          ],
+          "min": 99.63,
+          "max": 100.0,
+          "range": 0.37
+        },
+        "structural_recall": {
+          "runs": [
+            100.0,
+            99.63,
+            100.0
+          ],
+          "min": 99.63,
+          "max": 100.0,
+          "range": 0.37
+        },
+        "punctuation": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "added": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "dropped": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "wrongful_removals": {
+          "runs": [
+            7,
+            6,
+            9
+          ],
+          "min": 6,
+          "max": 9,
+          "range": 3
+        },
+        "provenance": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "pii": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "images": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "ordering_failures": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "label_failures": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "errors": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "retries": {
+          "runs": [
+            0,
+            0,
+            0
+          ],
+          "min": 0,
+          "max": 0,
+          "range": 0
+        },
+        "retries_fired": {
+          "runs": [
+            14,
+            16,
+            13
+          ],
+          "min": 13,
+          "max": 16,
+          "range": 3
+        },
+        "retry_chars_placed": {
+          "runs": [
+            369,
+            480,
+            278
+          ],
+          "min": 278,
+          "max": 480,
+          "range": 202
+        },
+        "retry_cost_usd": {
+          "runs": [
+            0.0688,
+            0.0763,
+            0.0582
+          ],
+          "min": 0.0582,
+          "max": 0.0763,
+          "range": 0.0181
+        },
+        "input_tokens": {
+          "runs": [
+            213490,
+            221031,
+            209468
+          ],
+          "min": 209468,
+          "max": 221031,
+          "range": 11563
+        },
+        "output_tokens": {
+          "runs": [
+            176534,
+            171107,
+            177042
+          ],
+          "min": 171107,
+          "max": 177042,
+          "range": 5935
+        },
+        "cost_usd": {
+          "runs": [
+            1.05,
+            1.0293,
+            1.0492
+          ],
+          "min": 1.0293,
+          "max": 1.05,
+          "range": 0.0207
+        },
+        "wall_time_seconds": {
+          "runs": [
+            430.7,
+            418.7,
+            435.7
+          ],
+          "min": 418.7,
+          "max": 435.7,
+          "range": 17.0
+        }
+      },
+      "gates_passed": 0,
+      "total_cost_usd": 3.1285
+    }
+  },
+  "total_cost_usd": {
+    "sonnet-5-5-medium": 5.1346,
+    "gpt-5.4-mini-medium": 3.1285
+  },
+  "sources": {
+    "sonnet-5-5-medium": [
+      {
+        "local_run": 1,
+        "date": "2026-10-29",
+        "path": ".cache/phase-2-comparison/sonnet-1.json (gitignored)"
+      },
+      {
+        "local_run": 2,
+        "date": "2026-10-29",
+        "path": ".cache/phase-2-comparison/sonnet-2.json (gitignored)"
+      },
+      {
+        "local_run": 3,
+        "date": "2026-10-29",
+        "path": ".cache/phase-2-comparison/sonnet-3.json (gitignored)"
+      }
+    ],
+    "gpt-5.4-mini-medium": [
+      {
+        "local_run": 1,
+        "date": "2026-10-29",
+        "path": ".cache/phase-2-comparison/azure-1.json (gitignored)"
+      },
+      {
+        "local_run": 2,
+        "date": "2026-10-29",
+        "path": ".cache/phase-2-comparison/azure-2.json (gitignored)"
+      },
+      {
+        "local_run": 3,
+        "date": "2026-10-29",
+        "path": ".cache/phase-2-comparison/azure-3.json (gitignored)"
+      }
+    ]
+  },
+  "notes": [
+    "The sides differ in provider and model; effort is the label medium on both, but each provider's effort scale is its own, so equal labels do not mean equal compute. Read each side as one configuration.",
+    "Three new Sonnet runs, retry included, not the Phase 1.5 runs: those (eval/model-comparison-2026-10-19.json) are on prompt 1.3.0 with no retry and carry no retry versions, so the aggregator could not verify them as the same configuration. Prompt 1.3.0 (f326caf4f478e95d), schema 1.0.0 (3ee02723787bc1ee), retry prompt 1dc17179dfa3e638 and additions schema 6f2720458f33bf3e on all six runs; 48 documents and 48 live first attempts each, cache never read (the aggregator refuses a run with cache hits).",
+    "The Azure model is gpt-5.4-mini (2026-03-17, DataZoneStandard, 200K TPM, $0.825 in and $4.95 out per million tokens), not gpt-5.4. cvr_sub had 0 quota for gpt-5.4 in every EU region (2026-10-24), and a quota request for gpt-5.6-terra was refused 2026-10-29 (Sweden Central has no capacity to expand). The comparison therefore says nothing about the stronger Azure models. Azure runs used --concurrency 2 because Azure counts max_completion_tokens (32000) against TPM up front.",
+    "Sonnet passed every gate in all three runs. Every hard-gate count was zero (added, dropped, wrongful removals, provenance, PII, images, ordering, punctuation, label failures, errors); structural 100/100; tunable precision 99.65 and recall 99.73 in every run (threshold 98); appendix 0.67% (threshold 2). Cost $1.7109 to $1.7119 a run, wall time 137.5 to 139.6 s. 9 retries fired in each run (c09 and c11), placing 25 characters, at about $0.118. The three runs are nearly identical.",
+    "gpt-5.4-mini failed the gate in all three runs, on the hard removal_precision gate and on the tunable placement threshold. Added, dropped, provenance, PII, image, ordering, punctuation, labelling-failure and error counts were zero in every run, so it never invented, lost or leaked text; the appendix rate was 0.57 to 0.64%, inside its 2% threshold.",
+    "Hard gate, removal_precision: 7, 6 and 9 wrongful removals (runs 1 to 3). (1) c07, RM_PERSONAL removes the content text 'EU citizen': 3 Layouts in run 1 (header-footer, single-column, text-box), 2 in run 2 (header-footer, two-column), all 4 in run 3. (2) c04, RM_REFEREE removes the tail of a content line ending 'reference available' (in run 1 the whole bullet in header-footer): 4 Layouts in each run. (3) run 3 only: c10 two-column, RM_PERSONAL removes 'India'. Haiku 5.5 failed in the same two places in Phase 1.5 (c04 RM_REFEREE, c07 'EU citizen').",
+    "Hard gate, structural placement: run 2 only, c08 text-box, structural precision and recall 99.63% (4 of 1072 leaves) against the 100% requirement. Runs 1 and 3 were 100/100.",
+    "Threshold, tunable placement: precision 43.89, 43.94, 44.42 and recall 43.97, 44.06, 44.50 against the 98% minimum, with all 12 candidates named in every run. By Layout (precision, three runs): single-column 98.59 to 99.65 (passes alone); text-box 47.87 to 48.06; header-footer 14.13 to 16.67; two-column 14.08 to 14.54. The collapse is in the three Layouts other than single-column. This record does not diagnose why (the report holds counts, not a per-leaf diff); the appendix rate is small, so the misses are placement choices rather than unplaced text.",
+    "Retries on gpt-5.4-mini: 14, 16 and 13 fired (Sonnet 9), placing 369, 480 and 278 characters (Sonnet 25), at $0.0688, $0.0763 and $0.0582 a run (Sonnet about $0.118). A retry is additions-only for unplaced text (ADR-0012), so it cannot correct a leaf the first attempt placed in the wrong field.",
+    "Cost and time: gpt-5.4-mini $1.0293 to $1.05 a run ($3.1285 for three) against Sonnet $1.7109 to $1.7119 ($5.1346), about 39% less per run; wall time 418.7 to 435.7 s against 137.5 to 139.6 s, about three times longer (Azure at concurrency 2, Sonnet at 4). Tokens: Azure 209,468 to 221,031 in and 171,107 to 177,042 out; Sonnet 328,380 to 328,423 in and 105,413 to 105,506 out (different tokenisers; reasoning tokens count as output). Prices from cvr.label.pricing, Azure checked 2026-10-24.",
+    "The Azure runs authenticated through the default Azure credential, which on the maintainer's machine resolves to az login, the same chain the managed identity uses in Container Apps (ADR-0014)."
+  ],
+  "verdict": {
+    "rule": "Spec: any hard-gate breach, wrongful removal, labelling failure or non-provider error in any run disqualifies a candidate; thresholds applied unchanged; above the gate the call is the maintainer's, on the side-by-side numbers.",
+    "gpt-5.4-mini-medium": {
+      "result": "disqualified",
+      "gates_passed": "0 of 3 runs",
+      "reasoning": "Failed the hard removal_precision gate in all three runs (6 to 9 wrongful removals: c04 RM_REFEREE and c07 RM_PERSONAL every run), the structural gate in run 2 (c08 text-box), and the tunable placement threshold in all three (precision 43.89 to 44.42, recall 43.97 to 44.50 against 98; single-column alone passes). About 39% cheaper a run and about three times slower; neither outweighs removed content lines and misplaced fields. Added, dropped, provenance, PII, image and ordering counts were zero, so the failures are of labelling quality, not of the content boundary."
+    },
+    "sonnet-5-5-medium": {
+      "result": "recommended (stays the default)",
+      "gates_passed": "3 of 3 runs",
+      "reasoning": "Passed every gate on every run, every hard-gate count zero, tunable 99.65/99.73, appendix 0.67%, about $1.71 and 138 s a run."
+    },
+    "recommendation": "Anthropic claude-sonnet-5-5 at medium stays the deployed and gated provider. Azure OpenAI stays a supported second provider (ADR-0014), but gpt-5.4-mini does not pass the gate; gpt-5.4 and gpt-5.6-terra could not be compared (no quota). Ticket 21 is not needed.",
+    "maintainer_decision": {
+      "date": null,
+      "status": "pending",
+      "note": "To be confirmed by the maintainer on merge; ADR-0015 records the recommendation."
+    }
+  }
+}
