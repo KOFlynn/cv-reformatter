@@ -182,7 +182,7 @@ Proving the managed identity live (ticket 19, ADR-0014). Needs the wizard's Azur
 
 ```
 sh scripts/switch-provider.sh azure              # set provider, effort medium, the model (gpt-5.4-mini now) from the deployment name (low, medium, high or xhigh only), the endpoint and deployment from .env.azure, in one update; prints the revision and the variables
-sh scripts/demo.sh up                            # activate the revision, open ingress, wake the app; prints the URL
+sh scripts/demo.sh up                            # activate the revision (if switch-provider.sh has not already), open ingress, wake the app; prints the URL
 KEY=$(az containerapp secret show -n cvr-ca -g cvr-rg --secret-name cvr-api-key --query value -o tsv)
 CVR_API_KEY="$KEY" sh scripts/smoke-deploy.sh https://<app url>   # 401 without the key, then 200, a .docx and X-Run-Id; note the run id
 unset KEY
