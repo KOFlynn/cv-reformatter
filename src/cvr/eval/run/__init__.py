@@ -122,6 +122,16 @@ def write_report(report: Report, directory: Path) -> tuple[Path, Path]:
     return json_path, md_path
 
 
+def _positive_int(text: str) -> int:
+    try:
+        value = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{text!r} is not a whole number") from None
+    if value < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return value
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
@@ -156,6 +166,15 @@ def main(
         help="call the LLM for every document; fresh answers still refresh the cache",
     )
     parser.add_argument(
+        "--concurrency",
+        type=_positive_int,
+        default=CONCURRENCY,
+        help=(
+            f"documents labelled at once (default {CONCURRENCY}); use 2 against "
+            "a 200K TPM Azure deployment"
+        ),
+    )
+    parser.add_argument(
         "--thresholds", type=Path, default=THRESHOLDS_FILE, help="thresholds file"
     )
     parser.add_argument("--out", type=Path, default=EVAL_DIR, help="report directory")
@@ -179,6 +198,7 @@ def main(
             thresholds_file=args.thresholds,
             cache=ResponseCache(args.cache_dir),
             read_cache=not args.no_cache,
+            concurrency=args.concurrency,
             tracer=tracer,
         )
     finally:

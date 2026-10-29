@@ -162,6 +162,29 @@ def test_a_content_line_removed_under_a_pii_rule_fails_naming_rule_and_text(
     assert "removal_precision: RM_PERSONAL may not remove" in markdown
 
 
+def test_concurrency_defaults_to_four_and_the_flag_sets_it(tmp_path, monkeypatch):
+    import cvr.eval.run as run_module
+
+    seen = []
+    real = run_module.run_documents
+
+    def spy(*args, **kwargs):
+        seen.append(kwargs["concurrency"])
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(run_module, "run_documents", spy)
+    for extra in ((), ("--concurrency", "2")):
+        assert _main(tmp_path, oracle, *ONE, "--no-cache", *extra) == 0
+    assert seen == [4, 2]
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "two"])
+def test_a_concurrency_below_one_is_a_usage_error(tmp_path, value):
+    with pytest.raises(SystemExit) as exit:
+        _main(tmp_path, oracle, *ONE, "--concurrency", value)
+    assert exit.value.code == 2
+
+
 def test_an_unknown_filter_is_an_error_not_an_empty_pass(tmp_path):
     with pytest.raises(SystemExit) as exit:
         main(["--layout", "three-column"], labeller=(oracle, ORACLE))

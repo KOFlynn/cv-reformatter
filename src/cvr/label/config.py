@@ -69,12 +69,21 @@ DEFAULT_EFFORT = "medium"
 # The Azure OpenAI model (ticket 01: ``gpt-5.4`` version 2026-03-05). Not a
 # default: it is chosen with CVR_LABEL_PROVIDER=azure_openai.
 AZURE_MODEL = "gpt-5.4"
+# What the subscription can deploy today (2026-10-24): `cvr_sub` has no default
+# gpt-5.4 quota, and the Data Zone Standard chat model it has is gpt-5.4-mini
+# (version 2026-03-17), so that is the Azure model compared with Sonnet.
+AZURE_MINI_MODEL = "gpt-5.4-mini"
+# Quota for this one was requested on 2026-10-29 (DataZoneStandard, swedencentral,
+# version 2026-07-09); priced in the table so a run on it costs what it says.
+AZURE_TERRA_MODEL = "gpt-5.6-terra"
 # Every model the project has configured or compared; each must have a price.
 KNOWN_MODELS = (
     DEFAULT_MODEL,
     "claude-opus-5-5",
     "claude-haiku-5-5",
     AZURE_MODEL,
+    AZURE_MINI_MODEL,
+    AZURE_TERRA_MODEL,
 )
 
 # The token scope Microsoft's current managed-identity guide uses (ticket 01);

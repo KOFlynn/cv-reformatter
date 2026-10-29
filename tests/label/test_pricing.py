@@ -57,10 +57,28 @@ def test_gpt_5_4_is_priced_at_azure_data_zone_standard():
     assert cost == 2.75 + 16.50
 
 
+def test_gpt_5_4_mini_is_priced_at_azure_data_zone_standard():
+    # Azure Retail Prices API, "5.4 mini Inp Dz" / "5.4 mini Opt Dz",
+    # swedencentral and northeurope, checked 2026-10-24.
+    assert PRICE_TABLE["gpt-5.4-mini"] == (0.825, 4.95)
+    cost = estimate_cost(
+        "gpt-5.4-mini", input_tokens=1_000_000, output_tokens=1_000_000
+    )
+    assert cost == 0.825 + 4.95
+
+
+def test_gpt_5_6_terra_is_priced_at_azure_data_zone_standard():
+    # Azure Retail Prices API, "5.6 terra ShortCo Inp/Opt Std DZ",
+    # swedencentral, checked 2026-10-29.
+    assert PRICE_TABLE["gpt-5.6-terra"] == (2.20, 13.20)
+
+
 def test_every_known_model_has_a_price():
     from cvr.label.config import DEFAULT_MODEL, KNOWN_MODELS
 
     assert DEFAULT_MODEL in KNOWN_MODELS
+    assert "gpt-5.4-mini" in KNOWN_MODELS
+    assert "gpt-5.6-terra" in KNOWN_MODELS
     unpriced = [model for model in KNOWN_MODELS if model not in PRICE_TABLE]
     assert not unpriced, f"no price in cvr.label.pricing.PRICE_TABLE for {unpriced}"
     for model in KNOWN_MODELS:

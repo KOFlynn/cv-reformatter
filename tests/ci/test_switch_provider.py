@@ -13,7 +13,9 @@ import pytest
 
 from cvr.label.azure_openai import AZURE_EFFORTS
 from cvr.label.config import (
+    AZURE_MINI_MODEL,
     AZURE_MODEL,
+    AZURE_TERRA_MODEL,
     DEFAULT_EFFORT,
     ENV_AZURE_API_VERSION,
     ENV_AZURE_DEPLOYMENT,
@@ -53,7 +55,10 @@ def test_every_variable_it_touches_is_one_the_labeller_reads(switch: str):
 
 
 def test_the_model_and_default_effort_are_valid_for_azure(switch: str):
-    assert f"MODEL={AZURE_MODEL}" in code(switch)
+    # The model is the wizard's remembered choice, gpt-5.4-mini by default.
+    assert "from_env AZURE_OPENAI_MODEL" in code(switch)
+    assert f"MODEL=${{MODEL:-{AZURE_MINI_MODEL}}}" in code(switch)
+    assert f"{AZURE_MODEL}|{AZURE_MINI_MODEL}|{AZURE_TERRA_MODEL}" in code(switch)
     assert DEFAULT_EFFORT in AZURE_EFFORTS
     assert f"{ENV_EFFORT}:-{DEFAULT_EFFORT}" in code(switch)
     assert "|".join(AZURE_EFFORTS) in code(switch)
@@ -116,7 +121,11 @@ exit 0
 """
 
 ENDPOINT = "https://cvr-aoai-1234.openai.azure.com/"
-ENV_FILE = f"AZURE_OPENAI_ENDPOINT={ENDPOINT}\nAZURE_OPENAI_DEPLOYMENT=gpt-5.4\n"
+ENDPOINT_LINE = f"AZURE_OPENAI_ENDPOINT={ENDPOINT}\n"
+# What the wizard writes after deploying gpt-5.4 (the model, not the default).
+ENV_FILE = (
+    ENDPOINT_LINE + "AZURE_OPENAI_MODEL=gpt-5.4\nAZURE_OPENAI_DEPLOYMENT=gpt-5.4\n"
+)
 needs_sh = pytest.mark.skipif(shutil.which("sh") is None, reason="needs a POSIX sh")
 
 
@@ -167,6 +176,43 @@ def test_azure_sets_the_endpoint_and_deployment_from_the_wizards_file(tmp_path):
     assert not any("--remove-env-vars" in c for c in calls)
     assert len([c for c in calls if "containerapp update" in c]) == 1
     assert not any("ingress" in c or "revision activate" in c for c in calls)
+
+
+@needs_sh
+def test_azure_defaults_to_gpt_5_4_mini_for_model_and_deployment(tmp_path):
+    env_file = ENDPOINT_LINE
+    result, calls = run(tmp_path, ["azure"], {}, env_file)
+    assert result.returncode == 0, result.stderr
+    update = next(c for c in calls if "--set-env-vars" in c)
+    assert "CVR_LABEL_MODEL=gpt-5.4-mini" in update
+    assert "CVR_LABEL_AZURE_DEPLOYMENT=gpt-5.4-mini" in update
+
+
+@needs_sh
+def test_azure_uses_the_remembered_mini_model_for_both(tmp_path):
+    env_file = ENDPOINT_LINE + "AZURE_OPENAI_MODEL=gpt-5.4-mini\n"
+    _, calls = run(tmp_path, ["azure"], {}, env_file)
+    update = next(c for c in calls if "--set-env-vars" in c)
+    assert "CVR_LABEL_MODEL=gpt-5.4-mini" in update
+    assert "CVR_LABEL_AZURE_DEPLOYMENT=gpt-5.4-mini" in update
+
+
+@needs_sh
+def test_azure_accepts_gpt_5_6_terra_for_model_and_deployment(tmp_path):
+    env_file = ENDPOINT_LINE + "AZURE_OPENAI_MODEL=gpt-5.6-terra\n"
+    _, calls = run(tmp_path, ["azure"], {}, env_file)
+    update = next(c for c in calls if "--set-env-vars" in c)
+    assert "CVR_LABEL_MODEL=gpt-5.6-terra" in update
+    assert "CVR_LABEL_AZURE_DEPLOYMENT=gpt-5.6-terra" in update
+
+
+@needs_sh
+def test_azure_refuses_a_model_the_wizard_does_not_deploy(tmp_path):
+    env_file = ENDPOINT_LINE + "AZURE_OPENAI_MODEL=gpt-9\n"
+    result, calls = run(tmp_path, ["azure"], {}, env_file)
+    assert result.returncode != 0
+    assert "AZURE_OPENAI_MODEL" in result.stdout
+    assert calls == []
 
 
 @needs_sh

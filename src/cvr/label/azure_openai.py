@@ -33,6 +33,7 @@ from cvr.label.errors import LabellerError, LabellerMisconfigured, ProviderUnava
 
 __all__ = [
     "AZURE_EFFORTS",
+    "AZURE_MAX_COMPLETION_TOKENS",
     "AZURE_PROVIDER",
     "azure_error",
     "azure_failure_reason",
@@ -40,6 +41,18 @@ __all__ = [
 ]
 
 AZURE_PROVIDER = "azure_openai"
+
+# The output cap sent with every Azure request, far below Anthropic's 128000.
+# Azure's tokens-per-minute limiter estimates each request as its prompt plus
+# its max_tokens setting at the time it arrives, not the tokens actually
+# generated (Microsoft Learn, "Manage Azure OpenAI quota", rate limits and
+# best practices: https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/quota,
+# checked 2026-10-29; the page names max_tokens, which max_completion_tokens
+# replaces on reasoning models). With a 200K TPM deployment a 128000 cap lets
+# about one request through a minute; 32000 allows several in flight while
+# leaving room for reasoning tokens (answers are about 2K tokens a document).
+# CVR_LABEL_EXTRA can override it.
+AZURE_MAX_COMPLETION_TOKENS = 32_000
 
 # gpt-5.4's accepted reasoning_effort values on Chat Completions, a subset of
 # the labeller's own vocabulary: Azure's reasoning guide (checked 2026-10-24)
