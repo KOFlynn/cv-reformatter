@@ -530,3 +530,25 @@ def test_the_readback_covers_every_deployment_on_the_account(aoai_stage: str) ->
     assert "properties.model.name" in readback
     assert "model_version" in readback
     assert 'dep" != "$AZURE_OPENAI_DEPLOYMENT' in readback
+
+
+def test_a_tsv_list_query_is_flattened_before_it_is_read_or_printed(
+    script: str,
+) -> None:
+    # az 2.90 prints a JSON list one element per line under -o tsv, so
+    # `read -r a b` on it gets the first element only (the stage 13 read-back
+    # printed empty model and version, 2026-10-29). Every multi-value list
+    # query read as tsv must be passed through tr with a newline.
+    multi = re.compile(r'--query "[^"]*\[[^\]"?]+,[^\]"]+\]')
+    # tr '<tab><newline>' ... : the newline written as \n, or literally.
+    flatten = re.compile(r"tr '[^']*(\\n|\n)[^']*'")
+    flat = script.replace("\\\n", " ")  # backslash continuations joined
+    found = 0
+    for match in re.finditer(r"azq[^\n]*?-o tsv[^\n]*", flat):
+        command = match.group(0)
+        if not multi.search(command):
+            continue
+        found += 1
+        # A quoted tr argument may itself span a line, so look past the line.
+        assert flatten.search(flat[match.start() : match.end() + 40]), command
+    assert found >= 4  # credential, retention (twice), the deployment read-back
