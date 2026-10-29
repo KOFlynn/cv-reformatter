@@ -4,10 +4,10 @@
 
 **Blocked by:** 17 (merged and deployed), 18
 
-**Status:** done except the Langfuse look (box 2)
+**Status:** done
 
 - [x] The configuration switch is scripted, so it is repeatable rather than portal clicks
-- [ ] (Langfuse trace pending the maintainer's check; the run itself is proven, see Comments) The smoke run returns 200 with a `.docx` and `X-Run-Id`; the trace in Langfuse shows the Azure model; recorded on this ticket
+- [x] The smoke run returns 200 with a `.docx` and `X-Run-Id`; the trace in Langfuse shows the Azure model; recorded on this ticket
 - [x] The app's configuration is set back, and `demo.sh down` leaves no replica running (replica list checked)
 - [x] ADR-0014 written; the brief's §10 managed identity box ticked
 
@@ -25,4 +25,4 @@
 - *Live:* `switch-provider.sh azure` gave revision `cvr-ca--0000011`, active, with `CVR_LABEL_PROVIDER=azure_openai`, model and deployment `gpt-5.4-mini`, effort `medium`, endpoint `https://cvr-aoai-961a.openai.azure.com/`. `demo.sh up` failed with `RevisionAlreadyInRequestedState` (the env update had already activated the revision); the workaround was `demo.sh down` then `demo.sh up`, and `demo.sh up` now skips activating an active revision (tested). Smoke: `/health` after 1 s, no key gave 401, `c04__single-column.docx` gave HTTP 200 with a 39164-byte `.docx` and `X-Run-Id` `db24fcfa61dd454c93d9b45b72fe8cee`. The app's summary line in Log Analytics (revision `cvr-ca--0000011`, 2026-10-29T16:08:09Z): status 200, provider `azure_openai`, model and deployment `gpt-5.4-mini`, effort `medium`, prompt 1.3.0, schema 1.0.0, input 3110 and output 2848 tokens, `cost_usd` 0.0 (the deployed image, main at `accea1f`, has no `gpt-5.4-mini` price; this branch adds it), `label_failed` false, 0 retries, 54 blocks, 14 removals, 0 unplaced.
 - *Back:* `demo.sh down`, then `switch-provider.sh anthropic` gave revision `cvr-ca--0000012` with no `CVR_LABEL_*` variables, `demo.sh down` again, and `az containerapp replica list ... length(@)` printed 0.
 - *Result:* the managed identity works with scope `https://ai.azure.com/.default` and API version `2025-04-01-preview`; there is no key anywhere. The nesting limit and role propagation were not issues. ADR-0014 is accepted and the brief's section 10 managed-identity box is ticked.
-- *Langfuse: pending maintainer check.* Open the trace for run id `db24fcfa61dd454c93d9b45b72fe8cee` and confirm the generation's model is `gpt-5.4-mini` (the cost will show 0, as in the log). Box 2 stays unticked until then.
+- *Langfuse, checked by the maintainer 2026-10-29:* the trace `db24fcfa61dd454c93d9b45b72fe8cee` shows the labelling generation with model `gpt-5.4-mini`. Box 2 is ticked; the ticket is done.
