@@ -233,13 +233,11 @@ def test_azure_fails_by_name_without_the_endpoint(tmp_path):
     assert not any("containerapp update" in c for c in calls)
 
 
-@pytest.mark.parametrize("effort", ["max", "none", "", "Medium"])
+@pytest.mark.parametrize("effort", ["max", "none", "Medium"])
 @needs_sh
 def test_azure_refuses_an_effort_it_does_not_accept_before_any_az_call(
     tmp_path, effort
 ):
-    if effort == "":
-        pytest.skip("an empty value means the default")
     result, calls = run(tmp_path, ["azure"], {"CVR_LABEL_EFFORT": effort}, ENV_FILE)
     assert result.returncode != 0
     assert "CVR_LABEL_EFFORT" in result.stdout
