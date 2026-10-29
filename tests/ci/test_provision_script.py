@@ -277,12 +277,39 @@ def test_no_quota_stops_the_wizard_before_anything_is_created(aoai_stage: str) -
     assert "quota" in aoai_stage[stop:first_create]
 
 
-def test_capacity_defaults_to_the_smaller_of_available_and_500(
+def test_capacity_defaults_to_the_smaller_of_available_and_the_models_cap(
     aoai_stage: str,
 ) -> None:
-    assert "quota_free > 500" in aoai_stage
+    assert "quota_free > capacity_cap" in aoai_stage
+    assert "gpt-5.4) printf '500'" in aoai_stage
+    assert "gpt-5.4-mini) printf '200'" in aoai_stage
     assert "max_completion_tokens" in aoai_stage
-    assert "ask_default AZURE_OPENAI_CAPACITY" in aoai_stage
+    assert 'ask_default "$capacity_key"' in aoai_stage
+    assert "AZURE_OPENAI_CAPACITY_$(" in aoai_stage  # remembered per model
+
+
+def test_the_account_has_its_own_remembered_region_and_model(aoai_stage: str) -> None:
+    assert "ask_default AZURE_OPENAI_LOCATION" in aoai_stage
+    assert "swedencentral" in aoai_stage
+    assert "ask_default AZURE_OPENAI_MODEL" in aoai_stage
+    model_line = aoai_stage.split("ask_default AZURE_OPENAI_MODEL")[1].splitlines()[0]
+    assert model_line.endswith(" gpt-5.4-mini")  # the default
+    # Quota and the account use the account's region, never the app's.
+    assert "$AZURE_LOCATION" not in aoai_stage.split('say "Reading')[1]
+    create = aoai_stage[aoai_stage.index("az cognitiveservices account create") :]
+    assert (
+        '--location "$AZURE_OPENAI_LOCATION"' in create[: create.index("--output none")]
+    )
+    assert "exists in another region" in aoai_stage
+
+
+def test_the_deployment_is_named_after_its_model_and_other_models_are_left_alone(
+    aoai_stage: str,
+) -> None:
+    assert "AZURE_OPENAI_DEPLOYMENT=$AOAI_MODEL" in aoai_stage
+    assert "ask_default AZURE_OPENAI_DEPLOYMENT" not in aoai_stage
+    # Only the chosen deployment is looked up before creating; nothing deletes.
+    assert "deployment delete" not in aoai_stage
 
 
 def test_account_is_ai_services_with_a_custom_subdomain(aoai_stage: str) -> None:
@@ -304,12 +331,14 @@ def test_key_auth_is_disabled_through_arm_only_when_it_is_not_already(
     assert "else" in before[before.rindex("disableLocalAuth -o tsv") :]
 
 
-def test_deployment_is_data_zone_standard_gpt_5_4_with_a_pinned_version(
+def test_deployment_is_data_zone_standard_with_a_version_pinned_per_model(
     aoai_stage: str,
 ) -> None:
     assert "AOAI_SKU=DataZoneStandard" in aoai_stage
-    assert "AOAI_MODEL=gpt-5.4" in aoai_stage
-    assert "AOAI_MODEL_VERSION=2026-03-05" in aoai_stage
+    assert "gpt-5.4) printf '2026-03-05'" in aoai_stage
+    assert "gpt-5.4-mini) printf '2026-03-17'" in aoai_stage
+    assert "gpt-5.6-terra) printf '2026-07-09'" in aoai_stage
+    assert "AOAI_MODEL=$AZURE_OPENAI_MODEL" in aoai_stage
     create = aoai_stage[aoai_stage.index("deployment create") :]
     create = create[: create.index("--output none")]
     for flag in (
@@ -381,11 +410,18 @@ def test_the_stage_prints_what_the_app_will_need_but_does_not_change_the_app(
 def test_aoai_values_are_remembered_in_the_env_file(aoai_stage: str) -> None:
     for key in (
         "AZURE_OPENAI_ACCOUNT",
-        "AZURE_OPENAI_DEPLOYMENT",
-        "AZURE_OPENAI_CAPACITY",
+        "AZURE_OPENAI_LOCATION",
+        "AZURE_OPENAI_MODEL",
     ):
         assert f"ask_default {key} " in aoai_stage
-    assert 'write_env AZURE_OPENAI_ENDPOINT "$AZURE_OPENAI_ENDPOINT"' in aoai_stage
+    # What switch-provider.sh reads is written only once the read-back passed.
+    readback = aoai_stage[aoai_stage.index("(( bad == 0 ))") :]
+    for key in ("ENDPOINT", "DEPLOYMENT", "CAPACITY"):
+        assert f'write_env AZURE_OPENAI_{key} "$AZURE_OPENAI_{key}"' in readback
+        assert (
+            f'write_env AZURE_OPENAI_{key} "$'
+            not in aoai_stage[: aoai_stage.index("(( bad == 0 ))")]
+        )
     assert "set_secret" not in aoai_stage
 
 
@@ -477,3 +513,12 @@ def test_path_conversion_is_off_before_the_aoai_stage(script: str) -> None:
     assert script.index("export MSYS_NO_PATHCONV=1") < script.index(
         'stage "Azure OpenAI'
     )
+
+
+def test_the_readback_covers_every_deployment_on_the_account(aoai_stage: str) -> None:
+    readback = aoai_stage[aoai_stage.index("Read-back:") :]
+    assert "account deployment list" in readback
+    assert "while IFS= read -r dep" in readback
+    assert "properties.model.name" in readback
+    assert "model_version" in readback
+    assert 'dep" != "$AZURE_OPENAI_DEPLOYMENT' in readback
