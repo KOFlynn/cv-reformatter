@@ -27,7 +27,7 @@
 #   sh scripts/switch-provider.sh azure|anthropic [resource-group] [app]
 #
 # The names default to the wizard's .env.azure (AZURE_RESOURCE_GROUP,
-# AZURE_CONTAINER_APP, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_MODEL), then to
+# AZURE_CONTAINER_APP, AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_DEPLOYMENT), then to
 # cvr-rg and cvr-ca (ENV_FILE names another file). Needs az (signed in); POSIX sh, runs under Git Bash.
 set -eu
 cd "$(dirname "$0")/.."
@@ -41,10 +41,6 @@ RG=${2:-$(from_env AZURE_RESOURCE_GROUP || true)}
 APP=${3:-$(from_env AZURE_CONTAINER_APP || true)}
 RG=${RG:-cvr-rg}
 APP=${APP:-cvr-ca}
-# The model is the one the wizard deployed (gpt-5.4-mini unless stage 13 was
-# run with gpt-5.4); its deployment has the same name.
-MODEL=$(from_env AZURE_OPENAI_MODEL || true)
-MODEL=${MODEL:-gpt-5.4-mini}
 
 # Every variable `azure` can set, which `anthropic` removes.
 ALL_VARS="CVR_LABEL_PROVIDER CVR_LABEL_MODEL CVR_LABEL_EFFORT CVR_LABEL_AZURE_ENDPOINT CVR_LABEL_AZURE_DEPLOYMENT CVR_LABEL_AZURE_SCOPE CVR_LABEL_AZURE_API_VERSION"
@@ -89,12 +85,16 @@ case "$ACTION" in
     # The wizard writes the endpoint only after its read-back passes, so it
     # doubles as the "provisioning completed" marker.
     ENDPOINT=$(from_env AZURE_OPENAI_ENDPOINT || true)
-    DEPLOYMENT=$MODEL
+    [ -n "$ENDPOINT" ] || { echo "FAIL: AZURE_OPENAI_ENDPOINT is not in $ENV_FILE (run the provisioning wizard to the end)"; exit 1; }
+    # Written with the endpoint, after the read-back; the deployment is named
+    # after its model, so the model is derived from it.
+    DEPLOYMENT=$(from_env AZURE_OPENAI_DEPLOYMENT || true)
+    [ -n "$DEPLOYMENT" ] || { echo "FAIL: AZURE_OPENAI_DEPLOYMENT is not in $ENV_FILE (run the provisioning wizard to the end)"; exit 1; }
+    MODEL=$DEPLOYMENT
     case "$MODEL" in
       gpt-5.4|gpt-5.4-mini|gpt-5.6-terra) ;;
-      *) echo "FAIL: AZURE_OPENAI_MODEL=$MODEL in $ENV_FILE is not gpt-5.4, gpt-5.4-mini or gpt-5.6-terra"; exit 1 ;;
+      *) echo "FAIL: AZURE_OPENAI_DEPLOYMENT=$DEPLOYMENT in $ENV_FILE is not a model the wizard deploys (gpt-5.4, gpt-5.4-mini or gpt-5.6-terra)"; exit 1 ;;
     esac
-    [ -n "$ENDPOINT" ] || { echo "FAIL: AZURE_OPENAI_ENDPOINT is not in $ENV_FILE (run the provisioning wizard to the end)"; exit 1; }
     EFFORT=${CVR_LABEL_EFFORT:-medium}
     case "$EFFORT" in
       low|medium|high|xhigh) ;;

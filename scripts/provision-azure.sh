@@ -718,8 +718,8 @@ pause
 # The account has its own region (2026-10-24: cvr_sub has no gpt-5.4 quota in
 # northeurope or anywhere in the EU; gpt-5.4-mini has 200K TPM in swedencentral,
 # westeurope, germanywestcentral and francecentral), and its own model choice,
-# remembered: gpt-5.4-mini by default, gpt-5.6-terra (quota requested
-# 2026-10-29) or gpt-5.4 if quota ever exists. Each model
+# remembered: gpt-5.4-mini by default, gpt-5.6-terra (its quota request was
+# refused 2026-10-29 for region capacity) or gpt-5.4 if quota ever appears. Each model
 # is its own deployment, named after the model; re-running with the other model
 # adds that deployment and leaves the first alone.
 stage "Azure OpenAI: account, deployment and roles (no keys)"
@@ -744,10 +744,13 @@ model_default_capacity() {
   esac
 }
 ask_default AZURE_OPENAI_LOCATION "Region of the Azure OpenAI account (the app stays in $AZURE_LOCATION)" swedencentral
-ask_default AZURE_OPENAI_MODEL "Model to deploy (gpt-5.4-mini, gpt-5.6-terra or gpt-5.4)" gpt-5.4-mini
+# Validated before it is remembered, so a typo is never written to .env.azure.
+ask AZURE_OPENAI_MODEL "Model to deploy (gpt-5.4-mini, gpt-5.6-terra or gpt-5.4) [gpt-5.4-mini]"
+[[ -n "$AZURE_OPENAI_MODEL" ]] || AZURE_OPENAI_MODEL=gpt-5.4-mini
 AOAI_MODEL=$AZURE_OPENAI_MODEL
 AOAI_MODEL_VERSION=$(model_version "$AOAI_MODEL") \
-  || { warn "AZURE_OPENAI_MODEL must be gpt-5.4-mini, gpt-5.6-terra or gpt-5.4, not '$AOAI_MODEL'"; exit 1; }
+  || { warn "AZURE_OPENAI_MODEL must be gpt-5.4-mini, gpt-5.6-terra or gpt-5.4, not '$AOAI_MODEL'; nothing was remembered"; exit 1; }
+write_env AZURE_OPENAI_MODEL "$AOAI_MODEL"
 AOAI_USAGE_NAME="OpenAI.$AOAI_SKU.$AOAI_MODEL"
 # The deployment is named after its model, so the two never disagree.
 AZURE_OPENAI_DEPLOYMENT=$AOAI_MODEL
@@ -919,7 +922,6 @@ done
 AZURE_OPENAI_ENDPOINT="https://$subdomain.openai.azure.com/"
 write_env AZURE_OPENAI_ENDPOINT "$AZURE_OPENAI_ENDPOINT"
 write_env AZURE_OPENAI_DEPLOYMENT "$AZURE_OPENAI_DEPLOYMENT"
-write_env AZURE_OPENAI_CAPACITY "$AZURE_OPENAI_CAPACITY"
 say "Read-back is as wanted. The app will need (ticket 19 sets them; nothing was changed here):"
 note "  CVR_LABEL_PROVIDER=azure_openai"
 note "  CVR_LABEL_AZURE_ENDPOINT=$AZURE_OPENAI_ENDPOINT"

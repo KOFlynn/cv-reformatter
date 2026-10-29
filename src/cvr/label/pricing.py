@@ -1,7 +1,7 @@
 """One price table for the labeller's cost estimate, USD per million tokens.
 The Claude rows were checked against https://claude.com/pricing on 2026-10-19;
-the gpt-5.4 rows on 2026-10-24 (see below). ``PRICE_TABLE_CHECKED`` is the
-older of the two: update it whenever the whole table is re-checked. Quotes copy
+the gpt-5.4 and gpt-5.4-mini rows on 2026-10-24 and the gpt-5.6-terra row on
+2026-10-29 (see below). ``PRICE_TABLE_CHECKED`` is the oldest of them: update it whenever the whole table is re-checked. Quotes copy
 the CV, so output tokens dominate: a 48-document run is about $1.6 on the
 default, Sonnet 5.5, and was about $3.3 on Opus 5.5 (ADR-0011).
 """

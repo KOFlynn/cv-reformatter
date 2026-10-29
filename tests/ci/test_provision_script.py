@@ -288,12 +288,22 @@ def test_capacity_defaults_to_the_smaller_of_available_and_the_models_cap(
     assert "AZURE_OPENAI_CAPACITY_$(" in aoai_stage  # remembered per model
 
 
+def test_the_model_is_validated_before_it_is_remembered(aoai_stage: str) -> None:
+    ask = aoai_stage.index("ask AZURE_OPENAI_MODEL")
+    validate = aoai_stage.index("AOAI_MODEL_VERSION=$(model_version")
+    remember = aoai_stage.index('write_env AZURE_OPENAI_MODEL "$AOAI_MODEL"')
+    assert ask < validate < remember
+    assert "ask_default AZURE_OPENAI_MODEL" not in aoai_stage
+    assert "exit 1" in aoai_stage[validate:remember]
+
+
 def test_the_account_has_its_own_remembered_region_and_model(aoai_stage: str) -> None:
     assert "ask_default AZURE_OPENAI_LOCATION" in aoai_stage
     assert "swedencentral" in aoai_stage
-    assert "ask_default AZURE_OPENAI_MODEL" in aoai_stage
-    model_line = aoai_stage.split("ask_default AZURE_OPENAI_MODEL")[1].splitlines()[0]
-    assert model_line.endswith(" gpt-5.4-mini")  # the default
+    assert "ask AZURE_OPENAI_MODEL" in aoai_stage
+    model_line = aoai_stage.split("ask AZURE_OPENAI_MODEL")[1].splitlines()[0]
+    assert model_line.endswith('[gpt-5.4-mini]"')  # the default shown
+    assert "AZURE_OPENAI_MODEL=gpt-5.4-mini" in aoai_stage  # and applied
     # Quota and the account use the account's region, never the app's.
     assert "$AZURE_LOCATION" not in aoai_stage.split('say "Reading')[1]
     create = aoai_stage[aoai_stage.index("az cognitiveservices account create") :]
@@ -408,15 +418,13 @@ def test_the_stage_prints_what_the_app_will_need_but_does_not_change_the_app(
 
 
 def test_aoai_values_are_remembered_in_the_env_file(aoai_stage: str) -> None:
-    for key in (
-        "AZURE_OPENAI_ACCOUNT",
-        "AZURE_OPENAI_LOCATION",
-        "AZURE_OPENAI_MODEL",
-    ):
+    for key in ("AZURE_OPENAI_ACCOUNT", "AZURE_OPENAI_LOCATION"):
         assert f"ask_default {key} " in aoai_stage
+    # The capacity is remembered per model by ask_default; no unsuffixed copy.
+    assert "write_env AZURE_OPENAI_CAPACITY " not in aoai_stage
     # What switch-provider.sh reads is written only once the read-back passed.
     readback = aoai_stage[aoai_stage.index("(( bad == 0 ))") :]
-    for key in ("ENDPOINT", "DEPLOYMENT", "CAPACITY"):
+    for key in ("ENDPOINT", "DEPLOYMENT"):
         assert f'write_env AZURE_OPENAI_{key} "$AZURE_OPENAI_{key}"' in readback
         assert (
             f'write_env AZURE_OPENAI_{key} "$'

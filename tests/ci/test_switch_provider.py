@@ -55,9 +55,11 @@ def test_every_variable_it_touches_is_one_the_labeller_reads(switch: str):
 
 
 def test_the_model_and_default_effort_are_valid_for_azure(switch: str):
-    # The model is the wizard's remembered choice, gpt-5.4-mini by default.
-    assert "from_env AZURE_OPENAI_MODEL" in code(switch)
-    assert f"MODEL=${{MODEL:-{AZURE_MINI_MODEL}}}" in code(switch)
+    # The model is derived from the deployment, which the wizard writes only
+    # after its read-back, not from the earlier-remembered model choice.
+    assert "from_env AZURE_OPENAI_DEPLOYMENT" in code(switch)
+    assert "AZURE_OPENAI_MODEL" not in code(switch)
+    assert "MODEL=$DEPLOYMENT" in code(switch)
     assert f"{AZURE_MODEL}|{AZURE_MINI_MODEL}|{AZURE_TERRA_MODEL}" in code(switch)
     assert DEFAULT_EFFORT in AZURE_EFFORTS
     assert f"{ENV_EFFORT}:-{DEFAULT_EFFORT}" in code(switch)
@@ -122,10 +124,8 @@ exit 0
 
 ENDPOINT = "https://cvr-aoai-1234.openai.azure.com/"
 ENDPOINT_LINE = f"AZURE_OPENAI_ENDPOINT={ENDPOINT}\n"
-# What the wizard writes after deploying gpt-5.4 (the model, not the default).
-ENV_FILE = (
-    ENDPOINT_LINE + "AZURE_OPENAI_MODEL=gpt-5.4\nAZURE_OPENAI_DEPLOYMENT=gpt-5.4\n"
-)
+# What the wizard writes after deploying gpt-5.4.
+ENV_FILE = ENDPOINT_LINE + "AZURE_OPENAI_DEPLOYMENT=gpt-5.4\n"
 needs_sh = pytest.mark.skipif(shutil.which("sh") is None, reason="needs a POSIX sh")
 
 
@@ -179,39 +179,33 @@ def test_azure_sets_the_endpoint_and_deployment_from_the_wizards_file(tmp_path):
 
 
 @needs_sh
-def test_azure_defaults_to_gpt_5_4_mini_for_model_and_deployment(tmp_path):
-    env_file = ENDPOINT_LINE
+@pytest.mark.parametrize("model", ["gpt-5.4-mini", "gpt-5.6-terra", "gpt-5.4"])
+def test_azure_derives_the_model_from_the_deployment_the_wizard_wrote(tmp_path, model):
+    env_file = ENDPOINT_LINE + f"AZURE_OPENAI_DEPLOYMENT={model}\n"
     result, calls = run(tmp_path, ["azure"], {}, env_file)
     assert result.returncode == 0, result.stderr
     update = next(c for c in calls if "--set-env-vars" in c)
-    assert "CVR_LABEL_MODEL=gpt-5.4-mini" in update
-    assert "CVR_LABEL_AZURE_DEPLOYMENT=gpt-5.4-mini" in update
+    assert f"CVR_LABEL_MODEL={model}" in update
+    assert f"CVR_LABEL_AZURE_DEPLOYMENT={model}" in update
 
 
 @needs_sh
-def test_azure_uses_the_remembered_mini_model_for_both(tmp_path):
-    env_file = ENDPOINT_LINE + "AZURE_OPENAI_MODEL=gpt-5.4-mini\n"
-    _, calls = run(tmp_path, ["azure"], {}, env_file)
-    update = next(c for c in calls if "--set-env-vars" in c)
-    assert "CVR_LABEL_MODEL=gpt-5.4-mini" in update
-    assert "CVR_LABEL_AZURE_DEPLOYMENT=gpt-5.4-mini" in update
-
-
-@needs_sh
-def test_azure_accepts_gpt_5_6_terra_for_model_and_deployment(tmp_path):
+def test_azure_ignores_a_remembered_model_choice_the_deploy_did_not_confirm(tmp_path):
+    # AZURE_OPENAI_MODEL is written before the stage's read-back; the deployment
+    # only after it. A choice without its deployment is not deployed.
     env_file = ENDPOINT_LINE + "AZURE_OPENAI_MODEL=gpt-5.6-terra\n"
-    _, calls = run(tmp_path, ["azure"], {}, env_file)
-    update = next(c for c in calls if "--set-env-vars" in c)
-    assert "CVR_LABEL_MODEL=gpt-5.6-terra" in update
-    assert "CVR_LABEL_AZURE_DEPLOYMENT=gpt-5.6-terra" in update
-
-
-@needs_sh
-def test_azure_refuses_a_model_the_wizard_does_not_deploy(tmp_path):
-    env_file = ENDPOINT_LINE + "AZURE_OPENAI_MODEL=gpt-9\n"
     result, calls = run(tmp_path, ["azure"], {}, env_file)
     assert result.returncode != 0
-    assert "AZURE_OPENAI_MODEL" in result.stdout
+    assert "AZURE_OPENAI_DEPLOYMENT" in result.stdout
+    assert calls == []
+
+
+@needs_sh
+def test_azure_refuses_a_deployment_that_is_not_a_model_the_wizard_deploys(tmp_path):
+    env_file = ENDPOINT_LINE + "AZURE_OPENAI_DEPLOYMENT=gpt-9\n"
+    result, calls = run(tmp_path, ["azure"], {}, env_file)
+    assert result.returncode != 0
+    assert "AZURE_OPENAI_DEPLOYMENT" in result.stdout
     assert calls == []
 
 
