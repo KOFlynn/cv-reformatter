@@ -76,7 +76,7 @@ The real labeller is built on the first document, not at startup, so `/health` w
 | `ANTHROPIC_API_KEY` | the labeller | (none) | required for `/reformat`, not for `/health` |
 | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` | the app, once when it is created; the eval runner | (none) | both set: every Run is traced in Langfuse, the trace id being the run id (`X-Run-Id`); either missing: untraced, quietly. In Azure they are the Container Apps secrets `langfuse-public-key` and `langfuse-secret-key` (set by the wizard), in CI the repository secrets of the same names |
 | `LANGFUSE_BASE_URL` | the same | the SDK's (`https://cloud.langfuse.com`, EU) | the Langfuse host |
-| `CVR_TRACE_ENV` | the app, once when it is created | `local` | `prod`, `eval` or `local`: the trace tag `env=<value>` (anything else is `local`). The deployed app sets `prod`; the eval runner always tags `eval` and does not read it. Traces flush before each `/reformat` answer and the client shuts down when the app stops |
+| `CVR_TRACE_ENV` | the app, once when it is created | `local` | `prod`, `eval` or `local`: the trace tag `env=<value>` and Langfuse's native Environment field, passed to the client (anything else is `local`; a stray `LANGFUSE_TRACING_ENVIRONMENT` cannot override it). The deployed app sets `prod`; the eval runner always uses `eval` for both and does not read it. Traces flush before each `/reformat` answer and the client shuts down when the app stops |
 | `CVR_RETRY_MAX` | `reformat`, once per Run (the app and the eval read it once at startup to fail early) | `2` | The most retries a Run may make while unplaced text remains (whole number, 0 turns the retry off); a failed first attempt is re-asked and counts. Anything else fails with `ValueError` naming the variable |
 | `CVR_LABEL_PROVIDER` | the labeller | `anthropic` | LangChain provider id: `anthropic` or `azure_openai` |
 | `CVR_LABEL_MODEL` | the labeller | `claude-sonnet-5-5` | model name |
@@ -88,7 +88,7 @@ The real labeller is built on the first document, not at startup, so `/health` w
 | `CVR_LABEL_AZURE_API_VERSION` | the same | `2025-04-01-preview` | the data-plane API version |
 | `CVR_LABEL_AZURE_SCOPE` | the same | `https://ai.azure.com/.default` | the token scope (the older `https://cognitiveservices.azure.com/.default` is the fallback) |
 
-The Azure OpenAI provider has no key: it authenticates with the default Azure credential (a managed identity in Container Apps, `az login` locally; `AZURE_OPENAI_API_KEY` and `OPENAI_API_KEY` are ignored) and a key or token in `CVR_LABEL_EXTRA` is refused, as are `base_url`, `openai_api_base`, `azure_endpoint` and `default_headers` (they could send the token elsewhere). The credential is built with the environment credential excluded, so an `AZURE_CLIENT_SECRET` in the environment is never a way in. The deployed app uses a system-assigned managed identity (ticket 18 provisions it); the token scope and the API version above are confirmed by ticket 19's live proof. For example `CVR_LABEL_PROVIDER=azure_openai CVR_LABEL_MODEL=gpt-5.4 CVR_LABEL_AZURE_ENDPOINT=https://<name>.openai.azure.com/`. The optional real-call test is `tests/label/test_azure_spike.py`, skipped without that configuration.
+The Azure OpenAI provider has no key: it authenticates with the default Azure credential (a managed identity in Container Apps, `az login` locally; `AZURE_OPENAI_API_KEY` and `OPENAI_API_KEY` are ignored) and a key or token in `CVR_LABEL_EXTRA` is refused, as are `base_url`, `openai_api_base`, `azure_endpoint` and `default_headers` (they could send the token elsewhere). The credential is built with the environment credential excluded, so an `AZURE_CLIENT_SECRET` in the environment is never a way in. The deployed app uses a system-assigned managed identity (ticket 18 provisions it); the token scope and the API version above are confirmed by ticket 19's live proof. For example `CVR_LABEL_PROVIDER=azure_openai CVR_LABEL_MODEL=gpt-5.4-mini CVR_LABEL_AZURE_ENDPOINT=https://<name>.openai.azure.com/`. The optional real-call test is `tests/label/test_azure_spike.py`, skipped without that configuration.
 
 A change to any `CVR_LABEL_*` value counts as a model change: run the eval.
 
@@ -177,6 +177,22 @@ az containerapp revision list -n cvr-ca -g cvr-rg -o table
 az monitor log-analytics query --workspace <workspace id> --analytics-query "ContainerAppConsoleLogs_CL | where Log_s has '<run id>'"
 az group delete -n cvr-rg                        # the kill switch: removes every billable resource
 ```
+
+Proving the managed identity live (ticket 19, ADR-0014). Needs the wizard's Azure OpenAI stage to have run (`AZURE_OPENAI_ENDPOINT`, written only after its read-back passes, in `.env.azure`), `az` signed in, and ends with the app off. `switch-provider.sh` changes the app's `CVR_LABEL_*` variables, never a key, and does not stop the app: every update makes a revision that may start a replica, so `demo.sh down` is always the last step.
+
+```
+sh scripts/switch-provider.sh azure              # set provider, effort medium, the model (gpt-5.4-mini now) from the deployment name (low, medium, high or xhigh only), the endpoint and deployment from .env.azure, in one update; prints the revision and the variables
+sh scripts/demo.sh up                            # activate the revision (if switch-provider.sh has not already), open ingress, wake the app; prints the URL
+KEY=$(az containerapp secret show -n cvr-ca -g cvr-rg --secret-name cvr-api-key --query value -o tsv)
+CVR_API_KEY="$KEY" sh scripts/smoke-deploy.sh https://<app url>   # 401 without the key, then 200, a .docx and X-Run-Id; note the run id
+unset KEY
+sh scripts/demo.sh down                          # close ingress, deactivate the revision
+sh scripts/switch-provider.sh anthropic          # remove the variables: the deployed default again
+sh scripts/demo.sh down                          # again: the new revision may be running
+az containerapp replica list -n cvr-ca -g cvr-rg --query "length(@)" -o tsv   # must print 0
+```
+
+If the first call is a 401 or 403, try the other token scope, then wait a few minutes for the role assignment: `CVR_LABEL_AZURE_SCOPE=https://cognitiveservices.azure.com/.default sh scripts/switch-provider.sh azure` (and `CVR_LABEL_AZURE_API_VERSION=...` the same way; an override not given again is removed). A 400 naming the schema or its nesting is the third open question of ticket 19. In Langfuse, open the trace whose id is the run id (Traces, search the id): the labelling generation's model is the deployed one (`gpt-5.4-mini` now), with provider `azure_openai`, effort, attempt number, tokens and cost (the endpoint, deployment and scope are not in a structure-mode trace). The app's log line for the run is found with the query printed by the smoke test. Record the run id, the scope and API version that worked and the outcome on ticket 19 and in ADR-0014.
 
 Rotating the app's key, with the key read hidden so it never reaches the shell history (it is on `az`'s command line for the moment it runs), then a restart so the running revision reads it:
 

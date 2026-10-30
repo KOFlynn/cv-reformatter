@@ -116,6 +116,33 @@ def _env_app(monkeypatch, env: str | None):
     return app, doc, exporter, created
 
 
+def _environments(exporter):
+    spans = list(exporter.get_finished_spans())
+    assert spans
+    return {s.attributes["langfuse.environment"] for s in spans}
+
+
+@pytest.mark.parametrize("env", ["prod", "eval", "local"])
+def test_the_spans_carry_the_native_environment(monkeypatch, env):
+    app, doc, exporter, _ = _env_app(monkeypatch, env)
+    assert _post(app, doc).status_code == 200
+    assert _environments(exporter) == {env}
+
+
+@pytest.mark.parametrize("env", [None, "", "staging"])
+def test_the_native_environment_defaults_to_local(monkeypatch, env):
+    app, doc, exporter, _ = _env_app(monkeypatch, env)
+    assert _post(app, doc).status_code == 200
+    assert _environments(exporter) == {"local"}
+
+
+def test_a_stray_langfuse_variable_does_not_override_cvr_trace_env(monkeypatch):
+    monkeypatch.setenv("LANGFUSE_TRACING_ENVIRONMENT", "other")
+    app, doc, exporter, _ = _env_app(monkeypatch, "prod")
+    assert _post(app, doc).status_code == 200
+    assert _environments(exporter) == {"prod"}
+
+
 def _tags(exporter):
     (root,) = [s for s in exporter.get_finished_spans() if s.name == "reformat"]
     return list(root.attributes["langfuse.trace.tags"])

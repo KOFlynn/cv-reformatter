@@ -271,7 +271,7 @@ need() {
   command -v "$1" >/dev/null 2>&1 || { warn "$1 not found: $2"; exit 1; }
 }
 
-TOTAL_STAGES=13
+TOTAL_STAGES=14
 
 banner "cv-reformatter: Azure Container Apps, deployed through OIDC"
 
@@ -610,7 +610,7 @@ fi
 # Create the credential, or bring an existing one's subject into line (an
 # earlier run, or a hand edit, may have left a different one).
 read -r cred_id cred_subject < <(azq ad app federated-credential list --id "$AZURE_CLIENT_ID" \
-  --query "[?name=='github-main'].[id,subject] | [0]" -o tsv) || true
+  --query "[?name=='github-main'].[id,subject] | [0]" -o tsv | tr '\t\n' '  ') || true
 [[ "$cred_id" != None ]] || cred_id=
 if [[ -n "$cred_id" && "$cred_subject" == "$FED_SUBJECT" ]]; then
   say "Credential github-main already trusts $FED_SUBJECT; leaving it."
@@ -710,21 +710,247 @@ done
 pause
 
 # ── 13 ────────────────────────────────────────────────────────────────────
+# Phase 2 ticket 18: the Azure OpenAI path, with no key anywhere. An Azure AI
+# Services (Foundry) account with a custom subdomain and local (key) auth
+# disabled, a Data Zone Standard deployment, and the role Cognitive
+# Services OpenAI User on the account alone for cvr-ca's managed identity and
+# for the maintainer. The app's env is not touched here (ticket 19 switches it).
+# The account has its own region (2026-10-24: cvr_sub has no gpt-5.4 quota in
+# northeurope or anywhere in the EU; gpt-5.4-mini has 200K TPM in swedencentral,
+# westeurope, germanywestcentral and francecentral), and its own model choice,
+# remembered: gpt-5.4-mini by default, gpt-5.6-terra (its quota request was
+# refused 2026-10-29 for region capacity) or gpt-5.4 if quota ever appears. Each model
+# is its own deployment, named after the model; re-running with the other model
+# adds that deployment and leaves the first alone.
+stage "Azure OpenAI: account, deployment and roles (no keys)"
+AOAI_SKU=DataZoneStandard
+AOAI_ROLE="Cognitive Services OpenAI User"
+# model_version MODEL: the version the deployment pins (Microsoft Learn, models
+# sold directly by Azure); model_default_capacity MODEL: thousands of TPM.
+model_version() {
+  case "$1" in
+    gpt-5.4) printf '2026-03-05' ;;
+    gpt-5.4-mini) printf '2026-03-17' ;;
+    gpt-5.6-terra) printf '2026-07-09' ;;
+    *) return 1 ;;
+  esac
+}
+model_default_capacity() {
+  case "$1" in
+    gpt-5.4) printf '500' ;;
+    gpt-5.4-mini) printf '200' ;;
+    gpt-5.6-terra) printf '200' ;;
+    *) return 1 ;;
+  esac
+}
+ask_default AZURE_OPENAI_LOCATION "Region of the Azure OpenAI account (the app stays in $AZURE_LOCATION)" swedencentral
+# Validated before it is remembered, so a typo is never written to .env.azure.
+ask AZURE_OPENAI_MODEL "Model to deploy (gpt-5.4-mini, gpt-5.6-terra or gpt-5.4) [gpt-5.4-mini]"
+[[ -n "$AZURE_OPENAI_MODEL" ]] || AZURE_OPENAI_MODEL=gpt-5.4-mini
+AOAI_MODEL=$AZURE_OPENAI_MODEL
+AOAI_MODEL_VERSION=$(model_version "$AOAI_MODEL") \
+  || { warn "AZURE_OPENAI_MODEL must be gpt-5.4-mini, gpt-5.6-terra or gpt-5.4, not '$AOAI_MODEL'; nothing was remembered"; exit 1; }
+write_env AZURE_OPENAI_MODEL "$AOAI_MODEL"
+AOAI_USAGE_NAME="OpenAI.$AOAI_SKU.$AOAI_MODEL"
+# The deployment is named after its model, so the two never disagree.
+AZURE_OPENAI_DEPLOYMENT=$AOAI_MODEL
+say "Creates (or confirms) an AIServices account in $AZURE_RESOURCE_GROUP ($AZURE_OPENAI_LOCATION) with local"
+say "(key) authentication disabled, a $AOAI_SKU $AOAI_MODEL $AOAI_MODEL_VERSION deployment, and the role"
+say "'$AOAI_ROLE' on that account only, for $AZURE_CONTAINER_APP's"
+say "system-assigned identity and for you. No key is created, listed or stored."
+note "Role assignments need Owner or User Access Administrator on the account's scope."
+say "Registering Microsoft.CognitiveServices if needed (never used on this subscription before)."
+if [[ "$(azq provider show --namespace Microsoft.CognitiveServices --query registrationState -o tsv)" != Registered ]]; then
+  az provider register --namespace Microsoft.CognitiveServices --wait
+fi
+for _ in $(seq 60); do
+  [[ "$(azq provider show --namespace Microsoft.CognitiveServices --query registrationState -o tsv)" == Registered ]] && break
+  sleep 5
+done
+[[ "$(azq provider show --namespace Microsoft.CognitiveServices --query registrationState -o tsv)" == Registered ]] \
+  || { warn "Microsoft.CognitiveServices is still not Registered; see az provider show"; exit 1; }
+say "Reading the $AOAI_SKU quota for $AOAI_MODEL in $AZURE_OPENAI_LOCATION (the row $AOAI_USAGE_NAME)."
+quota_limit=$(azq cognitiveservices usage list --location "$AZURE_OPENAI_LOCATION" \
+  --query "[?name.value=='$AOAI_USAGE_NAME'].limit | [0]" -o tsv)
+quota_used=$(azq cognitiveservices usage list --location "$AZURE_OPENAI_LOCATION" \
+  --query "[?name.value=='$AOAI_USAGE_NAME'].currentValue | [0]" -o tsv)
+# The CLI may print 500.0; capacity units are whole thousands of tokens a minute.
+quota_limit=${quota_limit%%.*}
+quota_used=${quota_used%%.*}
+if [[ -z "$quota_limit" || "$quota_limit" == None || "$quota_limit" == 0 ]]; then
+  warn "No $AOAI_SKU quota for $AOAI_MODEL in $AZURE_OPENAI_LOCATION (limit '${quota_limit:-absent}'). Nothing was created."
+  say "Every gpt-5.4 row the subscription reports (an empty table means the row is named differently or absent):"
+  az cognitiveservices usage list -l "$AZURE_OPENAI_LOCATION"     --query "[?contains(name.value,'gpt-5.4')].{name:name.value,limit:limit,used:currentValue}" -o table || true
+  say "Either request quota in the portal (Foundry > Quotas > $AOAI_MODEL, $AOAI_SKU, $AZURE_OPENAI_LOCATION), pick"
+  say "another region or model (AZURE_OPENAI_LOCATION, AZURE_OPENAI_MODEL in .env.azure) and re-run this wizard,"
+  say "or record the Azure path as blocked (tickets 18-21)."
+  exit 1
+fi
+quota_free=$((quota_limit - ${quota_used:-0}))
+say "Quota: limit $quota_limit, used ${quota_used:-0}, available $quota_free (thousands of tokens a minute)."
+capacity_cap=$(model_default_capacity "$AOAI_MODEL")
+if (( quota_free > capacity_cap )); then capacity_default=$capacity_cap; else capacity_default=$quota_free; fi
+step "Azure counts max_completion_tokens (32000 in our Azure requests) against the TPM limit of"
+step "every call, so labellings in flight need capacity: with 200 run the eval at --concurrency 2."
+# A remembered capacity belongs to its model: AZURE_OPENAI_CAPACITY_GPT_5_4_MINI.
+capacity_key="AZURE_OPENAI_CAPACITY_$(printf '%s' "$AOAI_MODEL" | tr 'a-z.-' 'A-Z__')"
+ask_default "$capacity_key" "Capacity in thousands of TPM (available $quota_free)" "$capacity_default"
+AZURE_OPENAI_CAPACITY=${!capacity_key}
+[[ "$AZURE_OPENAI_CAPACITY" =~ ^[0-9]+$ && "$AZURE_OPENAI_CAPACITY" -ge 1 ]] \
+  || { warn "capacity must be a whole number of at least 1"; exit 1; }
+ask_default AZURE_OPENAI_ACCOUNT "Account name (its subdomain is globally unique)" "cvr-aoai-$(openssl rand -hex 2)"
+confirm "Create or confirm them?" || { warn "stopped before creating anything"; exit 1; }
+
+# The account: AIServices (Foundry), S0, with a custom subdomain, which token
+# authentication requires.
+if az cognitiveservices account show --name "$AZURE_OPENAI_ACCOUNT" --resource-group "$AZURE_RESOURCE_GROUP" >/dev/null 2>&1; then
+  [[ "$(azq cognitiveservices account show --name "$AZURE_OPENAI_ACCOUNT" --resource-group "$AZURE_RESOURCE_GROUP"     --query kind -o tsv)" == AIServices ]]     || { warn "$AZURE_OPENAI_ACCOUNT exists but is not kind AIServices; pick another name or delete it"; exit 1; }
+  # The quota was read for AZURE_OPENAI_LOCATION, and an account cannot move.
+  [[ "$(azq cognitiveservices account show --name "$AZURE_OPENAI_ACCOUNT" --resource-group "$AZURE_RESOURCE_GROUP"     --query location -o tsv)" == "$AZURE_OPENAI_LOCATION" ]]     || { warn "$AZURE_OPENAI_ACCOUNT exists in another region than $AZURE_OPENAI_LOCATION; set AZURE_OPENAI_LOCATION to its region or pick another account name"; exit 1; }
+  say "Account $AZURE_OPENAI_ACCOUNT already exists; keeping it."
+else
+  az cognitiveservices account create --name "$AZURE_OPENAI_ACCOUNT" --resource-group "$AZURE_RESOURCE_GROUP" \
+    --location "$AZURE_OPENAI_LOCATION" --kind AIServices --sku S0 --custom-domain "$AZURE_OPENAI_ACCOUNT" \
+    --yes --output none
+  say "Created account $AZURE_OPENAI_ACCOUNT."
+fi
+aoai_id=$(azq cognitiveservices account show --name "$AZURE_OPENAI_ACCOUNT" --resource-group "$AZURE_RESOURCE_GROUP" \
+  --query id -o tsv)
+[[ "$(azq cognitiveservices account show --name "$AZURE_OPENAI_ACCOUNT" --resource-group "$AZURE_RESOURCE_GROUP" \
+  --query properties.customSubDomainName -o tsv)" == "$AZURE_OPENAI_ACCOUNT" ]] \
+  || { warn "$AZURE_OPENAI_ACCOUNT has no custom subdomain of that name; token authentication needs it"; exit 1; }
+
+# Key authentication off: az cognitiveservices has no flag, so ARM, only when
+# it is not already off.
+if [[ "$(azq cognitiveservices account show --name "$AZURE_OPENAI_ACCOUNT" --resource-group "$AZURE_RESOURCE_GROUP" \
+  --query properties.disableLocalAuth -o tsv)" == true ]]; then
+  say "Local (key) authentication is already disabled."
+else
+  # Right after the account is created ARM may still be provisioning it and
+  # answer with a conflict; try a few times.
+  disabled=0
+  for _ in 1 2 3 4 5 6; do
+    if az resource update --ids "$aoai_id" --api-version 2024-10-01       --set properties.disableLocalAuth=true --output none; then disabled=1; break; fi
+    note "the account may still be provisioning; retrying in 10 seconds"
+    sleep 10
+  done
+  [[ "$disabled" == 1 ]] || { warn "could not disable local authentication; see the error above"; exit 1; }
+  say "Disabled local (key) authentication."
+fi
+
+# The deployment.
+if az cognitiveservices account deployment show --name "$AZURE_OPENAI_ACCOUNT" --resource-group "$AZURE_RESOURCE_GROUP" \
+  --deployment-name "$AZURE_OPENAI_DEPLOYMENT" >/dev/null 2>&1; then
+  say "Deployment $AZURE_OPENAI_DEPLOYMENT already exists; keeping it."
+else
+  if (( AZURE_OPENAI_CAPACITY > quota_free )); then
+    warn "capacity $AZURE_OPENAI_CAPACITY is above the $quota_free available; re-run with less"
+    exit 1
+  fi
+  az cognitiveservices account deployment create --name "$AZURE_OPENAI_ACCOUNT" --resource-group "$AZURE_RESOURCE_GROUP" \
+    --deployment-name "$AZURE_OPENAI_DEPLOYMENT" --model-format OpenAI --model-name "$AOAI_MODEL" \
+    --model-version "$AOAI_MODEL_VERSION" --sku-name "$AOAI_SKU" --sku-capacity "$AZURE_OPENAI_CAPACITY" --output none
+  say "Created deployment $AZURE_OPENAI_DEPLOYMENT."
+fi
+
+# Roles: the app's system-assigned identity and the signed-in maintainer, each
+# the inference role on the account (not the resource group).
+app_principal=$(azq containerapp identity show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+  --query principalId -o tsv 2>/dev/null || true)
+if [[ -z "$app_principal" || "$app_principal" == None ]]; then
+  az containerapp identity assign --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+    --system-assigned --output none
+  wait_app_ready
+  app_principal=$(azq containerapp identity show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP" \
+    --query principalId -o tsv)
+  say "Enabled the system-assigned identity on $AZURE_CONTAINER_APP."
+else
+  say "$AZURE_CONTAINER_APP already has a system-assigned identity."
+fi
+user_principal=$(azq ad signed-in-user show --query id -o tsv)   || { warn "az ad signed-in-user show failed: grant '$AOAI_ROLE' on $AZURE_OPENAI_ACCOUNT to yourself by hand, then re-run"; exit 1; }
+grant_role() {
+  local who="$1" type="$2" label="$3" have
+  have=$(azq role assignment list --assignee-object-id "$who" --fill-principal-name false --scope "$aoai_id" --role "$AOAI_ROLE" --query 'length(@)' -o tsv)
+  if [[ "$have" == 0 ]]; then
+    az role assignment create --assignee-object-id "$who" --assignee-principal-type "$type" \
+      --role "$AOAI_ROLE" --scope "$aoai_id" --output none
+    say "Granted '$AOAI_ROLE' on $AZURE_OPENAI_ACCOUNT to $label."
+  else
+    say "$label already holds '$AOAI_ROLE' on $AZURE_OPENAI_ACCOUNT."
+  fi
+}
+grant_role "$app_principal" ServicePrincipal "$AZURE_CONTAINER_APP's identity"
+grant_role "$user_principal" User "you"
+
+# Read back, and fail loudly on anything unexpected.
+say "Read-back:"
+local_auth_off=$(azq cognitiveservices account show --name "$AZURE_OPENAI_ACCOUNT" --resource-group "$AZURE_RESOURCE_GROUP" \
+  --query properties.disableLocalAuth -o tsv)
+subdomain=$(azq cognitiveservices account show --name "$AZURE_OPENAI_ACCOUNT" --resource-group "$AZURE_RESOURCE_GROUP" \
+  --query properties.customSubDomainName -o tsv)
+deployments=$(azq cognitiveservices account deployment list --name "$AZURE_OPENAI_ACCOUNT" \
+  --resource-group "$AZURE_RESOURCE_GROUP" --query "[].name" -o tsv)
+note "  disableLocalAuth  $local_auth_off"
+note "  subdomain         $subdomain"
+note "  location          $(azq cognitiveservices account show --name "$AZURE_OPENAI_ACCOUNT" --resource-group "$AZURE_RESOURCE_GROUP" --query location -o tsv)"
+bad=0
+# Every deployment on the account, not only the one just made: each must be
+# Data Zone Standard at the version pinned for its model.
+chosen_found=0
+while IFS= read -r dep; do
+  [[ -n "$dep" ]] || continue
+  dep_info=$(azq cognitiveservices account deployment show --name "$AZURE_OPENAI_ACCOUNT" \
+    --resource-group "$AZURE_RESOURCE_GROUP" --deployment-name "$dep" \
+    --query "[sku.name, sku.capacity, properties.model.name, properties.model.version]" -o tsv | tr '\t\n' '  ')
+  read -r dep_sku dep_capacity dep_model dep_version <<<"$dep_info"
+  note "  deployment        $dep: $dep_model $dep_version, sku $dep_sku, capacity $dep_capacity"
+  [[ "$dep" != "$AZURE_OPENAI_DEPLOYMENT" ]] || chosen_found=1
+  [[ "$dep_sku" == "$AOAI_SKU" ]] || { warn "deployment $dep sku is '$dep_sku', not $AOAI_SKU"; bad=1; }
+  want_version=$(model_version "$dep_model" || true)
+  [[ -n "$want_version" && "$dep_version" == "$want_version" ]] \
+    || { warn "deployment $dep: model '$dep_model' version '$dep_version' is not a pinned pair"; bad=1; }
+done <<<"$deployments"
+[[ "$chosen_found" == 1 ]] || { warn "deployment $AZURE_OPENAI_DEPLOYMENT is not on the account"; bad=1; }
+az role assignment list --scope "$aoai_id" --fill-principal-name false   --query "[].{principal:principalId, type:principalType, role:roleDefinitionName}" --output table || true
+[[ "$local_auth_off" == true ]] || { warn "local authentication is NOT disabled"; bad=1; }
+for who in "$app_principal" "$user_principal"; do
+  [[ "$(azq role assignment list --assignee-object-id "$who" --fill-principal-name false --scope "$aoai_id" --query 'length(@)' -o tsv)" == 1 \
+    && "$(azq role assignment list --assignee-object-id "$who" --fill-principal-name false --scope "$aoai_id" --role "$AOAI_ROLE" --query 'length(@)' -o tsv)" == 1 ]] \
+    || { warn "a principal does not hold exactly '$AOAI_ROLE' on the account"; bad=1; }
+done
+(( bad == 0 )) || { warn "the read-back found a problem; fix it and re-run this stage"; exit 1; }
+AZURE_OPENAI_ENDPOINT="https://$subdomain.openai.azure.com/"
+write_env AZURE_OPENAI_ENDPOINT "$AZURE_OPENAI_ENDPOINT"
+write_env AZURE_OPENAI_DEPLOYMENT "$AZURE_OPENAI_DEPLOYMENT"
+say "Read-back is as wanted. The app will need (ticket 19 sets them; nothing was changed here):"
+note "  CVR_LABEL_PROVIDER=azure_openai"
+note "  CVR_LABEL_AZURE_ENDPOINT=$AZURE_OPENAI_ENDPOINT"
+note "  CVR_LABEL_AZURE_DEPLOYMENT=$AZURE_OPENAI_DEPLOYMENT"
+note "Role changes can take up to five minutes to take effect."
+# Insurance: the identity change makes a revision; the app must stay off.
+running_now=$(azq containerapp replica list --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP"   --revision "$(azq containerapp show --name "$AZURE_CONTAINER_APP" --resource-group "$AZURE_RESOURCE_GROUP"     --query properties.latestRevisionName -o tsv)"   --query "[?properties.runningState=='Running'] | length(@)" -o tsv 2>/dev/null || echo "?")
+if [[ "$running_now" != 0 ]]; then
+  warn "$AZURE_CONTAINER_APP may have $running_now replica(s) running: run sh scripts/demo.sh down and check az containerapp replica list"
+fi
+pause
+
+# ── 14 ────────────────────────────────────────────────────────────────────
 stage "Record for ADR-0010"
 say "Paste this into the ticket 14 PR and check ADR-0010's table matches:"
 printf '\n'
-note "  subscription      $AZURE_SUBSCRIPTION_ID"
-note "  tenant            $AZURE_TENANT_ID"
-note "  region            $AZURE_LOCATION"
-note "  resource group    $AZURE_RESOURCE_GROUP"
-note "  log analytics     $LOG_WORKSPACE ($LOG_WORKSPACE_ID)"
-note "  environment       $CONTAINERAPPS_ENV"
-note "  container app     $AZURE_CONTAINER_APP  $APP_URL"
-note "  image             $IMAGE (public)"
-note "  entra app         $ENTRA_APP (client id $AZURE_CLIENT_ID)"
-note "  oidc subject      $FED_SUBJECT"
-note "  budget            $BUDGET_AMOUNT a month"
+note "  subscription      ${AZURE_SUBSCRIPTION_ID:-}"
+note "  tenant            ${AZURE_TENANT_ID:-}"
+note "  region            ${AZURE_LOCATION:-}"
+note "  resource group    ${AZURE_RESOURCE_GROUP:-}"
+note "  log analytics     ${LOG_WORKSPACE:-} (${LOG_WORKSPACE_ID:-})"
+note "  environment       ${CONTAINERAPPS_ENV:-}"
+note "  container app     ${AZURE_CONTAINER_APP:-}  ${APP_URL:-}"
+note "  image             ${IMAGE:-} (public)"
+note "  entra app         ${ENTRA_APP:-} (client id ${AZURE_CLIENT_ID:-})"
+note "  oidc subject      ${FED_SUBJECT:-}"
+note "  budget            ${BUDGET_AMOUNT:-} a month"
 note "  log retention     workspace 30 days; the populated _CL tables 30 days; the other ContainerApp tables ${LOG_TABLE_RETENTION_DAYS:-4} days (stage 12)"
+note "  azure openai      ${AZURE_OPENAI_ACCOUNT:-not provisioned} in ${AZURE_OPENAI_LOCATION:-n/a} / ${AZURE_OPENAI_DEPLOYMENT:-}, no keys (stage 13)"
 printf '\n'
 say "Next: merge to main; the deploy job moves the app from :bootstrap to the commit's image."
 pause "Press Enter to finish"

@@ -10,7 +10,7 @@
 - [x] Over fakes: an Azure config yields the expected chat-model arguments, a token provider and never a key; a config with a key is refused as misconfigured (tested)
 - [x] Every configured model has a price, and the test fails loudly for one that does not; cached-input pricing is included if caching is used
 - [x] The schema check covers: every field required, no additional properties, nesting depth, unsupported keywords, root not `anyOf`. If either schema fails it, the fix bumps the schema version and an eval on the deployed provider is shown
-- [ ] The image check is run and pasted (not run: see Comments); the runtime-import test still holds (it does: `tests/docker/` green)
+- [x] The image check is run and pasted (by the deploy job after PR #41 merged, see the 2026-10-24 post-merge comment); the runtime-import test still holds (it does: `tests/docker/` green)
 - [x] The spike test for the real model gains an Azure counterpart, skipped without Azure configuration
 
 ## Comments
@@ -26,3 +26,9 @@
 
 
 **2026-10-24, review fixes (S3, S4).** `openai.LengthFinishReasonError` (the answer hit the token limit) is now a `LabellingFailure` with the reason `invalid JSON`, the category Anthropic's `max_tokens` truncation gets, and `openai.ContentFilterFinishReasonError` is one with `the model refused to answer`, as a refusal is (`azure_failure_reason`, called from `failure_reason`); both fell through to `LabellerMisconfigured` and a 500 before. The credential is `DefaultAzureCredential(exclude_environment_credential=True)`, so a client secret in the environment is not a credential path: the chain is the managed identity in Container Apps and the developer's sign-in locally. The deployed app uses a system-assigned managed identity (ticket 18 provisions it); the scope and API version are confirmed by ticket 19's live proof. `CVR_LABEL_EXTRA` may not carry `base_url`, `openai_api_base`, `azure_endpoint` or `default_headers` (the bearer token could be redirected). Correction to "Not done" above: `tests/label/test_spike.py` read `run.config.model` on a dict; fixed in the review (it is skipped without a key).
+
+### 2026-10-24, after PR #41 merged (orchestrator)
+
+The `main` run [40118184776](https://github.com/KOFlynn/cv-reformatter/actions/runs/40118184776) at `accea1f` passed `check`, `eval` and `deploy`. `PULL=1 sh scripts/check-image.sh` on the anonymously pulled image: **277MB** as the CI runner's Docker reports it, against 231MB for the previous `main` image (`a6a71f7`, PR #40), so `langchain-openai` and `azure-identity` add about 46MB. (The 350 MB figures elsewhere were measured on Docker Desktop and are not comparable with the runner's.) User uid 10001, golden/eval absent and unimportable, no key in the history or the filesystem, `/health` 200, `/reformat` without the key 401. The smoke test returned 200 (run id `e31776dae9014c9c9f88e60c74eabeb8`), and the stop step reported no ingress, an inactive revision and no replica running.
+
+The `--no-cache` eval on `main` passed every gate with the same totals as the PR's: tunable placement 98.49% / 98.58%, appendix 0.67%, 9 retries placing 25 characters for $0.1181, $1.7103 in all over 57 live calls, 137.5 s.

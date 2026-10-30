@@ -14,7 +14,12 @@ from azure.core import exceptions as azure_exceptions
 from langchain_openai import AzureChatOpenAI
 
 from cvr.label import LabellerConfig, LabellerMisconfigured, ProviderUnavailable
-from cvr.label.azure_openai import AZURE_EFFORTS, azure_error, azure_kwargs
+from cvr.label.azure_openai import (
+    AZURE_EFFORTS,
+    AZURE_MAX_COMPLETION_TOKENS,
+    azure_error,
+    azure_kwargs,
+)
 from cvr.label.config import (
     DEFAULT_AZURE_API_VERSION,
     DEFAULT_AZURE_SCOPE,
@@ -164,12 +169,22 @@ def test_a_real_azure_chat_model_never_picks_up_a_key_from_the_environment(
     assert model.azure_ad_token_provider is not None
     assert model.deployment_name == "gpt-5.4"
     assert model.reasoning_effort == "medium"
-    assert model.max_tokens == 128_000
+    assert model.max_tokens == AZURE_MAX_COMPLETION_TOKENS == 32_000
     assert model.max_retries == PROVIDER_RETRIES
     params = model._default_params
-    assert params["max_completion_tokens"] == 128_000
+    assert params["max_completion_tokens"] == 32_000
     assert "max_tokens" not in params
     assert "temperature" not in params or params["temperature"] is None
+
+
+def test_the_azure_cap_is_below_anthropics_and_a_labeller_extra_overrides_it(
+    credential,
+):
+    # Azure's TPM limiter counts max_tokens up front, so 128000 would admit
+    # about one request a minute on a 200K TPM deployment.
+    assert AZURE_MAX_COMPLETION_TOKENS < MAX_OUTPUT_TOKENS == 128_000
+    model = build_chat_model(_config(extra={"max_completion_tokens": 64_000}))
+    assert model._default_params["max_completion_tokens"] == 64_000
 
 
 def test_the_azure_structured_output_is_strict_json_schema(credential):

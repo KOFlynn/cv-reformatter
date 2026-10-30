@@ -56,6 +56,7 @@ from langchain_core.runnables import Runnable
 from pydantic import ValidationError
 
 from cvr.label.azure_openai import (
+    AZURE_MAX_COMPLETION_TOKENS,
     AZURE_PROVIDER,
     azure_error,
     azure_failure_reason,
@@ -146,7 +147,9 @@ def build_chat_model(config: LabellerConfig) -> BaseChatModel:
     (ticket 17), ``azure_kwargs`` in ``cvr.label.azure_openai``."""
     if config.provider == AZURE_PROVIDER:
         provider_kwargs = azure_kwargs(
-            config, max_retries=PROVIDER_RETRIES, max_tokens=MAX_OUTPUT_TOKENS
+            config,
+            max_retries=PROVIDER_RETRIES,
+            max_tokens=AZURE_MAX_COMPLETION_TOKENS,
         )
     elif config.provider == "anthropic":
         provider_kwargs = anthropic_kwargs(config)

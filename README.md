@@ -248,6 +248,8 @@ review-by-exception halves are already recorded: [ADR-0003](docs/adr/0003-docx-o
 | [0011](docs/adr/0011-sonnet-is-the-default-model.md) | Sonnet 5.5 is the default model |
 | [0012](docs/adr/0012-the-graph-and-its-bounded-additions-only-retry.md) | The pipeline is a LangGraph graph whose one loop is a bounded, additions-only retry |
 | [0013](docs/adr/0013-content-boundary.md) | The content boundary: what reaches the provider, Langfuse and the logs, and the canary test |
+| [0014](docs/adr/0014-azure-openai-through-a-managed-identity.md) | Azure OpenAI through a managed identity: Data Zone EU, key auth disabled (accepted after the live proof) |
+| [0015](docs/adr/0015-anthropic-stays-the-deployed-provider.md) | Anthropic Sonnet 5.5 stays the deployed provider; gpt-5.4-mini fails the gate on every run (the stronger Azure models could not be compared) |
 
 ## Tracing
 

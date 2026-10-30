@@ -167,6 +167,59 @@ def test_demo_down_fails_when_the_ingress_lookup_fails(tmp_path: Path):
     assert "Stopped" not in result.stdout
 
 
+# `switch-provider.sh` leaves the new revision active (an env update
+# activates it), so `up` straight after it must not activate it again: Azure
+# answers RevisionAlreadyInRequestedState (ticket 19, live proof).
+FAKE_UP_AZ = """#!/bin/sh
+echo "$*" >> "$AZ_LOG"
+case "$*" in
+  *ingress.fqdn*) echo some-app.example.io ;;
+  *latestRevisionName*) echo some-app--rev ;;
+  *properties.active*) echo "$AZ_ACTIVE" ;;
+esac
+exit 0
+"""
+
+
+def run_up(tmp_path: Path, active: str) -> list[str]:
+    (tmp_path / "az").write_text(FAKE_UP_AZ, newline="\n")
+    (tmp_path / "curl").write_text("#!/bin/sh\nexit 0\n", newline="\n")
+    for name in ("az", "curl"):
+        (tmp_path / name).chmod(0o755)
+    log = tmp_path / "calls"
+    env = {
+        **os.environ,
+        "PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}",
+        "AZ_LOG": str(log),
+        "AZ_ACTIVE": active,
+    }
+    result = subprocess.run(
+        ["sh", str(SCRIPTS / "demo.sh"), "up", "some-rg", "some-app"],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    return log.read_text().splitlines()
+
+
+@pytest.mark.skipif(shutil.which("sh") is None, reason="needs a POSIX sh")
+def test_demo_up_skips_activating_a_revision_that_is_already_active(tmp_path: Path):
+    calls = run_up(tmp_path, "true")
+    assert not any("revision activate" in c for c in calls)
+    assert any("ingress enable" in c for c in calls)
+
+
+@pytest.mark.skipif(shutil.which("sh") is None, reason="needs a POSIX sh")
+def test_demo_up_activates_an_inactive_revision_before_opening_ingress(tmp_path: Path):
+    calls = run_up(tmp_path, "false")
+    activate = next(i for i, c in enumerate(calls) if "revision activate" in c)
+    enable = next(i for i, c in enumerate(calls) if "ingress enable" in c)
+    assert activate < enable
+
+
 def test_no_script_gives_curl_dev_null_to_write_to():
     # A native Windows curl first on PATH cannot open /dev/null: every call
     # failed with "(23) client returned ERROR on write". The shell redirect
