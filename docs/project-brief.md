@@ -215,7 +215,7 @@ Result: roughly 40–60 source documents with exact expected output.
 
 Thresholds live in `eval/thresholds.yaml`. **CI fails, and deployment is blocked, if any hard gate is breached or any threshold is missed.**
 
-**Provider comparison:** the eval runs against both Anthropic and Azure OpenAI (Phase 2 onwards). The ADR records which provider was chosen and the numbers behind the choice.
+**Provider comparison:** the gate runs the deployed provider (Anthropic, Sonnet 5.5 at `medium`); the other provider is judged in a dated comparison record (`eval/provider-comparison-<date>.json`: three live runs of each, same prompt, schemas and thresholds), re-run whenever the prompt, a schema or either model changes. ADR-0015 records which provider was chosen and the numbers behind the choice (2026-10-29: Anthropic stays; Azure OpenAI gpt-5.4-mini failed the gate on all three runs, and the stronger Azure models could not be compared for lack of quota).
 
 **Cost control:** the LLM eval runs on pull requests and on main, not on every push. Unit tests run on every push.
 
@@ -264,7 +264,7 @@ Every phase ends in a shippable state. **Phase 1 alone is valid standalone evide
 - [x] Pipeline moved onto LangGraph, with a retry loop for rejected or unplaced spans (max N, default 2) before the appendix (ADR-0012)
 - [ ] Langfuse tracing on every run, with the run ID linked from API logs
 - [x] Azure OpenAI added as a second provider through managed identity
-- [ ] Eval report compares providers; choice recorded in the ADR
+- [x] Eval report compares providers; choice recorded in the ADR (`eval/provider-comparison-2026-10-29.json`, ADR-0015: Sonnet 5.5 stays; the Azure model compared was gpt-5.4-mini, the only one with quota)
 
 ### Phase 3: MCP
 - [ ] MCP server exposing `reformat_cv`, working from Claude Desktop

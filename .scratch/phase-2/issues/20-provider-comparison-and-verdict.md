@@ -4,12 +4,12 @@
 
 **Blocked by:** 15, 17, 18
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The Sonnet side reuses existing runs only if they are on the same prompt and schema versions; otherwise three new runs, and the record says which
-- [ ] The record holds per-run gate results, metrics, retries, cost and wall time for both sides
-- [ ] ADR-0015 written; the brief's §8 amended and its §10 comparison box ticked
-- [ ] If Azure wins, ticket 21 is marked ready; if not, it is closed as not needed, with the reason
+- [x] The Sonnet side reuses existing runs only if they are on the same prompt and schema versions; otherwise three new runs, and the record says which
+- [x] The record holds per-run gate results, metrics, retries, cost and wall time for both sides
+- [x] ADR-0015 written; the brief's §8 amended and its §10 comparison box ticked
+- [x] If Azure wins, ticket 21 is marked ready; if not, it is closed as not needed, with the reason
 
 ## Decisions made in preparation
 
@@ -80,3 +80,5 @@ After the runs: hand-write `notes` and `verdict` into the record as in the Phase
 - 2026-10-29: A Data Zone Standard quota request for gpt-5.6-terra (swedencentral, version 2026-07-09) was filed by the maintainer and refused 2026-10-29 (Sweden Central has no capacity to expand; Microsoft: resubmit with other regions or wait 30+ days). The comparison is **gpt-5.4-mini against Sonnet 5.5**. The model stays accepted by stage 13 and priced ($2.20 / $13.20 per million tokens) in case quota appears later; the record must say which model was compared.
 
 - 2026-10-24: Prepared, not run (Azure is not provisioned until ticket 18 and ticket 19 proves the identity). Added `cvr.eval.compare` (`src/cvr/eval/compare.py`, `tests/eval/test_compare.py`) and the retry hashes in the report's `versions` (`tests/eval/run/test_report_versions.py`). Decided: the Sonnet side is three new runs (the Phase 1.5 reports predate the retry and carry no retry versions); gpt-5.4 at `medium` to match Sonnet. The runbook above is the maintainer's copy-paste. ADR-0015, the brief's §8 and §10 and the ticket's boxes are deliberately untouched.
+
+- 2026-10-29: Done. Three new Sonnet runs and three gpt-5.4-mini runs, all live and uncached, aggregated by `cvr.eval.compare` into `eval/provider-comparison-2026-10-29.json` (notes and verdict by hand). Sonnet passed 3 of 3 (tunable 99.65/99.73, $1.71, about 138 s); gpt-5.4-mini failed 3 of 3 (6 to 9 wrongful removals a run, c04 RM_REFEREE and c07 RM_PERSONAL; tunable placement 43.89 to 44.42 against 98, only single-column passing; $1.03 to $1.05, about 425 s). Anthropic stays the deployed provider; ADR-0015 written, the brief section 8 amended and the section 10 comparison box ticked. Limitation: gpt-5.4 and gpt-5.6-terra could not be compared (no quota; the terra request was refused 2026-10-29). Ticket 21 closed as not needed.
