@@ -1,6 +1,6 @@
 # Anthropic Sonnet 5.5 stays the deployed provider; Azure OpenAI is a proven second provider that gpt-5.4-mini does not carry through the gate
 
-**Status: accepted, 2026-10-29** (the maintainer confirms the verdict on merging the record).
+**Status: accepted, 2026-10-29; confirmed by the maintainer, 2026-10-30.**
 
 ADR-0014 built the Azure OpenAI path and proved it live; this ADR records the comparison the brief (§10) asks for, run by the method of ADR-0011: three live, uncached eval runs of each configuration over all 48 documents, the same prompt, schemas and thresholds, retry included. The numbers are in `eval/provider-comparison-2026-10-29.json` (assembled by `python -m cvr.eval.compare`, which refuses runs whose versions, documents, thresholds or configuration differ).
 

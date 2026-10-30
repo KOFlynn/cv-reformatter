@@ -2341,9 +2341,9 @@
     },
     "recommendation": "Anthropic claude-sonnet-5-5 at medium stays the deployed and gated provider. Azure OpenAI stays a supported second provider (ADR-0014), but gpt-5.4-mini does not pass the gate; gpt-5.4 and gpt-5.6-terra could not be compared (no quota). Ticket 21 is not needed.",
     "maintainer_decision": {
-      "date": null,
-      "status": "pending",
-      "note": "To be confirmed by the maintainer on merge; ADR-0015 records the recommendation."
+      "date": "2026-10-30",
+      "status": "confirmed",
+      "note": "The maintainer confirmed the verdict: Anthropic claude-sonnet-5-5 at medium stays the deployed provider; Azure OpenAI stays a proven, unused second provider. ADR-0015 records it."
     }
   }
 }
