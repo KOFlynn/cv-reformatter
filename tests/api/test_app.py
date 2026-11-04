@@ -19,13 +19,13 @@ from cvr.api import DOCX_MEDIA_TYPE as DOCX
 from cvr.api import RUN_ID_HEADER, create_app
 from cvr.api.app import (
     API_KEY_HEADER,
-    MAX_UPLOAD_BYTES,
     content_disposition,
     output_filename,
 )
 from cvr.eval.adapter import adapt
 from cvr.label import LabellerMisconfigured, ProviderUnavailable
 from cvr.models import LabellingFailure, LabelRun
+from cvr.runlog import MAX_UPLOAD_BYTES
 
 STEM = "c04__single-column"
 
@@ -174,7 +174,7 @@ def test_a_failure_after_labelling_still_logs_what_the_labelling_cost(
 
 
 def test_a_log_that_cannot_be_written_still_returns_the_run_id(monkeypatch):
-    def broken(lines):
+    def broken(lines, stream):
         raise OSError("stdout closed")
 
     monkeypatch.setattr(api_app, "write_lines", broken)

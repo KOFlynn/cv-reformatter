@@ -1,6 +1,7 @@
-"""The transform log on standard output: one summary line per request and,
-when the request produced a Run, one detail line per block, every line a
-JSON object carrying the run id.
+"""The transform log: one summary line per Run (an API request or an MCP
+tool call) and, when it produced a Run, one detail line per block, every line
+a JSON object carrying the run id, written to the stream the caller gives
+(the API's standard output, the MCP server's standard error).
 
 The Run is split this way because Log Analytics truncates a single field
 at around 32 KB, and a 40-block ledger in one line would be cut in half.
@@ -34,7 +35,6 @@ here, so the Run, the eval and ``removal_precision`` still see everything:
 """
 
 import json
-import sys
 from collections.abc import Iterable, Sequence
 from typing import TextIO
 
@@ -226,10 +226,10 @@ def request_lines(
     return [_json(summary), *map(_json, blocks)]
 
 
-def write_lines(lines: Iterable[str], stream: TextIO | None = None) -> None:
-    """Write ``lines`` to ``stream`` (standard output as it is at call time,
-    so a test's capture sees them), one per line, and flush."""
-    out = sys.stdout if stream is None else stream
-    for line in lines:
-        out.write(line + "\n")
-    out.flush()
+def write_lines(lines: Iterable[str], stream: TextIO) -> None:
+    """Write ``lines`` to ``stream``, one per line, and flush. The caller
+    names the stream as it is at call time (``sys.stdout`` for the API, so a
+    test's capture sees it; ``sys.stderr`` for the MCP server, whose standard
+    output is the protocol's)."""
+    stream.writelines(line + "\n" for line in lines)
+    stream.flush()
