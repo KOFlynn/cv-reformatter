@@ -172,7 +172,7 @@ def _attempt_totals(run: Run) -> dict[str, object]:
 
 def request_lines(
     run_id: str,
-    status: int,
+    status: int | str,
     *,
     run: Run | None = None,
     label: LabelRun | None = None,

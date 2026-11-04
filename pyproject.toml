@@ -29,6 +29,12 @@ dev = [
     "pytest",
     "pyyaml>=6.0.3",
     "ruff",
+    # The MCP server's SDK: installed by the local `uv sync`, skipped by the
+    # image's `--no-dev` sync with the rest of this group (Phase 3).
+    { include-group = "mcp" },
+]
+mcp = [
+    "mcp>=1.20,<2",
 ]
 
 [build-system]

@@ -17,8 +17,8 @@ outage on a retry keeps the previous result; an outage on the first attempt
 raises. So label and verify repeat, only on a retry; the other nodes run once.
 
 The labeller is injected: the one node that may reach an LLM is whatever
-callable the caller passes, and nothing else here does. Only ``api`` and the
-eval runner import this module.
+callable the caller passes, and nothing else here does. Only ``api``, ``mcp``
+and the eval runner import this module.
 """
 
 import inspect
@@ -149,9 +149,9 @@ def _build_graph(
 
     ``max_retries`` is N. Left out, it is read from ``CVR_RETRY_MAX`` here,
     once per Run, so ``reformat`` keeps its signature (the spec adds only the
-    tracer to it); the API and the eval runner also read it once at start-up,
-    only so a bad value fails there and not on the first document. A labeller
-    that cannot take feedback gets none."""
+    tracer to it); the API, the MCP server and the eval runner also read it
+    once at start-up, only so a bad value fails there and not on the first
+    document. A labeller that cannot take feedback gets none."""
     trace = trace if trace is not None else RunTrace(None)
     limit = retry_max() if max_retries is None else max_retries
     if not can_retry(labeller):
