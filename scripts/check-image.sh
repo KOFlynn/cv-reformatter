@@ -45,7 +45,7 @@ echo "uid $uid"
 echo "== absent from the image"
 docker run --rm --entrypoint sh "$IMAGE" -c '
   status=0
-  for p in /app/src/cvr/golden /app/src/cvr/eval /app/fixtures /app/tests \
+  for p in /app/src/cvr/golden /app/src/cvr/eval /app/src/cvr/mcp /app/fixtures /app/tests \
            /app/.git /app/.env /app/.cache /app/eval /app/.scratch /app/.claude; do
     if [ -e "$p" ]; then echo "present: $p"; status=1; fi
   done
@@ -53,7 +53,7 @@ docker run --rm --entrypoint sh "$IMAGE" -c '
   [ -z "$found" ] || { echo "present: $found"; status=1; }
   find /app -maxdepth 3 -not -path "/app/.venv/*" | sort
   exit $status' || fail "a path that must not be in the image is"
-for module in cvr.golden cvr.eval; do
+for module in cvr.golden cvr.eval cvr.mcp mcp; do
   docker run --rm "$IMAGE" python -c "import $module" 2>/dev/null \
     && fail "$module imports" || echo "$module: not importable"
 done

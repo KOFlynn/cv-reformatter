@@ -1,9 +1,10 @@
-"""The service runs without ``cvr.golden`` and ``cvr.eval``, which the image
-leaves out. A fresh interpreter makes both unimportable, imports the entry
-point, and reformats a golden-set document through the app end to end
-(parse, verify, transform, render; the labeller is a stand-in that fails,
-so every block goes through to the review appendix). Any import of either
-package on that path, eager or lazy, fails the run."""
+"""The service runs without ``cvr.golden``, ``cvr.eval`` and ``cvr.mcp`` (nor the
+MCP SDK, a dev-group dependency), which the image leaves out. A fresh
+interpreter makes them unimportable, imports the entry point, and reformats a
+golden-set document through the app end to end (parse, verify, transform,
+render; the labeller is a stand-in that fails, so every block goes through to
+the review appendix). Any import of any of them on that path, eager or lazy,
+fails the run."""
 
 import subprocess
 import sys
@@ -17,7 +18,7 @@ import importlib.abc
 import os
 import sys
 
-EXCLUDED = ("cvr.golden", "cvr.eval")
+EXCLUDED = ("cvr.golden", "cvr.eval", "cvr.mcp", "mcp")
 
 
 def excluded(name):
@@ -57,7 +58,7 @@ print("ok")
 """
 
 
-def test_the_service_imports_neither_golden_nor_eval():
+def test_the_service_imports_none_of_golden_eval_or_mcp():
     result = subprocess.run(
         [sys.executable, "-c", SCRIPT, str(DOCUMENT)],
         check=False,

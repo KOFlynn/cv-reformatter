@@ -92,6 +92,22 @@ The Azure OpenAI provider has no key: it authenticates with the default Azure cr
 
 A change to any `CVR_LABEL_*` value counts as a model change: run the eval.
 
+## Running the MCP server locally
+
+```
+CVR_MCP_ROOT=/path/to/workspace uv run python -m cvr.mcp   # serve over stdio; waits for a client on standard input
+```
+
+The server speaks MCP over standard input and output, so a client (Claude Desktop, or the SDK's stdio client) starts it as a subprocess; run by hand it just waits, and closing standard input stops it. Only the SDK writes to standard output; the Run log and any warning go to standard error. It has one tool, `reformat_cv(path)`. The MCP SDK is in the `mcp` dependency group, which `uv sync` installs and the image's `--no-dev` sync does not: the image carries neither `cvr.mcp` nor the SDK. `reformat_cv` calls the real model and costs money; listing the tools does not (the labeller is built on the first call). The full client setup is ticket 07's.
+
+| Variable | Read by | Default | |
+|---|---|---|---|
+| `CVR_MCP_ROOT` | the server, once at startup | (none, required) | the Workspace: an existing directory; `reformat_cv` reads CVs from it and writes outputs next to them, and refuses any path that resolves outside it |
+| `CVR_RETRY_MAX` | the server, once at startup | `2` | as in the table above |
+| `ANTHROPIC_API_KEY`, `CVR_LABEL_*` | the labeller, on the first `reformat_cv` call | as above | as above; `CVR_TRACE_MODE`, Langfuse and the Azure variables are not yet read by the server (ticket 05) |
+
+With `CVR_MCP_ROOT` unset, empty or not a directory, or `CVR_RETRY_MAX` invalid, the process prints a named error to standard error and exits with status 2.
+
 ## Eval
 
 ```
