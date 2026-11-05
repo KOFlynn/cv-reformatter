@@ -59,7 +59,7 @@ from cvr.verify.retry import (
     unplaced_chars,
 )
 
-__all__ = ["Labeller", "can_retry", "reformat", "retry_max"]
+__all__ = ["Labeller", "PayingLabeller", "can_retry", "reformat", "retry_max"]
 
 # Blocks in, a labelling result out. ``RealLabeller`` also records its
 # ``LabelRun`` on ``last_run`` after each call; any labeller that does is
@@ -119,6 +119,38 @@ def can_retry(labeller: Labeller) -> bool:
         p.name == "feedback" or p.kind is inspect.Parameter.VAR_KEYWORD
         for p in parameters
     )
+
+
+class PayingLabeller:
+    """A labeller that notes what each call cost, for a server to hand to
+    ``reformat`` in place of the labeller itself.
+
+    Every call that returns has its ``LabelRun`` (the labeller's ``last_run``,
+    as ``RealLabeller`` records it) appended to ``paid``, once. A call that
+    fails on a later attempt (an outage or a defect on a retry) leaves no Run,
+    and the labeller's own ``last_run`` is then empty, so without this a
+    server's failure log could not say what the earlier attempts cost.
+
+    Whether it can be retried is decided on the wrapped labeller
+    (``retryable`` is ``can_retry`` of it), not on this wrapper's signature,
+    and every other attribute (``last_run``, ``last_exchange``, ``cached``) is
+    the wrapped labeller's own. One instance wraps one Run's calls; the servers
+    make a fresh one per request, under their one-at-a-time lock."""
+
+    def __init__(self, labeller: Labeller) -> None:
+        self._labeller = labeller
+        self.retryable = can_retry(labeller)
+        self.paid: list[LabelRun] = []
+
+    def __call__(self, *args, **kwargs):
+        answer = self._labeller(*args, **kwargs)
+        recorded = getattr(self._labeller, "last_run", None)
+        if isinstance(recorded, LabelRun) and all(recorded is not r for r in self.paid):
+            self.paid.append(recorded)
+        return answer
+
+    def __getattr__(self, name: str):
+        return getattr(self._labeller, name)
 
 
 def _new_rejections(

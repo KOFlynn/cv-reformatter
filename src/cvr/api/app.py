@@ -45,7 +45,7 @@ from cvr.label import (
     RealLabeller,
 )
 from cvr.models import LabelRun
-from cvr.pipeline import Labeller, can_retry, reformat, retry_max
+from cvr.pipeline import Labeller, PayingLabeller, reformat, retry_max
 from cvr.runlog import (
     MAX_UPLOAD_BYTES,
     ErrorCategory,
@@ -125,30 +125,6 @@ def _last_run(labeller: Labeller) -> LabelRun | None:
     ``RealLabeller`` does, resetting it at the start of each call)."""
     last_run = getattr(labeller, "last_run", None)
     return last_run if isinstance(last_run, LabelRun) else None
-
-
-class _Paying:
-    """The labeller as the pipeline sees it, noting the ``LabelRun`` of every
-    call that returns. A retry that raises leaves the labeller's own
-    ``last_run`` empty and the Run unbuilt, so without this the failure summary
-    could not say what the earlier attempts cost. Everything else (``last_run``,
-    ``last_exchange``, ``cached``) is the labeller's own, and whether it can be
-    retried is decided on the labeller, not on this wrapper."""
-
-    def __init__(self, labeller: Labeller) -> None:
-        self._labeller = labeller
-        self.retryable = can_retry(labeller)
-        self.paid: list[LabelRun] = []
-
-    def __call__(self, *args, **kwargs):
-        answer = self._labeller(*args, **kwargs)
-        recorded = _last_run(self._labeller)
-        if recorded is not None and all(recorded is not r for r in self.paid):
-            self.paid.append(recorded)
-        return answer
-
-    def __getattr__(self, name: str):
-        return getattr(self._labeller, name)
 
 
 def _refusal(request: Request, expected_key: str) -> tuple[int, str, str] | None:
@@ -319,7 +295,7 @@ def create_app(
         try:
             labeller = source.get()
             with one_at_a_time:
-                paying = _Paying(labeller)
+                paying = PayingLabeller(labeller)
                 try:
                     output, run = reformat(
                         body, paying, run_id=request.state.run_id, **traced

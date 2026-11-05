@@ -27,3 +27,5 @@ Decisions made here:
 - **The log's `error`** is the category for a refusal and the exception's type name for anything the pipeline raised; no message text reaches the result or standard error (tested with a canary in the exception text, on an `internal` error and on a defect on the third attempt).
 - **The symlink test** skips where `os.symlink` raises (Windows without privilege).
 - **Review, left as is:** the size is checked by `stat` and the file read separately, so a file growing between the two is read whole (a local race on a user's own Workspace, and the pipeline bounds the cost); `_Paying` duplicates the API's class (above); its name and the nested conditional in the failure log were judged clear enough. `exists` after the pipeline costs a model call when the name is taken (ticket 02's decision, the name carries the run id).
+
+2026-11-05: `_Paying` (here and the API's copy) moved to `cvr.pipeline.PayingLabeller`, the maintainer's decision; both servers import it, so the duplication recorded above is gone. It uses the pipeline's `can_retry`; `api` and `mcp` still never import each other.
