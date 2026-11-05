@@ -10,6 +10,10 @@ from pathlib import Path
 
 import pytest
 
+# Each test starts a Python process that imports the SDK and the pipeline,
+# about ten seconds apiece: the slow suite, so the default run stays short.
+pytestmark = pytest.mark.slow
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
