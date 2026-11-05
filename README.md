@@ -35,7 +35,7 @@ brief's §10 has the exit criteria for each.
 | Current prompt (1.3.0) | every hard gate held, tunable placement 100% (1128 of 1128), appendix 0.70% | ticket 19, [#34](https://github.com/KOFlynn/cv-reformatter/pull/34) |
 | Cost of one full eval run | about $1.60 and two and a half minutes on Sonnet 5.5 (ADR-0011; $3.30 and four minutes on Opus), 48 live labellings | the eval report's cost line |
 | Cost of one document | about $0.07 (about 5,400 tokens in, 2,400 out) | ticket 14's Log Analytics row |
-| Image | 325 MB, non-root, no key, no golden set or eval code | `scripts/check-image.sh` |
+| Image | 424 MB, non-root, no key, no golden set, eval or MCP code | `scripts/check-image.sh` |
 | Cold start / warm | 25.9 s from zero replicas / 0.19 s; `scripts/demo.sh up` absorbs the cold start before a demo | ticket 14 |
 | Azure cost, 2026-10-01 to 10-06 | €0.00 | ticket 14, [#36](https://github.com/KOFlynn/cv-reformatter/pull/36) |
 | The gate stopping a bad prompt | `eval` red on 12 of 12 Candidates, `deploy` skipped | [#32](https://github.com/KOFlynn/cv-reformatter/pull/32) |
@@ -198,7 +198,7 @@ from zero replicas against 0.19 s warm, which `scripts/demo.sh up` absorbs by wa
 app before a demo. How ingress is opened for demos is to be revisited when a later
 phase plans them. What it buys: from provisioning on 2026-10-01 to 2026-10-06 the Azure bill was €0.00, the
 only metered usage about 0.4 MB of log ingestion inside Log Analytics' free allowance.
-The image is 325 MB.
+The image is 424 MB (2026-11-05; 325 MB in Phase 1, the growth from Langfuse, OpenTelemetry and the Azure OpenAI client).
 
 The resources are provisioned once by hand through `scripts/provision-azure.sh`, a
 wizard whose `az` commands are the record of what exists.
