@@ -42,8 +42,14 @@ from pydantic import BaseModel, Field
 
 from cvr.label import LabellerConfig, RealLabeller
 from cvr.models import LabelRun, Run
-from cvr.pipeline import Labeller, reformat, retry_max
-from cvr.runlog import ErrorCategory, category_of, request_lines, write_lines
+from cvr.pipeline import Labeller, can_retry, reformat, retry_max
+from cvr.runlog import (
+    MAX_UPLOAD_BYTES,
+    ErrorCategory,
+    category_of,
+    request_lines,
+    write_lines,
+)
 from cvr.tracing import Tracer
 
 __all__ = [
@@ -152,6 +158,20 @@ def _resolve(path: str, workspace: Path) -> Path:
     return resolved
 
 
+def _source_file(path: str, root: Path) -> Path:
+    """The file ``path`` names, or refused, in the order a caller learns least
+    first: outside the Workspace, missing (or a directory), not a ``.docx``,
+    too large. Nothing is read: the size is the file's, from its metadata."""
+    resolved = _resolve(path, root)
+    if not resolved.is_file():
+        raise _Refused(ErrorCategory.NOT_FOUND)
+    if resolved.suffix.lower() != ".docx":
+        raise _Refused(ErrorCategory.NOT_DOCX)
+    if resolved.stat().st_size > MAX_UPLOAD_BYTES:
+        raise _Refused(ErrorCategory.TOO_LARGE)
+    return resolved
+
+
 def _output_path(source: Path, run_id: str) -> Path:
     """``<stem>-reformatted-<run_id[:8]>.docx`` beside ``source``."""
     return source.with_name(f"{source.stem}-reformatted-{run_id[:8]}.docx")
@@ -231,6 +251,36 @@ def _log(
         )
 
 
+def _last_run(labeller: Labeller) -> LabelRun | None:
+    """The labeller's record of its last call, when it keeps one."""
+    last_run = getattr(labeller, "last_run", None)
+    return last_run if isinstance(last_run, LabelRun) else None
+
+
+class _Paying:
+    """The labeller as the pipeline sees it, noting the ``LabelRun`` of every
+    call that returns, so a call that fails on a later attempt (an outage or a
+    defect on a retry, which leaves no Run) can still log what the earlier
+    attempts cost. Everything else is the labeller's own, and whether it can be
+    retried is decided on the labeller, not on this wrapper. (The API has the
+    same class; the two servers never import each other.)"""
+
+    def __init__(self, labeller: Labeller) -> None:
+        self._labeller = labeller
+        self.retryable = can_retry(labeller)
+        self.paid: list[LabelRun] = []
+
+    def __call__(self, *args, **kwargs):
+        answer = self._labeller(*args, **kwargs)
+        recorded = _last_run(self._labeller)
+        if recorded is not None and all(recorded is not r for r in self.paid):
+            self.paid.append(recorded)
+        return answer
+
+    def __getattr__(self, name: str):
+        return getattr(self._labeller, name)
+
+
 class _LabellerSource:
     """The injected labeller, or the real one built on first use and kept."""
 
@@ -271,12 +321,14 @@ def create_server(
     def run_tool(path: str) -> CallToolResult:
         run_id = uuid4().hex
         run: Run | None = None
+        paying: _Paying | None = None
         try:
-            source_path = _resolve(path, root)
+            source_path = _source_file(path, root)
             body = source_path.read_bytes()
             labeller = source.get()
             with one_at_a_time:
-                output, run = reformat(body, labeller, run_id=run_id, **traced)
+                paying = _Paying(labeller)
+                output, run = reformat(body, paying, run_id=run_id, **traced)
             output_path = _output_path(source_path, run_id)
             _write_new(output_path, output)
         except Exception as exc:  # noqa: BLE001 - every failure is a category
@@ -289,9 +341,11 @@ def create_server(
             _log(
                 run_id,
                 category.value,
-                # A failure after the Run (the output name taken) still logs
-                # what the labelling cost.
-                labels=run.label_runs if run is not None else (),
+                # What the labelling cost, whether the Run was built (the
+                # output name taken) or an attempt raised after others paid.
+                labels=run.label_runs
+                if run is not None
+                else (paying.paid if paying is not None else ()),
                 error=category.value if refused else type(exc).__name__,
             )
             raise ToolError(f"{category.value}: {MESSAGES[category]}") from None
