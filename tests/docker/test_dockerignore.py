@@ -93,6 +93,9 @@ NEVER = [
     "src/cvr/eval/__init__.py",
     "src/cvr/eval/adapter.py",
     "src/cvr/eval/run/cache.py",
+    "src/cvr/mcp/__init__.py",
+    "src/cvr/mcp/__main__.py",
+    "src/cvr/mcp/server.py",
     "fixtures/candidates/c01.json",
     "fixtures/generated/c01__single-column.docx",
     "tests/conftest.py",
@@ -134,7 +137,7 @@ def test_never_in_the_build_context(path, parsed):
 
 
 def _runtime_sources() -> list[str]:
-    """Every tracked file under ``src/`` except the golden and eval packages
+    """Every tracked file under ``src/`` except the golden, eval and mcp packages
     (tracked, so a stray local ``.pyc`` or ``.env`` is not "needed")."""
     tracked = subprocess.run(
         ["git", "ls-files", "-z", "--", "src"],
@@ -143,7 +146,7 @@ def _runtime_sources() -> list[str]:
         text=True,
         cwd=REPO_ROOT,
     ).stdout.split("\0")
-    excluded = ("src/cvr/golden/", "src/cvr/eval/")
+    excluded = ("src/cvr/golden/", "src/cvr/eval/", "src/cvr/mcp/")
     return sorted(p for p in tracked if p and not p.startswith(excluded))
 
 
