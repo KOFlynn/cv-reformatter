@@ -29,7 +29,8 @@ import os
 import sys
 import threading
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Literal
 from uuid import uuid4
@@ -50,13 +51,15 @@ from cvr.runlog import (
     request_lines,
     write_lines,
 )
-from cvr.tracing import Tracer
+from cvr.tracing import ENV_TRACE_MODE, Tracer, env_tag
 
 __all__ = [
     "APPENDIX",
     "ENV_WORKSPACE",
     "MESSAGES",
     "TOOL_NAME",
+    "TRACE_ENVIRONMENT",
+    "TRACE_TAGS",
     "ToolResult",
     "Unplaced",
     "WorkspaceMissing",
@@ -65,6 +68,10 @@ __all__ = [
 ]
 
 ENV_WORKSPACE = "CVR_MCP_ROOT"
+# Where every MCP Run's trace is filed: Langfuse's Environment field, and the
+# tags that tell these Runs from the API's and the eval's.
+TRACE_ENVIRONMENT = "local"
+TRACE_TAGS = (env_tag(TRACE_ENVIRONMENT), "surface=mcp")
 TOOL_NAME = "reformat_cv"
 logger = logging.getLogger(__name__)
 
@@ -265,6 +272,21 @@ class _LabellerSource:
             return self._labeller
 
 
+def _tracer_from_env() -> Tracer:
+    """The server's own tracer: structure mode whatever ``CVR_TRACE_MODE``
+    says (a typo in it still fails at start-up)."""
+    tracer = Tracer.from_env(
+        tags=TRACE_TAGS, environment=TRACE_ENVIRONMENT, mode="structure"
+    )
+    if os.environ.get(ENV_TRACE_MODE) == "full":
+        logger.warning(
+            "%s=full is ignored: the MCP server traces in structure mode "
+            "only, since it handles the user's own documents",
+            ENV_TRACE_MODE,
+        )
+    return tracer
+
+
 def create_server(
     labeller: Labeller | None = None,
     tracer: Tracer | None = None,
@@ -274,15 +296,23 @@ def create_server(
     the real labeller built from ``CVR_LABEL_*`` on the first call; reading
     and writing inside ``workspace`` or, when none is given, ``CVR_MCP_ROOT``
     as it is now (``WorkspaceMissing`` if that is not a directory). Each Run
-    is traced with ``tracer``; without one it is untraced. ``CVR_RETRY_MAX``
-    is read here once, so a bad value stops the server at start-up."""
+    is traced with ``tracer``, which the caller owns; without one the server
+    builds its own from ``LANGFUSE_*`` as they are now, tagged ``env=local``
+    and ``surface=mcp`` with Langfuse's Environment ``local``, always in
+    structure mode (``CVR_TRACE_MODE=full`` logs a warning and is ignored:
+    the path and the CV text of a user's own documents never go to a third
+    party), and shuts it down when the server stops. With no keys it is
+    untraced and silent. ``CVR_RETRY_MAX`` is read here once, so a bad value
+    stops the server at start-up."""
     retry_max()
     root = (
         workspace_from_env()
         if workspace is None
         else workspace_from_env({ENV_WORKSPACE: str(workspace)})
     )
-    tracer = tracer if tracer is not None else Tracer.disabled()
+    own_tracer = tracer is None
+    if own_tracer:
+        tracer = _tracer_from_env()
     traced = {"tracer": tracer} if tracer.enabled else {}
     source = _LabellerSource(labeller)
     # One call at a time: the labeller records its LabelRun on itself.
@@ -328,7 +358,13 @@ def create_server(
             structuredContent=result.model_dump(mode="json"),
         )
 
-    server = FastMCP("cv-reformatter")
+    @asynccontextmanager
+    async def lifespan(_: FastMCP) -> AsyncIterator[None]:
+        yield
+        if own_tracer:
+            tracer.shutdown()
+
+    server = FastMCP("cv-reformatter", lifespan=lifespan)
 
     @server.tool(
         name=TOOL_NAME,

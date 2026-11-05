@@ -104,7 +104,9 @@ The server speaks MCP over standard input and output, so a client (Claude Deskto
 |---|---|---|---|
 | `CVR_MCP_ROOT` | the server, once at startup | (none, required) | the Workspace: an existing directory; `reformat_cv` reads CVs from it and writes outputs next to them, and refuses any path that resolves outside it |
 | `CVR_RETRY_MAX` | the server, once at startup | `2` | as in the table above |
-| `ANTHROPIC_API_KEY`, `CVR_LABEL_*` | the labeller, on the first `reformat_cv` call | as above | as above; `CVR_TRACE_MODE`, Langfuse and the Azure variables are not yet read by the server (ticket 05) |
+| `ANTHROPIC_API_KEY`, `CVR_LABEL_*` | the labeller, on the first `reformat_cv` call | as above | as above; the Azure variables as the API reads them |
+| `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` | the server, once at startup | (none) | with both keys every call is traced in Langfuse, trace id = run id, tags `env=local` and `surface=mcp`, Environment `local`; without them the server is untraced and silent |
+| `CVR_TRACE_MODE` | the server, once at startup | `structure` | `full` is ignored with a warning on standard error (the server always traces structure only); an unknown value stops the server at start-up |
 
 With `CVR_MCP_ROOT` unset, empty or not a directory, or `CVR_RETRY_MAX` invalid, the process prints a named error to standard error and exits with status 2.
 
