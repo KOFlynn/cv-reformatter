@@ -11,3 +11,21 @@
 - [ ] A screenshot or GIF of that call is in the README
 - [ ] CLAUDE.md's status, package list, layout and commands, `docs/development.md` and brief §10's Phase 3 boxes are updated
 - [ ] A release note in this feature's folder; Phase 3 merged in one PR, with its eval report on the PR
+
+## Live proof steps
+
+For the maintainer, Windows and Git Bash, from `C:\Git\cv-reformatter` on the Phase 3 branch (boxes 2 and 3; the README's Phase 3 section has a TODO comment where the screenshot goes).
+
+1. `uv sync`, then `mkdir -p ~/cvr-workspace && cp fixtures/generated/c04__single-column.docx ~/cvr-workspace/`.
+2. Write `C:\Git\cv-reformatter\.env` (gitignored; never commit or paste it): `ANTHROPIC_API_KEY=<key>`, `CVR_MCP_ROOT=<the Windows path of ~/cvr-workspace, e.g. C:\Users\<you>\cvr-workspace>`, and optionally `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` (so the call is traced).
+3. Add to `claude_desktop_config.json` (keep any other servers; backslashes doubled):
+   ```json
+   {"mcpServers": {"cv-reformatter": {"command": "uv", "args": ["run", "--directory", "C:\\Git\\cv-reformatter", "--env-file", ".env", "python", "-m", "cvr.mcp"]}}}
+   ```
+   If Claude Desktop cannot start `uv`, use the full path from `where uv` as `command`.
+4. The file is `%APPDATA%\Claude\claude_desktop_config.json` (standard install) or under `%LOCALAPPDATA%\Packages\Claude_<id>\LocalCache\Roaming\Claude\` (Microsoft Store package). Settings, Developer, Edit Config opens the right one.
+5. Quit Claude Desktop from the system tray (not just the window), start it again, and check `cv-reformatter` shows under Settings, Developer and `reformat_cv` appears in the tools list. If the server fails to start, read `%APPDATA%\Claude\logs\mcp-server-cv-reformatter.log` (a Store install may keep its logs under the package path); the log's last line `cvr.mcp: ...` with exit status 2 means the Workspace or `CVR_RETRY_MAX` is wrong.
+6. In a new chat type: `Use reformat_cv to reformat c04__single-column.docx.` and approve the tool call. One real model call, about $0.07.
+7. Note on this ticket: the Tool result as shown (fields only, no CV text), the run id, the Langfuse trace link (trace id = run id, tags `env=local`, `surface=mcp`, Environment `local`), and that `c04__single-column-reformatted-<run id[:8]>.docx` in the Workspace opened in Word (with the appendix banner if `unplaced` is not 0).
+8. Screenshot or screen-record the chat with the tool call expanded (no key, nothing personal in the path). Save as `docs/images/mcp-reformat-cv.png` (or `.gif`), then replace the TODO comment and the "pending" line in the README's Phase 3 section with `![reformat_cv from Claude Desktop](docs/images/mcp-reformat-cv.png)` and a caption with the run id.
+9. Tick boxes 2 and 3 only once that evidence is on the ticket.
