@@ -4,8 +4,10 @@ is made and no model key is in the environment."""
 
 import json
 import os
+import queue
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -39,9 +41,38 @@ def _start(env: dict[str, str]) -> subprocess.Popen[str]:
     )
 
 
+def _drain(stream, into: queue.Queue) -> None:
+    for line in stream:
+        into.put(line)
+    into.put(None)
+
+
 def test_handshake_tool_list_clean_stdout_and_exit_on_eof(tmp_path):
+    # Closing stdin is the client's shutdown, and on it the SDK cancels any
+    # request still in flight, so a response not yet written is dropped. A
+    # client waits for each response before it sends the next request and
+    # before it closes stdin; writing all three and closing at once lost the
+    # tools/list response about one run in six.
     proc = _start(_env(CVR_MCP_ROOT=str(tmp_path)))
-    messages = [
+    out: queue.Queue[str | None] = queue.Queue()
+    err: queue.Queue[str | None] = queue.Queue()
+    threading.Thread(target=_drain, args=(proc.stdout, out), daemon=True).start()
+    threading.Thread(target=_drain, args=(proc.stderr, err), daemon=True).start()
+    received: list[str] = []
+
+    def send(*messages: dict) -> None:
+        proc.stdin.write("".join(json.dumps(m) + "\n" for m in messages))
+        proc.stdin.flush()
+
+    def await_response(request_id: int) -> None:
+        while True:
+            line = out.get(timeout=60)
+            assert line is not None, f"stdout closed before response {request_id}"
+            received.append(line)
+            if line.strip() and json.loads(line).get("id") == request_id:
+                return
+
+    send(
         {
             "jsonrpc": "2.0",
             "id": 1,
@@ -51,15 +82,22 @@ def test_handshake_tool_list_clean_stdout_and_exit_on_eof(tmp_path):
                 "capabilities": {},
                 "clientInfo": {"name": "test", "version": "0"},
             },
-        },
+        }
+    )
+    await_response(1)
+    send(
         {"jsonrpc": "2.0", "method": "notifications/initialized"},
         {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
-    ]
-    stdin_text = "".join(json.dumps(m) + "\n" for m in messages)
-    stdout, stderr = proc.communicate(stdin_text, timeout=60)
+    )
+    await_response(2)
+    proc.stdin.close()
+    proc.wait(timeout=60)
+    while (line := out.get(timeout=60)) is not None:
+        received.append(line)
+    stderr = "".join(iter(lambda: err.get(timeout=60), None))
     assert proc.returncode == 0, stderr[-3000:]
 
-    lines = [line for line in stdout.splitlines() if line.strip()]
+    lines = [line for line in received if line.strip()]
     parsed = [json.loads(line) for line in lines]
     assert all(m.get("jsonrpc") == "2.0" for m in parsed), lines
     by_id = {m["id"]: m for m in parsed if "id" in m}
