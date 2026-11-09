@@ -267,8 +267,8 @@ Every phase ends in a shippable state. **Phase 1 alone is valid standalone evide
 - [x] Eval report compares providers; choice recorded in the ADR (`eval/provider-comparison-2026-10-29.json`, ADR-0015: Sonnet 5.5 stays; the Azure model compared was gpt-5.4-mini, the only one with quota)
 
 ### Phase 3: MCP
-- [ ] MCP server exposing `reformat_cv`, working from Claude Desktop
-- [ ] Documented in the README
+- [x] MCP server exposing `reformat_cv`, working from Claude Desktop (proven live 2026-11-09, run id `8722af5e156748da81a81758e4c703e2`; `list_templates` dropped by the Phase 3 spec, ADR-0016)
+- [x] Documented in the README
 
 ---
 

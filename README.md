@@ -26,9 +26,10 @@ merge, and a merge that passes it is deployed to Azure Container Apps through OI
 **Phase 2 is complete** (release notes under `.scratch/phase-2/`): LangGraph with a
 bounded retry loop, Langfuse tracing, and Azure OpenAI as a second provider through a
 managed identity, compared with Anthropic on the eval ([ADR-0015](docs/adr/0015-anthropic-stays-the-deployed-provider.md)).
-**Phase 3, the MCP server, is built** ([the section below](#the-mcp-server-phase-3);
-tickets 01-06 done); the live call from Claude Desktop is still to be made. The brief's
-§10 has the exit criteria for each.
+**Phase 3 is complete** ([release note](.scratch/phase-3/release-01-07.md)): an MCP
+server exposing `reformat_cv`, proven live from Claude Desktop
+([the section below](#the-mcp-server-phase-3)). The brief's §10 has the exit criteria
+for each.
 
 | Phase 1 in numbers | | Evidence |
 |---|---|---|
@@ -270,15 +271,17 @@ Each `/reformat` request and each eval document is one Langfuse trace whose id i
 the official `mcp` Python SDK, that lets Claude Desktop call the pipeline as a tool. It
 exposes exactly one, `reformat_cv(path)`: it reads the `.docx` at `path`, runs the same
 `reformat` the API and the eval run (no behaviour of its own), and writes the
-reformatted document next to the source. Status: tickets 01-06 are done and tested
-through the SDK's in-memory client; the live call from Claude Desktop is the
-maintainer's, still to be made.
+reformatted document next to the source. It is tested through the SDK's in-memory
+client and as a stdio process, and was proven live from Claude Desktop on 2026-11-09:
 
-<!-- TODO(maintainer, ticket 07): replace this line with the screenshot or GIF of the
-live Claude Desktop call, e.g. ![reformat_cv from Claude Desktop](docs/images/<file>),
-and a one-line caption with the run id. -->
+![reformat_cv called from Claude Desktop on c04__single-column.docx](docs/images/mcp-reformat-cv.png)
 
-*The screenshot of the live call is pending.*
+*Run `8722af5e156748da81a81758e4c703e2`: `c04__single-column.docx` reformatted into
+`c04__single-column-reformatted-8722af5e.docx` beside it, the source untouched; 14
+removals (4 address, 1 email, 1 phone, 2 URL, 6 heading), nothing unplaced, no retries,
+5,523 tokens in and 2,118 out, $0.032. Claude reports the counts and the path and, as
+the tool's description asks, sends the user to the file rather than describing it: it
+never saw the CV's text.*
 
 **The Workspace.** The server reads CVs from, and writes outputs to, one folder, the
 Workspace, named by `CVR_MCP_ROOT`. If it is unset, empty or not a directory the server
