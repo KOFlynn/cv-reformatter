@@ -124,6 +124,16 @@ _Avoid_: audit trail, trace (that is the observability record, added in Phase 2)
 The observability record of one Run, sent to Langfuse and identified by the run id itself. A structure trace carries no candidate text (ids, counts, timings, tokens, cost); a full trace also carries the blocks, the labeller's answers and the rejections. Distinct from the transform log, which belongs to the Run and is complete whatever the trace holds.
 _Avoid_: log, audit trail
 
+### Serving
+
+**Tool result**:
+What the MCP tool `reformat_cv` returns to the calling model: where the output document was written, the run id, whether the labelling failed, the retries, removal counts by rule, the unplaced count, tokens and cost. It never carries candidate text; the document itself goes to disk.
+_Avoid_: response (that is the API's), output (that is the document)
+
+**Workspace**:
+The one folder the MCP server may read source documents from and write output documents into. A path that resolves outside it is refused.
+_Avoid_: root, sandbox, input folder
+
 ### The golden set
 
 **Candidate**:

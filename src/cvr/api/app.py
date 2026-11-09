@@ -5,7 +5,7 @@ Every response carries ``X-Run-Id``, issued by middleware before the
 request is read, so a refused upload or a failed run is as traceable as a
 success; an accepted upload's Run is given the same id. Every
 ``/reformat`` request writes its transform log to standard output
-(``cvr.api.log``); ``/health`` writes nothing, since the probe calls it
+(``cvr.runlog``); ``/health`` writes nothing, since the probe calls it
 every few seconds.
 
 ``/reformat`` is for callers holding the shared key: the ``X-API-Key``
@@ -40,15 +40,19 @@ from uuid import uuid4
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
 
-from cvr.api.log import request_lines, write_lines
 from cvr.label import (
     LabellerConfig,
-    LabellerMisconfigured,
-    ProviderUnavailable,
     RealLabeller,
 )
 from cvr.models import LabelRun
-from cvr.pipeline import Labeller, can_retry, reformat, retry_max
+from cvr.pipeline import Labeller, PayingLabeller, reformat, retry_max
+from cvr.runlog import (
+    MAX_UPLOAD_BYTES,
+    ErrorCategory,
+    category_of,
+    request_lines,
+    write_lines,
+)
 from cvr.tracing import Tracer, env_tag, trace_env
 
 __all__ = [
@@ -56,7 +60,6 @@ __all__ = [
     "DOCX_MEDIA_TYPE",
     "ENV_API_KEY",
     "ENV_DEBUG_TRACEBACKS",
-    "MAX_UPLOAD_BYTES",
     "RUN_ID_HEADER",
     "content_disposition",
     "create_app",
@@ -69,13 +72,20 @@ ENV_API_KEY = "CVR_API_KEY"
 # Local debugging only, never set in a deployment: "1", "true" or "yes" prints
 # an escaped exception's full traceback to standard error.
 ENV_DEBUG_TRACEBACKS = "CVR_DEBUG_TRACEBACKS"
-# The whole request body, multipart framing included. A golden-set document
-# is about 40 KB; a CV with photos is a few hundred.
-MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 DOCX_MEDIA_TYPE = (
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 )
 logger = logging.getLogger(__name__)
+
+# The labeller's two errors as the caller sees them (``cvr.runlog``'s
+# categories); anything else is the middleware's catch-all 500.
+_LABELLER_ERRORS = {
+    ErrorCategory.PROVIDER_UNAVAILABLE: (
+        503,
+        "the labelling provider is unavailable; try again later",
+    ),
+    ErrorCategory.MISCONFIGURED: (500, "the labeller is misconfigured"),
+}
 
 
 def output_filename(upload_name: str | None) -> str:
@@ -115,30 +125,6 @@ def _last_run(labeller: Labeller) -> LabelRun | None:
     ``RealLabeller`` does, resetting it at the start of each call)."""
     last_run = getattr(labeller, "last_run", None)
     return last_run if isinstance(last_run, LabelRun) else None
-
-
-class _Paying:
-    """The labeller as the pipeline sees it, noting the ``LabelRun`` of every
-    call that returns. A retry that raises leaves the labeller's own
-    ``last_run`` empty and the Run unbuilt, so without this the failure summary
-    could not say what the earlier attempts cost. Everything else (``last_run``,
-    ``last_exchange``, ``cached``) is the labeller's own, and whether it can be
-    retried is decided on the labeller, not on this wrapper."""
-
-    def __init__(self, labeller: Labeller) -> None:
-        self._labeller = labeller
-        self.retryable = can_retry(labeller)
-        self.paid: list[LabelRun] = []
-
-    def __call__(self, *args, **kwargs):
-        answer = self._labeller(*args, **kwargs)
-        recorded = _last_run(self._labeller)
-        if recorded is not None and all(recorded is not r for r in self.paid):
-            self.paid.append(recorded)
-        return answer
-
-    def __getattr__(self, name: str):
-        return getattr(self._labeller, name)
 
 
 def _refusal(request: Request, expected_key: str) -> tuple[int, str, str] | None:
@@ -278,7 +264,8 @@ def create_app(
                         label=request.state.label,
                         labels=request.state.labels,
                         error=request.state.error,
-                    )
+                    ),
+                    sys.stdout,
                 )
             except Exception as exc:  # noqa: BLE001 - never fail the response
                 # The response, and its run id, still go back to the caller.
@@ -308,7 +295,7 @@ def create_app(
         try:
             labeller = source.get()
             with one_at_a_time:
-                paying = _Paying(labeller)
+                paying = PayingLabeller(labeller)
                 try:
                     output, run = reformat(
                         body, paying, run_id=request.state.run_id, **traced
@@ -319,14 +306,12 @@ def create_app(
                     request.state.labels = paying.paid
                     request.state.label = _last_run(labeller)
                     raise
-        except ProviderUnavailable as exc:
+        except Exception as exc:
+            answer = _LABELLER_ERRORS.get(category_of(exc))
+            if answer is None:
+                raise  # internal: the middleware's catch-all 500
             request.state.error = _describe(exc)
-            raise HTTPException(
-                503, "the labelling provider is unavailable; try again later"
-            ) from exc
-        except LabellerMisconfigured as exc:
-            request.state.error = _describe(exc)
-            raise HTTPException(500, "the labeller is misconfigured") from exc
+            raise HTTPException(*answer) from exc
         finally:
             # Before the answer, so a scaled-to-zero replica has sent its
             # spans, but outside the one-at-a-time lock so a slow export does

@@ -20,8 +20,8 @@ after which plain `pytest`, `ruff` and `python` refer to the project's copies.
 ## Tests
 
 ```
-uv run pytest                    # default suite, about twenty seconds
-uv run pytest -m slow            # the slow suite: every test over all 48 generated documents
+uv run pytest                    # default suite, about 1 min 45 s (measured 2026-11-09)
+uv run pytest -m slow            # the slow suite: the tests over all 48 generated documents, the MCP server process and the MCP canary leak test; about 1 min 45 s
 uv run pytest -m ""              # both
 uv run pytest -q                 # terse output
 uv run pytest tests/text         # one directory
@@ -30,7 +30,7 @@ uv run pytest -k confusable      # tests whose name matches a substring
 uv run pytest -x                 # stop at the first failure
 ```
 
-Tests parametrized over all 48 generated documents (the parse coverage tests, the Layout and generator tests, the perfect oracle through the pipeline) carry `@pytest.mark.slow` and are excluded from the default run by `addopts` in `pyproject.toml`, so the default run stays under thirty seconds; CI runs both suites on every pull request and on every push that changes more than docs (a push of only `**/*.md`, `docs/**` or `.scratch/**` runs no job). A new test over all 48 documents gets the marker too.
+Tests parametrized over all 48 generated documents (the parse coverage tests, the Layout and generator tests, the perfect oracle through the pipeline), the tests that start `python -m cvr.mcp` as a process (about ten seconds each), and the MCP canary leak test (`tests/tracing/test_mcp_canary_leak.py`, about fifteen seconds), carry `@pytest.mark.slow` and are excluded from the default run by `addopts` in `pyproject.toml`, so the default run does not grow by them (it is about 1 min 45 s as it is, measured 2026-11-09); CI runs both suites on every pull request and on every push that changes more than docs (a push of only `**/*.md`, `docs/**` or `.scratch/**` runs no job). A new test over all 48 documents, or one that starts a server process, gets the marker too.
 
 No test calls an LLM or opens a `.docx` in a metric; see `CLAUDE.md` for the working rules.
 
@@ -92,6 +92,24 @@ The Azure OpenAI provider has no key: it authenticates with the default Azure cr
 
 A change to any `CVR_LABEL_*` value counts as a model change: run the eval.
 
+## Running the MCP server locally
+
+```
+CVR_MCP_ROOT=/path/to/workspace uv run python -m cvr.mcp   # serve over stdio; waits for a client on standard input
+```
+
+The server speaks MCP over standard input and output, so a client (Claude Desktop, or the SDK's stdio client) starts it as a subprocess; run by hand it just waits, and closing standard input stops it. Only the SDK writes to standard output; the Run log and any warning go to standard error. It has one tool, `reformat_cv(path)`. The MCP SDK is in the `mcp` dependency group, which `uv sync` installs and the image's `--no-dev` sync does not: the image carries neither `cvr.mcp` nor the SDK. `reformat_cv` calls the real model and costs money; listing the tools does not (the labeller is built on the first call). Claude Desktop's setup is in the README's Phase 3 section: it starts `uv run --directory <repo> --env-file .env python -m cvr.mcp`, with the variables below in the gitignored `.env` (`--env-file` resolves against `--directory`). Single-quote a Windows path there, `CVR_MCP_ROOT='C:\Users\<you>\cvr-workspace'`: unquoted, uv reads each `\` as an escape, warns `Failed to parse environment file` and loads none of the file, so the server exits with `WorkspaceMissing`. On a Microsoft Store install Claude Desktop's config and logs are under `%LOCALAPPDATA%\Claude-Data\claude_<id>\`.
+
+| Variable | Read by | Default | |
+|---|---|---|---|
+| `CVR_MCP_ROOT` | the server, once at startup | (none, required) | the Workspace: an existing directory; `reformat_cv` reads CVs from it and writes outputs next to them, and refuses any path that resolves outside it |
+| `CVR_RETRY_MAX` | the server, once at startup | `2` | as in the table above |
+| `ANTHROPIC_API_KEY`, `CVR_LABEL_*` | the labeller, on the first `reformat_cv` call | as above | as above; the Azure variables as the API reads them |
+| `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` | the server, once at startup | (none) | with both keys every call is traced in Langfuse, trace id = run id, tags `env=local` and `surface=mcp`, Environment `local`; without them the server is untraced and silent |
+| `CVR_TRACE_MODE` | the server, once at startup | `structure` | `full` is ignored with a warning on standard error (the server always traces structure only); an unknown value stops the server at start-up |
+
+With `CVR_MCP_ROOT` unset, empty or not a directory, or `CVR_RETRY_MAX` invalid, the process prints a named error to standard error and exits with status 2.
+
 ## Eval
 
 ```
@@ -124,7 +142,7 @@ sh scripts/check-image.sh                        # build and check the image: si
 
 The image is `python:3.12-slim` (the version in `.python-version`) in two stages: the builder runs `uv sync --locked --no-dev`, dependencies first so a source change reuses that layer; the runtime stage copies the virtual environment, `src/` and the template, and runs `python -m cvr.api` as the non-root user `cvr` with `CVR_API_HOST=0.0.0.0` and `CVR_API_PORT=8000`. The project is installed editable, because `cvr.template.paths` finds the template beside `src/`, so `/app` keeps the repo's layout. Every variable in the table above can be passed with `-e`.
 
-The key is a runtime `-e` only: never a `--build-arg`, never in the Dockerfile, never in a file in the build context. `.dockerignore` is an allowlist (`pyproject.toml`, `uv.lock`, `.python-version`, `src/` without `cvr/golden` and `cvr/eval`, the template); anything else, including `.env`, `.cache/`, `eval/`, `fixtures/`, `tests/` and `.git`, never reaches the build. `tests/docker/` checks the Dockerfile, the allowlist and that the service imports neither `cvr.golden` nor `cvr.eval` without Docker; `scripts/check-image.sh` checks a built image. `/reformat` in the container calls the real model, like the local server.
+The key is a runtime `-e` only: never a `--build-arg`, never in the Dockerfile, never in a file in the build context. `.dockerignore` is an allowlist (`pyproject.toml`, `uv.lock`, `.python-version`, `src/` without `cvr/golden`, `cvr/eval` and `cvr/mcp`, the template); anything else, including `.env`, `.cache/`, `eval/`, `fixtures/`, `tests/` and `.git`, never reaches the build. `tests/docker/` checks the Dockerfile, the allowlist and that the service imports none of `cvr.golden`, `cvr.eval`, `cvr.mcp` and the MCP SDK, without Docker; `scripts/check-image.sh` checks a built image. `/reformat` in the container calls the real model, like the local server.
 
 ## Deployment
 

@@ -15,10 +15,11 @@
 !src/
 !templates/fictitious_recruitment.docx
 
-# Never, even under an allowed path: the golden set and the eval (neither is
-# imported by the service), environment files, bytecode and build leftovers.
+# Never, even under an allowed path: the golden set, the eval and the MCP server
+# (none is imported by the service), environment files, bytecode and build leftovers.
 src/cvr/golden/
 src/cvr/eval/
+src/cvr/mcp/
 **/.env*
 **/__pycache__/
 **/*.py[cod]

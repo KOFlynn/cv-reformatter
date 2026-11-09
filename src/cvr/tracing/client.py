@@ -388,15 +388,23 @@ class Tracer:
         *,
         tags: Sequence[str] = (),
         environment: str | None = None,
+        mode: str | None = None,
     ) -> "Tracer":
         """From ``LANGFUSE_PUBLIC_KEY``, ``LANGFUSE_SECRET_KEY`` and
         optionally ``LANGFUSE_BASE_URL``, and the content mode from
         ``CVR_TRACE_MODE`` (``structure``, the default, or ``full``; any other
         value raises :class:`UnknownTraceMode`, even with no keys, so a typo
-        fails at startup). Without both keys: disabled, quietly."""
+        fails at startup). ``mode``, when given, replaces what the variable says
+        (a surface that never traces in full, the MCP server, passes
+        ``structure``); the variable is still checked. Without both keys:
+        disabled, quietly."""
         source = os.environ if environ is None else environ
-        mode = source.get(ENV_TRACE_MODE) or DEFAULT_MODE
-        _check_mode(mode)
+        env_mode = source.get(ENV_TRACE_MODE) or DEFAULT_MODE
+        _check_mode(env_mode)
+        if mode is not None:
+            _check_mode(mode)
+        else:
+            mode = env_mode
         public_key = source.get(ENV_PUBLIC_KEY, "")
         secret_key = source.get(ENV_SECRET_KEY, "")
         if not public_key or not secret_key:

@@ -134,10 +134,11 @@ def test_a_caller_given_run_id_is_the_runs():
 # --- Who may import the pipeline
 
 SRC = Path(cvr.__file__).parent
-ALLOWED = ("pipeline/", "api/", "eval/run.py", "eval/run/")
+ALLOWED = ("pipeline/", "api/", "mcp/", "eval/run.py", "eval/run/")
 
 
-def _imports_pipeline(path: Path) -> bool:
+def _imports(path: Path, package: str) -> bool:
+    """Whether ``path`` imports ``package`` or anything under it."""
     tree = ast.parse(path.read_text(encoding="utf-8"))
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
@@ -147,9 +148,7 @@ def _imports_pipeline(path: Path) -> bool:
             names = [module, *(f"{module}.{alias.name}" for alias in node.names)]
         else:
             continue
-        if any(
-            name == "cvr.pipeline" or name.startswith("cvr.pipeline.") for name in names
-        ):
+        if any(name == package or name.startswith(f"{package}.") for name in names):
             return True
     return False
 
@@ -163,5 +162,14 @@ def _imports_pipeline(path: Path) -> bool:
     ],
     ids=lambda p: p.relative_to(SRC).as_posix(),
 )
-def test_nothing_but_api_and_the_eval_runner_imports_the_pipeline(path):
-    assert not _imports_pipeline(path)
+def test_nothing_but_the_two_servers_and_the_eval_runner_imports_the_pipeline(path):
+    assert not _imports(path, "cvr.pipeline")
+
+
+@pytest.mark.parametrize(
+    ("server", "other"), [("api", "cvr.mcp"), ("mcp", "cvr.api")], ids=["api", "mcp"]
+)
+def test_neither_server_imports_the_other(server, other):
+    files = sorted((SRC / server).rglob("*.py"))
+    assert files
+    assert [p.name for p in files if _imports(p, other)] == []

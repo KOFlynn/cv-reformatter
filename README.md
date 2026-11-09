@@ -23,9 +23,13 @@ repository is synthetic; see the working rules below.
 **Phase 1 is complete** ([release note](.scratch/phase-1/release-01-19.md)): the
 pipeline runs end to end on the golden set, the eval gate stands in front of every
 merge, and a merge that passes it is deployed to Azure Container Apps through OIDC.
-**Phase 2 is next:** LangGraph with a bounded retry loop, Langfuse tracing, and Azure
-OpenAI as a second provider through a managed identity. Phase 3 is an MCP server. The
-brief's §10 has the exit criteria for each.
+**Phase 2 is complete** (release notes under `.scratch/phase-2/`): LangGraph with a
+bounded retry loop, Langfuse tracing, and Azure OpenAI as a second provider through a
+managed identity, compared with Anthropic on the eval ([ADR-0015](docs/adr/0015-anthropic-stays-the-deployed-provider.md)).
+**Phase 3 is complete** ([release note](.scratch/phase-3/release-01-07.md)): an MCP
+server exposing `reformat_cv`, proven live from Claude Desktop
+([the section below](#the-mcp-server-phase-3)). The brief's §10 has the exit criteria
+for each.
 
 | Phase 1 in numbers | | Evidence |
 |---|---|---|
@@ -35,7 +39,7 @@ brief's §10 has the exit criteria for each.
 | Current prompt (1.3.0) | every hard gate held, tunable placement 100% (1128 of 1128), appendix 0.70% | ticket 19, [#34](https://github.com/KOFlynn/cv-reformatter/pull/34) |
 | Cost of one full eval run | about $1.60 and two and a half minutes on Sonnet 5.5 (ADR-0011; $3.30 and four minutes on Opus), 48 live labellings | the eval report's cost line |
 | Cost of one document | about $0.07 (about 5,400 tokens in, 2,400 out) | ticket 14's Log Analytics row |
-| Image | 325 MB, non-root, no key, no golden set or eval code | `scripts/check-image.sh` |
+| Image | 424 MB, non-root, no key, no golden set, eval or MCP code | `scripts/check-image.sh` |
 | Cold start / warm | 25.9 s from zero replicas / 0.19 s; `scripts/demo.sh up` absorbs the cold start before a demo | ticket 14 |
 | Azure cost, 2026-10-01 to 10-06 | €0.00 | ticket 14, [#36](https://github.com/KOFlynn/cv-reformatter/pull/36) |
 | The gate stopping a bad prompt | `eval` red on 12 of 12 Candidates, `deploy` skipped | [#32](https://github.com/KOFlynn/cv-reformatter/pull/32) |
@@ -86,7 +90,8 @@ five nodes (`parse`, `label`, `verify`, `transform` and `render`, each a package
 `src/cvr/`) as a LangGraph state machine: the Phase 1 node boundaries carried over, so
 the swap was a change of orchestration, not of code, and the graph changes no
 behaviour. Phase 2 adds a bounded retry loop between `verify` and `label`, and `cvr.api`
-serves the pipeline as `POST /reformat` and `GET /health`. The `mcp` server is Phase 3.
+serves the pipeline as `POST /reformat` and `GET /health`. `cvr.mcp` (Phase 3) serves the
+same function to Claude Desktop as the tool `reformat_cv`.
 
 ## Decisions
 
@@ -198,7 +203,7 @@ from zero replicas against 0.19 s warm, which `scripts/demo.sh up` absorbs by wa
 app before a demo. How ingress is opened for demos is to be revisited when a later
 phase plans them. What it buys: from provisioning on 2026-10-01 to 2026-10-06 the Azure bill was €0.00, the
 only metered usage about 0.4 MB of log ingestion inside Log Analytics' free allowance.
-The image is 325 MB.
+The image is 424 MB (2026-11-05; 325 MB in Phase 1, the growth from Langfuse, OpenTelemetry and the Azure OpenAI client).
 
 The resources are provisioned once by hand through `scripts/provision-azure.sh`, a
 wizard whose `az` commands are the record of what exists.
@@ -250,6 +255,7 @@ review-by-exception halves are already recorded: [ADR-0003](docs/adr/0003-docx-o
 | [0013](docs/adr/0013-content-boundary.md) | The content boundary: what reaches the provider, Langfuse and the logs, and the canary test |
 | [0014](docs/adr/0014-azure-openai-through-a-managed-identity.md) | Azure OpenAI through a managed identity: Data Zone EU, key auth disabled (accepted after the live proof) |
 | [0015](docs/adr/0015-anthropic-stays-the-deployed-provider.md) | Anthropic Sonnet 5.5 stays the deployed provider; gpt-5.4-mini fails the gate on every run (the stronger Azure models could not be compared) |
+| [0016](docs/adr/0016-the-mcp-tool-returns-a-summary-and-writes-the-document-to-disk.md) | The MCP tool returns a summary and writes the document to disk |
 
 ## Tracing
 
@@ -258,6 +264,145 @@ Each `/reformat` request and each eval document is one Langfuse trace whose id i
 ![One full-mode eval trace in Langfuse: reformat over parse, label, verify, transform and render](docs/images/langfuse-trace.png)
 
 *One full-mode eval trace, run id `67a59f7f658041ed8e6e5815d5f82aeb` (the labelling generation took 12.17 s and cost $0.038). The Langfuse project is private; this screenshot is the evidence.*
+
+## The MCP server (Phase 3)
+
+`cvr.mcp` is a local [MCP](https://modelcontextprotocol.io) server over stdio, built on
+the official `mcp` Python SDK, that lets Claude Desktop call the pipeline as a tool. It
+exposes exactly one, `reformat_cv(path)`: it reads the `.docx` at `path`, runs the same
+`reformat` the API and the eval run (no behaviour of its own), and writes the
+reformatted document next to the source. It is tested through the SDK's in-memory
+client and as a stdio process, and was proven live from Claude Desktop on 2026-11-09:
+
+![reformat_cv called from Claude Desktop on c04__single-column.docx](docs/images/mcp-reformat-cv.png)
+
+*Run `8722af5e156748da81a81758e4c703e2`: `c04__single-column.docx` reformatted into
+`c04__single-column-reformatted-8722af5e.docx` beside it, the source untouched; 14
+removals (4 address, 1 email, 1 phone, 2 URL, 6 heading), nothing unplaced, no retries,
+5,523 tokens in and 2,118 out, $0.032. Claude reports the counts and the path and, as
+the tool's description asks, sends the user to the file rather than describing it: it
+never saw the CV's text.*
+
+**The Workspace.** The server reads CVs from, and writes outputs to, one folder, the
+Workspace, named by `CVR_MCP_ROOT`. If it is unset, empty or not a directory the server
+refuses to start (exit status 2). `path` is absolute or relative to the Workspace; `..`
+and symlinks are resolved first, and a path that lands outside it is refused. The output
+is `<stem>-reformatted-<first 8 characters of the run id>.docx` beside the source,
+created exclusively, so an existing file is never overwritten and the name leads to the
+run's Langfuse trace and log lines.
+
+**The Tool result** holds no CV text: `output_path`, `run_id`, `status` (`ok` or
+`labelling_failed`, in which case the document is the banner and the review appendix),
+`retries`, `removals` (rule id to count), `unplaced` (spans and characters), `appendix`
+(a fixed sentence when unplaced text went to the review appendix), and `input_tokens`,
+`output_tokens` and `cost_usd` summed over every attempt. A short text rendering of the
+same fields comes with it. The tool's description tells Claude to give the user the
+output path rather than describe the document.
+
+**A refusal** is a tool error, `<category>: <fixed message>`, never an exception's text:
+
+| Category | When |
+|---|---|
+| `outside_workspace` | the path resolves outside the Workspace |
+| `not_found` | no file there, or it is a directory |
+| `not_docx` | the file does not end in `.docx` (any case) |
+| `too_large` | over 5 MB, the API's limit, checked before the file is read |
+| `exists` | the output name is taken; nothing is written |
+| `provider_unavailable` | the model provider is down after the client's retries |
+| `misconfigured` | the labeller is configured wrongly, for instance no key |
+| `internal` | anything else (only the exception's type name is logged) |
+
+A labelling failure is not an error: the job completes with the banner document, as the
+API answers 200.
+
+### Connecting Claude Desktop
+
+Secrets live in the repository's gitignored `.env`, never in Claude Desktop's config.
+Create `.env` at the repository root (placeholders shown):
+
+```
+ANTHROPIC_API_KEY=<your Anthropic key>
+CVR_MCP_ROOT='C:\Users\<you>\cvr-workspace'
+# optional: with both keys every call is traced in Langfuse
+LANGFUSE_PUBLIC_KEY=<pk-lf-...>
+LANGFUSE_SECRET_KEY=<sk-lf-...>
+LANGFUSE_BASE_URL=<your Langfuse URL>
+```
+
+Keep the single quotes around a Windows path: uv reads `\` in an unquoted `.env`
+value as an escape, fails to parse the file (`Failed to parse environment file`)
+and loads none of it, so the server refuses to start with `WorkspaceMissing`.
+Forward slashes (`C:/Users/<you>/cvr-workspace`) work too.
+
+Then add the server to `claude_desktop_config.json` (the config holds only a command and
+a path, no secret). `--env-file` is resolved against `--directory`, so the repository
+path is the only place to edit; backslashes are doubled in JSON:
+
+```json
+{
+  "mcpServers": {
+    "cv-reformatter": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "C:\\path\\to\\cv-reformatter",
+        "--env-file",
+        ".env",
+        "python",
+        "-m",
+        "cvr.mcp"
+      ]
+    }
+  }
+}
+```
+
+If Claude Desktop cannot find `uv`, put the full path from `where uv` in `command`.
+The file lives at `%APPDATA%\Claude\claude_desktop_config.json` for the standard
+Windows installer. The Microsoft Store package keeps it elsewhere: on the machine this
+was proven on (2026-11-09) it was
+`%LOCALAPPDATA%\Claude-Data\claude_<package id>\claude_desktop_config.json`, with its
+logs in the `logs` folder beside it, and nothing under `%APPDATA%\Claude` or the
+package's `LocalCache`. The id differs per machine, so look for the folder rather
+than type it; Settings, Developer, Edit Config also opens the right file once
+developer mode is on. Edit the file with Claude Desktop quit, or it may write its
+own copy back over yours. On macOS it is
+`~/Library/Application Support/Claude/claude_desktop_config.json`. Quit Claude Desktop
+from the tray (closing the window is not enough) and start it again. Put a `.docx` in
+the Workspace and ask Claude to reformat it, for example *"Reformat `cv.docx` with the
+reformat_cv tool."* Each call logs one summary line and one line per block to standard
+error (the API's log, PII stripped, never the file name), which Claude Desktop keeps in
+its MCP log (`logs\mcp-server-cv-reformatter.log` or `logs\mcp.log` in the folder
+above); a server that will not start says why there, in a `cvr.mcp: ...` line.
+
+### Why it is built this way
+
+- **stdio, not a remote server.** Claude Desktop starts the server as a local process,
+  so a demo opens no network listener, has no authentication surface and costs nothing
+  in Azure; the deployed app's ingress stays off. A remote server on Container Apps
+  would need ingress kept open, a way to authenticate and a way to get the file's bytes
+  to it. Only the SDK writes to standard output, so a stray line cannot corrupt the
+  session.
+- **The result carries no text.** A tool result goes into the calling model's context.
+  Had it carried the CV, a second LLM could restate or reword the candidate's words in
+  the chat, blurring the one invariant above. The document goes to disk instead, and
+  Claude can say what happened to a CV (what was removed, how much is unplaced, what it
+  cost) but cannot quote it. A file name can itself be PII, so it appears in the
+  result's `output_path` and nowhere else: not in the log, not in the trace. The canary
+  leak test covers this server too, with canaries in the body and in the file name.
+  [ADR-0016](docs/adr/0016-the-mcp-tool-returns-a-summary-and-writes-the-document-to-disk.md),
+  extending [ADR-0013](docs/adr/0013-content-boundary.md).
+- **No `list_templates`.** The brief names it in brackets only. There is one template, a
+  tool that lists one name earns nothing, and a second template is exactly what
+  decision 9 says changes at scale.
+- **Traced as `surface=mcp`.** With the Langfuse keys set, each call is a trace whose id
+  is the run id, tagged `env=local` and `surface=mcp` and filed under the `local`
+  Environment, in structure mode only (the server handles the user's own documents, so
+  `CVR_TRACE_MODE=full` is ignored with a warning). Without keys it is untraced and
+  silent.
+- **Not in the image.** The `mcp` SDK is in an optional dependency group the image's
+  `--no-dev` sync skips, and `cvr.mcp` is outside `.dockerignore`'s allowlist.
 
 ## Running it
 
@@ -277,6 +422,7 @@ the service also needs `CVR_API_KEY`, any value you choose, which callers send a
 
 ```
 uv run python -m cvr.api                # serve POST /reformat and GET /health on 127.0.0.1:8000
+uv run python -m cvr.mcp                # the MCP server over stdio; needs CVR_MCP_ROOT, a client starts it (see above)
 uv run python -m cvr.eval.run           # the eval over all 48 documents; --layout, --candidate, --no-cache
 docker build -t cvr:local .             # the service image
 docker run --rm -p 8000:8000 -e ANTHROPIC_API_KEY -e CVR_API_KEY cvr:local

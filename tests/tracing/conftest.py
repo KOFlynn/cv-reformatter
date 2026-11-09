@@ -6,3 +6,5 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "pipeline"))
+# The MCP canary test calls the server through ``mcp_support`` (ticket 06).
+sys.path.insert(0, str(Path(__file__).parent.parent / "mcp"))

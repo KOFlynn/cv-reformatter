@@ -19,8 +19,8 @@ from retry_support import (
 
 from cvr.api import DOCX_MEDIA_TYPE as DOCX
 from cvr.api import RUN_ID_HEADER, create_app
-from cvr.api.log import MAX_LINE_BYTES
 from cvr.label.pricing import estimate_cost
+from cvr.runlog import MAX_LINE_BYTES
 
 STEM = "c04__single-column"
 MODEL = "claude-sonnet-5-5"
