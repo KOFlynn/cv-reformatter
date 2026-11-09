@@ -56,8 +56,8 @@ extend-select = ["I", "TID251"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# The tests over all 48 generated documents, and those that start the MCP
-# server as a process, are the slow suite: excluded by
-# default, run with `-m slow`, and run by CI on every push.
+# The tests over all 48 generated documents, those that start the MCP
+# server as a process, and the MCP canary leak test are the slow suite:
+# excluded by default, run with `-m slow`, and run by CI on every push.
 addopts = ["-m", "not slow"]
-markers = ["slow: runs over all 48 generated documents or starts a server process; `uv run pytest -m slow`"]
+markers = ["slow: runs over all 48 generated documents, starts a server process, or is the MCP canary leak test; `uv run pytest -m slow`"]
