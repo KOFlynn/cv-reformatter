@@ -8,12 +8,14 @@ import queue
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
+from typing import IO
 
 import pytest
 
 # Each test starts a Python process that imports the SDK and the pipeline,
-# about ten seconds apiece: the slow suite, so the default run stays short.
+# about ten seconds apiece: the slow suite, so the default run does not grow by them.
 pytestmark = pytest.mark.slow
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -41,7 +43,7 @@ def _start(env: dict[str, str]) -> subprocess.Popen[str]:
     )
 
 
-def _drain(stream, into: queue.Queue) -> None:
+def _drain(stream: IO[str], into: queue.Queue) -> None:
     for line in stream:
         into.put(line)
     into.put(None)
@@ -53,12 +55,18 @@ def test_handshake_tool_list_clean_stdout_and_exit_on_eof(tmp_path):
     # client waits for each response before it sends the next request and
     # before it closes stdin; writing all three and closing at once lost the
     # tools/list response about one run in six.
+    # One 60 s budget for the whole exchange, as the single communicate call
+    # had: every wait below gets what is left of it.
     proc = _start(_env(CVR_MCP_ROOT=str(tmp_path)))
+    deadline = time.monotonic() + 60
     out: queue.Queue[str | None] = queue.Queue()
     err: queue.Queue[str | None] = queue.Queue()
     threading.Thread(target=_drain, args=(proc.stdout, out), daemon=True).start()
     threading.Thread(target=_drain, args=(proc.stderr, err), daemon=True).start()
     received: list[str] = []
+
+    def left() -> float:
+        return max(deadline - time.monotonic(), 0)
 
     def send(*messages: dict) -> None:
         proc.stdin.write("".join(json.dumps(m) + "\n" for m in messages))
@@ -66,35 +74,40 @@ def test_handshake_tool_list_clean_stdout_and_exit_on_eof(tmp_path):
 
     def await_response(request_id: int) -> None:
         while True:
-            line = out.get(timeout=60)
+            line = out.get(timeout=left())
             assert line is not None, f"stdout closed before response {request_id}"
             received.append(line)
             if line.strip() and json.loads(line).get("id") == request_id:
                 return
 
-    send(
-        {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "initialize",
-            "params": {
-                "protocolVersion": "2025-06-18",
-                "capabilities": {},
-                "clientInfo": {"name": "test", "version": "0"},
-            },
-        }
-    )
-    await_response(1)
-    send(
-        {"jsonrpc": "2.0", "method": "notifications/initialized"},
-        {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
-    )
-    await_response(2)
-    proc.stdin.close()
-    proc.wait(timeout=60)
-    while (line := out.get(timeout=60)) is not None:
-        received.append(line)
-    stderr = "".join(iter(lambda: err.get(timeout=60), None))
+    try:
+        send(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-06-18",
+                    "capabilities": {},
+                    "clientInfo": {"name": "test", "version": "0"},
+                },
+            }
+        )
+        await_response(1)
+        send(
+            {"jsonrpc": "2.0", "method": "notifications/initialized"},
+            {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+        )
+        await_response(2)
+        proc.stdin.close()
+        proc.wait(timeout=left())
+        while (line := out.get(timeout=left())) is not None:
+            received.append(line)
+        stderr = "".join(iter(lambda: err.get(timeout=left()), None))
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
     assert proc.returncode == 0, stderr[-3000:]
 
     lines = [line for line in received if line.strip()]

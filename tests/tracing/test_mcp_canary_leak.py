@@ -68,7 +68,7 @@ from cvr.text import tokenise
 from cvr.verify.backstops import HEADING_VOCABULARY
 
 # The harvest runs every scenario through all four Layouts and the server,
-# about fifteen seconds: the slow suite, so the default run stays short.
+# about fifteen seconds: the slow suite, so the default run does not grow by it.
 pytestmark = pytest.mark.slow
 
 FILE = "filename"  # a canary in the name of the file the caller points at
