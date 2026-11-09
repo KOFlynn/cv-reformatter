@@ -40,7 +40,7 @@ For the maintainer, Windows and Git Bash, from `C:\Git\cv-reformatter` on the Ph
 
 The output opened in Word and looked right (maintainer). Claude reported the counts and the path and sent the user to the file without describing the CV, as the tool's description asks. Screenshot: `docs/images/mcp-reformat-cv.png`, in the README's Phase 3 section.
 
-Trace: to be confirmed by the maintainer in Langfuse (trace id = the run id, tags `env=local` and `surface=mcp`, Environment `local`), if the Langfuse keys were in `.env` for the call.
+Trace: none. The `.env` had no Langfuse keys for this call, so the server ran untraced and silent, as ticket 05 specifies. MCP tracing (one trace per call under the run id, tags `env=local` and `surface=mcp`, structure only) is proven by `tests/mcp/test_mcp_tracing.py` over the injected exporter, not live.
 
 What the live call found, now fixed in the README, `docs/development.md` and the steps above:
 

@@ -14,7 +14,7 @@ Phase 3 is the MCP server: `python -m cvr.mcp`, one tool, `reformat_cv(path)`, o
 
 ## Evidence
 
-- **The live call (2026-11-09).** Claude Desktop (Microsoft Store install, Windows 11) called `reformat_cv` on `c04__single-column.docx`: run id `8722af5e156748da81a81758e4c703e2`, status `ok`, no retries, 14 removals (4 address, 1 email, 1 phone, 2 URL, 6 heading), nothing unplaced, 5,523 tokens in and 2,118 out, $0.032. The output `c04__single-column-reformatted-8722af5e.docx` was written beside the source and opened in Word. Claude reported counts and the path, not the CV. Screenshot `docs/images/mcp-reformat-cv.png`.
+- **The live call (2026-11-09).** Claude Desktop (Microsoft Store install, Windows 11) called `reformat_cv` on `c04__single-column.docx`: run id `8722af5e156748da81a81758e4c703e2`, status `ok`, no retries, 14 removals (4 address, 1 email, 1 phone, 2 URL, 6 heading), nothing unplaced, 5,523 tokens in and 2,118 out, $0.032. The output `c04__single-column-reformatted-8722af5e.docx` was written beside the source and opened in Word. Claude reported counts and the path, not the CV. Screenshot `docs/images/mcp-reformat-cv.png`. The call was untraced (no Langfuse keys in `.env`); MCP tracing is proven by the tests over an injected exporter, not live.
 - **Tests.** `tests/mcp/` and the MCP leak test run through the SDK's in-memory client session and as a stdio process. On 2026-11-09 the default suite is 1879 passed, 2 skipped (about 1 min 50 s) and the slow suite 936 passed (about 2 min). Ruff check and format clean.
 - **The image** (`scripts/check-image.sh`, run by the maintainer 2026-11-05): 424 MB, the same as `main`'s (no runtime dependency changed), `src/cvr/mcp` absent, `cvr.mcp` and `mcp` unimportable, a real `/reformat` 200.
 
