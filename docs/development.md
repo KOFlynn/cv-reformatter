@@ -20,8 +20,8 @@ after which plain `pytest`, `ruff` and `python` refer to the project's copies.
 ## Tests
 
 ```
-uv run pytest                    # default suite, about twenty seconds
-uv run pytest -m slow            # the slow suite: the tests over all 48 generated documents, and the MCP server process
+uv run pytest                    # default suite, about 1 min 45 s (measured 2026-11-09)
+uv run pytest -m slow            # the slow suite: the tests over all 48 generated documents, the MCP server process and the MCP canary leak test; about 1 min 45 s
 uv run pytest -m ""              # both
 uv run pytest -q                 # terse output
 uv run pytest tests/text         # one directory
@@ -30,7 +30,7 @@ uv run pytest -k confusable      # tests whose name matches a substring
 uv run pytest -x                 # stop at the first failure
 ```
 
-Tests parametrized over all 48 generated documents (the parse coverage tests, the Layout and generator tests, the perfect oracle through the pipeline), and the tests that start `python -m cvr.mcp` as a process (about ten seconds each), carry `@pytest.mark.slow` and are excluded from the default run by `addopts` in `pyproject.toml`, so the default run stays under thirty seconds; CI runs both suites on every pull request and on every push that changes more than docs (a push of only `**/*.md`, `docs/**` or `.scratch/**` runs no job). A new test over all 48 documents, or one that starts a server process, gets the marker too.
+Tests parametrized over all 48 generated documents (the parse coverage tests, the Layout and generator tests, the perfect oracle through the pipeline), the tests that start `python -m cvr.mcp` as a process (about ten seconds each), and the MCP canary leak test (`tests/tracing/test_mcp_canary_leak.py`, about fifteen seconds), carry `@pytest.mark.slow` and are excluded from the default run by `addopts` in `pyproject.toml`, so the default run does not grow by them (it is about 1 min 45 s as it is, measured 2026-11-09); CI runs both suites on every pull request and on every push that changes more than docs (a push of only `**/*.md`, `docs/**` or `.scratch/**` runs no job). A new test over all 48 documents, or one that starts a server process, gets the marker too.
 
 No test calls an LLM or opens a `.docx` in a metric; see `CLAUDE.md` for the working rules.
 
