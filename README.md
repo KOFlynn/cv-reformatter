@@ -319,12 +319,17 @@ Create `.env` at the repository root (placeholders shown):
 
 ```
 ANTHROPIC_API_KEY=<your Anthropic key>
-CVR_MCP_ROOT=C:\Users\<you>\cvr-workspace
+CVR_MCP_ROOT='C:\Users\<you>\cvr-workspace'
 # optional: with both keys every call is traced in Langfuse
 LANGFUSE_PUBLIC_KEY=<pk-lf-...>
 LANGFUSE_SECRET_KEY=<sk-lf-...>
 LANGFUSE_BASE_URL=<your Langfuse URL>
 ```
+
+Keep the single quotes around a Windows path: uv reads `\` in an unquoted `.env`
+value as an escape, fails to parse the file (`Failed to parse environment file`)
+and loads none of it, so the server refuses to start with `WorkspaceMissing`.
+Forward slashes (`C:/Users/<you>/cvr-workspace`) work too.
 
 Then add the server to `claude_desktop_config.json` (the config holds only a command and
 a path, no secret). `--env-file` is resolved against `--directory`, so the repository
@@ -352,16 +357,21 @@ path is the only place to edit; backslashes are doubled in JSON:
 
 If Claude Desktop cannot find `uv`, put the full path from `where uv` in `command`.
 The file lives at `%APPDATA%\Claude\claude_desktop_config.json` for the standard
-Windows installer, and at
-`%LOCALAPPDATA%\Packages\Claude_<publisher id>\LocalCache\Roaming\Claude\claude_desktop_config.json`
-for the Microsoft Store package (the id differs, so do not type it: Settings,
-Developer, Edit Config opens whichever file your install reads). On macOS it is
+Windows installer. The Microsoft Store package keeps it elsewhere: on the machine this
+was proven on (2026-11-09) it was
+`%LOCALAPPDATA%\Claude-Data\claude_<package id>\claude_desktop_config.json`, with its
+logs in the `logs` folder beside it, and nothing under `%APPDATA%\Claude` or the
+package's `LocalCache`. The id differs per machine, so look for the folder rather
+than type it; Settings, Developer, Edit Config also opens the right file once
+developer mode is on. Edit the file with Claude Desktop quit, or it may write its
+own copy back over yours. On macOS it is
 `~/Library/Application Support/Claude/claude_desktop_config.json`. Quit Claude Desktop
 from the tray (closing the window is not enough) and start it again. Put a `.docx` in
 the Workspace and ask Claude to reformat it, for example *"Reformat `cv.docx` with the
 reformat_cv tool."* Each call logs one summary line and one line per block to standard
 error (the API's log, PII stripped, never the file name), which Claude Desktop keeps in
-`%APPDATA%\Claude\logs\mcp-server-cv-reformatter.log`.
+its MCP log (`logs\mcp-server-cv-reformatter.log` or `logs\mcp.log` in the folder
+above); a server that will not start says why there, in a `cvr.mcp: ...` line.
 
 ### Why it is built this way
 
